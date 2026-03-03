@@ -41,9 +41,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Primes the React Query cache so any page navigated to is instant.
   useEffect(() => {
     if (!checked) return;
-    queryClient.prefetchQuery({ queryKey: ['assets'],      queryFn: assetsApi.list });
-    queryClient.prefetchQuery({ queryKey: ['inspections'], queryFn: inspectionsApi.list });
-    queryClient.prefetchQuery({ queryKey: ['dashboard'],   queryFn: dashboardApi.overview });
+    queryClient.prefetchQuery({ queryKey: ['assets'],      queryFn: () => assetsApi.list() });
+    queryClient.prefetchQuery({ queryKey: ['inspections'], queryFn: () => inspectionsApi.list() });
+    queryClient.prefetchQuery({ queryKey: ['dashboard'],   queryFn: () => dashboardApi.overview() });
   }, [checked, queryClient]);
 
   // Spinner shown only while genuinely unauthenticated (redirecting to /login)
