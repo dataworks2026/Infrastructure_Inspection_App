@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Boolean, Integer, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import JSON as JSONB
 from sqlalchemy.sql import func
 from app.database import Base
 
