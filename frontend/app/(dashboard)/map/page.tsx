@@ -73,7 +73,7 @@ export default function MapPage() {
   const selected = assets.find((a: Asset) => a.id === selectedAsset);
 
   return (
-    <div className="h-[calc(100vh-48px)] flex flex-col -m-6 relative">
+    <div className="h-[calc(100vh-48px)] flex flex-col -m-6">
       {/* Floating header overlay */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
         <div className="flex items-center justify-between px-6 py-4">
