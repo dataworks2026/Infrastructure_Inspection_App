@@ -67,9 +67,16 @@ async def upload_images(
         abs_path = os.path.join(settings.STORAGE_BASE_PATH, rel_path)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
 
-        content = await file.read()
+        # Stream to disk in 256 KB chunks — avoids loading entire file into RAM
+        CHUNK = 256 * 1024
+        file_size = 0
         async with aiofiles.open(abs_path, "wb") as f:
-            await f.write(content)
+            while True:
+                chunk = await file.read(CHUNK)
+                if not chunk:
+                    break
+                await f.write(chunk)
+                file_size += len(chunk)
 
         img = Image(
             id=file_id,
@@ -77,7 +84,7 @@ async def upload_images(
             filename=file.filename,
             original_filename=file.filename,
             stored_path=rel_path,
-            file_size_bytes=len(content),
+            file_size_bytes=file_size,
             content_type=file.content_type,
             component_type=component_type,
             analysis_status="queued",

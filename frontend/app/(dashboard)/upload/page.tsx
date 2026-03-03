@@ -30,7 +30,15 @@ export default function UploadPage() {
     setError(''); setStep('uploading');
     try {
       const inspection = await inspectionsApi.create({ asset_id: assetId, name: inspectionName });
-      const uploadResult = await imagesApi.upload(inspection.id, files);
+      // Upload in batches of 5 to avoid overwhelming the server with a huge multipart request
+      const BATCH_SIZE = 5;
+      const allImages: any[] = [];
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        const batchResult = await imagesApi.upload(inspection.id, batch);
+        allImages.push(...batchResult.images);
+      }
+      const uploadResult = { images: allImages };
       setStep('analyzing');
       const analysisResults = [];
       for (const img of uploadResult.images) {
