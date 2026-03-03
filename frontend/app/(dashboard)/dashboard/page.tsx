@@ -130,7 +130,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                 <XAxis
                   dataKey="status"
-                  tick={{ fill: '#94A3B8', fontSize: 11, textTransform: 'capitalize' }}
+                  tick={{ fill: '#94A3B8', fontSize: 11 }}
                   axisLine={false} tickLine={false}
                 />
                 <YAxis
