@@ -61,7 +61,7 @@ const NavLink = memo(function NavLink({
             ? 'bg-gradient-to-r from-sky-500/20 to-blue-500/20 text-sky-300 shadow-sm'
             : 'text-slate-400 hover:bg-white/5 hover:text-slate-200')
           : (active
-            ? 'bg-white/10 text-white shadow-sm'
+            ? 'bg-sky-500/20 text-sky-300 shadow-sm'
             : 'text-slate-400 hover:bg-white/5 hover:text-slate-200')
       )}
     >

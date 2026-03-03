@@ -82,3 +82,8 @@ input:focus, select:focus, textarea:focus {
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(203, 213, 225, 0.5);
 }
+
+/* ── Map page: push Leaflet zoom controls below the floating header pill ── */
+.leaflet-top.leaflet-left {
+  top: 80px !important;
+}

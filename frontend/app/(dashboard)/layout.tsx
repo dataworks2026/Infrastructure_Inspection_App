@@ -76,7 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               }}
               className="flex items-center gap-2 text-[12px] text-slate-400 hover:text-slate-300 bg-card-dark/60 border border-card-border hover:border-card-border-hover px-3 py-1.5 rounded-lg transition-all group"
             >
-              <Search size={13} className="text-slate-500 group-hover:text-slate-400" />
+              <Search size={13} className="text-slate-300 group-hover:text-slate-100" />
               <span>Search...</span>
               <span className="ml-1 flex items-center gap-0.5">
                 <kbd className="bg-slate-700 text-slate-400 text-[10px] px-1.5 py-0.5 rounded font-mono">⌘</kbd>

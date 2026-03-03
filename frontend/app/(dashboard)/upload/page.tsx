@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { assetsApi, inspectionsApi, imagesApi, analysisApi } from '@/lib/api';
 import { useDropzone } from 'react-dropzone';
 import { Upload, CheckCircle, AlertCircle, Loader, X, ImageIcon, ArrowRight } from 'lucide-react';
@@ -14,6 +14,7 @@ export default function UploadPage() {
   const [results, setResults] = useState<any[]>([]);
   const [error, setError] = useState('');
 
+  const queryClient = useQueryClient();
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -44,6 +45,10 @@ export default function UploadPage() {
       // Mark inspection completed/failed based on results
       const allFailed = analysisResults.every(r => r.failed);
       await inspectionsApi.update(inspection.id, { status: allFailed ? 'failed' : 'completed' });
+      // Invalidate caches so inspections/assets pages show fresh data immediately
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setStep('done');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Upload failed');
