@@ -1,0 +1,71 @@
+# ── Python / Backend ─────────────────────────────────────────────────────────
+backend/venv/
+backend/.env
+backend/__pycache__/
+backend/**/__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+backend/.pytest_cache/
+backend/*.egg-info/
+backend/dist/
+backend/build/
+
+# SQLite database (local dev only — use RDS in production)
+*.db
+*.db-shm
+*.db-wal
+mira_intel.db
+backend/mira_intel.db
+
+# Uploaded files / storage (not committed — use S3 in production)
+backend/storage/
+storage/
+
+# ── Node / Frontend ──────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.production.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/next-env.d.ts
+
+# ── ML Models (large binary files) ──────────────────────────────────────────
+backend/ml_models/*.pt
+backend/ml_models/*.pth
+backend/ml_models/*.onnx
+backend/ml_models/*.bin
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# ── Claude AI workspace ──────────────────────────────────────────────────────
+.claude/
+
+# ── Junk files ───────────────────────────────────────────────────────────────
+nul
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Secrets / Keys ────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
