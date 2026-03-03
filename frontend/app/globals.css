@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: #EDF1F7;
+  color: #1E293B;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #94A3B8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #64748B; }
+
+/* Smooth transitions */
+a, button, input, select { transition: all 0.15s ease; }
+
+/* Focus ring */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #0284C7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+/* ── Skeleton shimmer ── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #263347 25%, #2f4060 50%, #263347 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ── Card stagger animation ── */
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-animate {
+  opacity: 0;
+  animation: card-in 0.4s ease forwards;
+}
+
+/* ── Status pulse dot ── */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.8); }
+}
+.status-pulse { animation: status-pulse 1.8s ease-in-out infinite; }
+
+/* ── Toast animations ── */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(110%) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0)   scale(1); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0)   scale(1); }
+  to   { opacity: 0; transform: translateX(110%) scale(0.95); }
+}
+.toast-enter { animation: toast-in  0.28s cubic-bezier(0.16,1,0.3,1); }
+.toast-exit  { animation: toast-out 0.22s ease-in; }
+
+/* ── Command palette ── */
+@keyframes palette-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-10px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+.palette-animate { animation: palette-in 0.18s cubic-bezier(0.16,1,0.3,1); }
+
+/* ── Page header bar ── */
+.page-header-bar {
+  background: rgba(237, 241, 247, 0.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(203, 213, 225, 0.5);
+}
