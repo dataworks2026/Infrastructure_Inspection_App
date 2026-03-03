@@ -1,0 +1,27 @@
+version: '3.8'
+
+# Local development — hot reload enabled, no nginx
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/storage:/app/storage
+    environment:
+      - DATABASE_URL=sqlite:///./mira_intel.db
+      - SECRET_KEY=dev-secret-key
+      - STORAGE_BASE_PATH=./storage
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: npm run dev
