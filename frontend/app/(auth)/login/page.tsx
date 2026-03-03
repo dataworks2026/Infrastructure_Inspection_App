@@ -36,8 +36,8 @@ export default function LoginPage() {
       <div className="w-full max-w-[420px]">
         {/* Brand card */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-blue-500/20 mb-4">
-            <span className="text-white font-bold text-xl">MI</span>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white shadow-lg shadow-blue-500/20 mb-4 overflow-hidden">
+            <img src="/logo.png" alt="Mira Intel" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">MIRA INTEL</h1>
           <p className="text-sm text-slate-500 mt-1">Infrastructure Inspection Platform</p>
