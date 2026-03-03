@@ -1,0 +1,3 @@
+/* Leaflet CSS is loaded via CDN <link> in app/layout.tsx.
+   This stub prevents Turbopack from processing leaflet's package.json "style" field,
+   which contains legacy IE filter syntax that Turbopack's strict CSS parser rejects. */
