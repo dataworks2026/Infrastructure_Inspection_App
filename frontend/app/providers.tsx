@@ -12,11 +12,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 10 * 60_000,      // 10 min — data stays fresh across nav
-        gcTime:    20 * 60_000,      // 20 min garbage collection
+        staleTime: 30_000,           // 30s — refetch when stale on next access
+        gcTime:    5 * 60_000,       // 5 min garbage collection
         retry: 1,
-        refetchOnWindowFocus: false, // prevents re-fetch on alt-tab
-        refetchOnMount: false,       // if data exists in cache, use it — no re-fetch on every mount
+        refetchOnWindowFocus: true,  // refetch when user comes back to tab
+        refetchOnMount: 'always',    // always refetch on page navigation
       },
     },
   }));

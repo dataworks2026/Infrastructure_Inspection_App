@@ -50,7 +50,10 @@ async def upload_images(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
+    inspection = db.query(Inspection).filter(
+        Inspection.id == inspection_id,
+        Inspection.organization_id == current_user.organization_id,
+    ).first()
     if not inspection:
         raise HTTPException(status_code=404, detail="Inspection not found")
 
@@ -81,6 +84,7 @@ async def upload_images(
         img = Image(
             id=file_id,
             inspection_id=inspection_id,
+            organization_id=current_user.organization_id,
             filename=file.filename,
             original_filename=file.filename,
             stored_path=rel_path,
@@ -105,6 +109,14 @@ def get_inspection_images(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Verify the inspection belongs to the user's org
+    inspection = db.query(Inspection).filter(
+        Inspection.id == inspection_id,
+        Inspection.organization_id == current_user.organization_id,
+    ).first()
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
     images = db.query(Image).filter(
         Image.inspection_id == inspection_id,
         Image.deleted_at.is_(None),
@@ -123,6 +135,7 @@ def get_image(
 ):
     img = db.query(Image).filter(
         Image.id == image_id,
+        Image.organization_id == current_user.organization_id,
         Image.deleted_at.is_(None),
     ).first()
     if not img:

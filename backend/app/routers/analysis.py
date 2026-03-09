@@ -20,7 +20,7 @@ def analyze_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    img = db.query(Image).filter(Image.id == image_id).first()
+    img = db.query(Image).filter(Image.id == image_id, Image.organization_id == current_user.organization_id).first()
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
 
@@ -92,7 +92,7 @@ def analyze_image(
 
 @router.get("/images/{image_id}/detections")
 def get_detections(image_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    img = db.query(Image).filter(Image.id == image_id).first()
+    img = db.query(Image).filter(Image.id == image_id, Image.organization_id == current_user.organization_id).first()
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     dets = db.query(Detection).filter(Detection.image_id == image_id).all()

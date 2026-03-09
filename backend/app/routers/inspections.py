@@ -16,7 +16,8 @@ def list_inspections(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    q = db.query(Inspection)
+    org_id = current_user.organization_id
+    q = db.query(Inspection).filter(Inspection.organization_id == org_id)
     if asset_id:
         q = q.filter(Inspection.asset_id == asset_id)
     inspections = q.order_by(Inspection.created_at.desc()).all()
@@ -33,7 +34,7 @@ def list_inspections(
 
 @router.post("", response_model=InspectionResponse, status_code=201)
 def create_inspection(data: InspectionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    inspection = Inspection(**data.model_dump(), created_by=current_user.id)
+    inspection = Inspection(**data.model_dump(), created_by=current_user.id, organization_id=current_user.organization_id)
     db.add(inspection)
     db.commit()
     db.refresh(inspection)
@@ -41,7 +42,7 @@ def create_inspection(data: InspectionCreate, db: Session = Depends(get_db), cur
 
 @router.get("/{inspection_id}", response_model=InspectionResponse)
 def get_inspection(inspection_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
+    inspection = db.query(Inspection).filter(Inspection.id == inspection_id, Inspection.organization_id == current_user.organization_id).first()
     if not inspection:
         raise HTTPException(status_code=404, detail="Inspection not found")
     img_count = db.query(Image).filter(Image.inspection_id == inspection_id).count()
@@ -49,7 +50,7 @@ def get_inspection(inspection_id: str, db: Session = Depends(get_db), current_us
 
 @router.patch("/{inspection_id}", response_model=InspectionResponse)
 def update_inspection(inspection_id: str, data: InspectionUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
+    inspection = db.query(Inspection).filter(Inspection.id == inspection_id, Inspection.organization_id == current_user.organization_id).first()
     if not inspection:
         raise HTTPException(status_code=404, detail="Inspection not found")
     for field, value in data.model_dump(exclude_unset=True).items():
@@ -65,7 +66,7 @@ def delete_inspection(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
+    inspection = db.query(Inspection).filter(Inspection.id == inspection_id, Inspection.organization_id == current_user.organization_id).first()
     if not inspection:
         raise HTTPException(status_code=404, detail="Inspection not found")
 

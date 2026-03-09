@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [fullName, setFullName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,7 +22,7 @@ export default function LoginPage() {
     try {
       const token = mode === 'login'
         ? await authApi.login(email, password)
-        : await authApi.register(email, password, fullName);
+        : await authApi.register(email, password, fullName, organizationName);
       saveAuth(token);
       router.replace('/dashboard');
     } catch (err: any) {
@@ -54,12 +55,20 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Full Name</label>
-                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white"
-                  placeholder="Your name" />
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Full Name</label>
+                  <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white"
+                    placeholder="Your name" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Organization Name</label>
+                  <input type="text" value={organizationName} onChange={e => setOrganizationName(e.target.value)} required
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white"
+                    placeholder="e.g. Woodworks Engineering" />
+                </div>
+              </>
             )}
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Email</label>

@@ -62,7 +62,8 @@ def list_assets(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    q = db.query(Asset)
+    org_id = current_user.organization_id
+    q = db.query(Asset).filter(Asset.organization_id == org_id)
     if infrastructure_type:
         q = q.filter(Asset.infrastructure_type == infrastructure_type)
     if status:
@@ -73,7 +74,7 @@ def list_assets(
 
 @router.post("", response_model=AssetResponse, status_code=201)
 def create_asset(data: AssetCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    asset = Asset(**data.model_dump(), created_by=current_user.id)
+    asset = Asset(**data.model_dump(), created_by=current_user.id, organization_id=current_user.organization_id)
     db.add(asset)
     db.commit()
     db.refresh(asset)
@@ -82,7 +83,7 @@ def create_asset(data: AssetCreate, db: Session = Depends(get_db), current_user:
 
 @router.get("/{asset_id}", response_model=AssetResponse)
 def get_asset(asset_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.organization_id == current_user.organization_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     enriched = _enrich_assets([asset], db)
@@ -91,7 +92,7 @@ def get_asset(asset_id: str, db: Session = Depends(get_db), current_user: User =
 
 @router.patch("/{asset_id}", response_model=AssetResponse)
 def update_asset(asset_id: str, data: AssetUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.organization_id == current_user.organization_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     for field, value in data.model_dump(exclude_unset=True).items():
@@ -104,7 +105,7 @@ def update_asset(asset_id: str, data: AssetUpdate, db: Session = Depends(get_db)
 
 @router.delete("/{asset_id}", status_code=204)
 def delete_asset(asset_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.organization_id == current_user.organization_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     db.delete(asset)

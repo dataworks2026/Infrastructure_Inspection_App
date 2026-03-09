@@ -70,6 +70,7 @@ export default function AssetsPage() {
     mutationFn: assetsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setShowCreate(false);
       setForm(emptyForm);
       toast.success('Asset created successfully');

@@ -5,6 +5,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: Optional[str] = None
+    organization_name: str
 
 class LoginRequest(BaseModel):
     email: EmailStr

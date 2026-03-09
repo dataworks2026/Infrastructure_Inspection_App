@@ -13,33 +13,42 @@ router = APIRouter()
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 
+    org_id = current_user.organization_id
+
     # ── Query 1: asset totals in a single pass ────────────────────────────────
     asset_row = db.query(
         func.count(Asset.id).label("total"),
         func.count(case((Asset.status == "active", 1))).label("active"),
-    ).first()
+    ).filter(Asset.organization_id == org_id).first()
 
-    # ── Query 2: inspection totals + assets_by_type in one pass ──────────────
+    # ── Query 2: inspection totals in one pass ────────────────────────────────
     insp_row = db.query(
         func.count(Inspection.id).label("total"),
         func.count(case((Inspection.status == "pending", 1))).label("pending"),
-    ).first()
+    ).filter(Inspection.organization_id == org_id).first()
 
-    # ── Query 3: image + detection counts combined ────────────────────────────
-    total_images     = db.query(func.count(Image.id)).scalar() or 0
-    total_detections = db.query(func.count(Detection.id)).scalar() or 0
+    # ── Query 3: image + detection counts (scoped via org) ────────────────────
+    total_images     = db.query(func.count(Image.id)).filter(Image.organization_id == org_id).scalar() or 0
+    total_detections = (
+        db.query(func.count(Detection.id))
+        .join(Image, Detection.image_id == Image.id)
+        .filter(Image.organization_id == org_id)
+        .scalar() or 0
+    )
 
     # ── Query 4: assets by infrastructure type ────────────────────────────────
     type_rows = (
         db.query(Asset.infrastructure_type, func.count(Asset.id).label("cnt"))
+        .filter(Asset.organization_id == org_id)
         .group_by(Asset.infrastructure_type)
         .all()
     )
     assets_by_type = {row.infrastructure_type: row.cnt for row in type_rows}
 
-    # ── Query 5: recent inspections (already cheap, limit 5) ─────────────────
+    # ── Query 5: recent inspections (limit 5) ─────────────────────────────────
     recent_inspections = (
         db.query(Inspection)
+        .filter(Inspection.organization_id == org_id)
         .order_by(Inspection.created_at.desc())
         .limit(5)
         .all()

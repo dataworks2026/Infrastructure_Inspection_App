@@ -216,6 +216,9 @@ export default function InspectionDetailPage() {
     try {
       const result = await analysisApi.analyze(imageId);
       setAnalysisResults(prev => ({ ...prev, [imageId]: result }));
+      queryClient.invalidateQueries({ queryKey: ['images', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err: any) {
       setAnalysisResults(prev => ({ ...prev, [imageId]: { error: err.response?.data?.detail || 'Analysis failed' } }));
     }
