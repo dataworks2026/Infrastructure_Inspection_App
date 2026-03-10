@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAuthenticated } from '@/lib/auth';
@@ -25,8 +25,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // if the user is authenticated, so no spinner flash ever occurs.
   const [checked, setChecked] = useState(false);
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const handleToggleSidebar = useCallback(() => setSidebarCollapsed(p => !p), []);
 
   // ── Runs synchronously before first browser paint ───────────────────────
   useIsomorphicLayoutEffect(() => {
@@ -58,13 +56,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ToastProvider>
       <div className="flex min-h-screen bg-mira-bg">
-        <Sidebar collapsed={sidebarCollapsed} onToggle={handleToggleSidebar} />
+        <Sidebar />
 
         {/* Main area */}
-        <div
-          className="flex-1 flex flex-col min-h-screen transition-all duration-300"
-          style={{ marginLeft: sidebarCollapsed ? '64px' : '260px' }}
-        >
+        <div className="flex-1 flex flex-col min-h-screen transition-all duration-300">
           {/* Top bar */}
           <header className="sticky top-0 z-20 page-header-bar h-12 flex items-center justify-between px-8">
             <Breadcrumbs />

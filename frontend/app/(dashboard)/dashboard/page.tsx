@@ -209,12 +209,16 @@ export default function DashboardPage() {
     name: `${k} ${SEV[k]?.label || k}`, value: v, color: SEV[k]?.color || '#64748B',
   }));
 
-  // Inspections by status bar
+  // Inspections by status bar — always show all 3 statuses so chart never has a single floating bar
   const statusCounts = (data?.recent_inspections || []).reduce<Record<string, number>>((acc, i) => {
     acc[i.status] = (acc[i.status] || 0) + 1;
     return acc;
   }, {});
-  const barData = Object.entries(statusCounts).map(([s, c]) => ({ status: s, count: c }));
+  const barData = [
+    { status: 'completed',  count: statusCounts.completed  || 0 },
+    { status: 'pending',    count: statusCounts.pending    || 0 },
+    { status: 'processing', count: statusCounts.processing || 0 },
+  ];
   const barColors: Record<string, string> = { completed: '#10B981', pending: '#F59E0B', processing: BRAND };
 
   const tooltipStyle = {
