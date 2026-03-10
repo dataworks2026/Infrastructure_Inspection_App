@@ -92,9 +92,9 @@ export default function DashboardPage() {
                   {pieData.map((entry, i) => <Cell key={i} fill={entry.hex} />)}
                 </Pie>
                 <RechartTooltip
-                  contentStyle={{ background: '#1E293B', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: '#94A3B8' }}
-                  itemStyle={{ color: '#F1F5F9' }}
+                  contentStyle={{ background: '#FFFFFF', border: '1px solid #C8E6D4', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#082E29' }}
+                  itemStyle={{ color: '#082E29' }}
                 />
               </PieChart>
               <div className="space-y-2 flex-1">
@@ -139,10 +139,10 @@ export default function DashboardPage() {
                   allowDecimals={false}
                 />
                 <RechartTooltip
-                  contentStyle={{ background: '#1E293B', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: '#94A3B8' }}
-                  itemStyle={{ color: '#F1F5F9' }}
-                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                  contentStyle={{ background: '#FFFFFF', border: '1px solid #C8E6D4', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#082E29' }}
+                  itemStyle={{ color: '#082E29' }}
+                  cursor={{ fill: 'rgba(8,46,41,0.04)' }}
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {barData.map((entry, i) => (

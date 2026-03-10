@@ -3,23 +3,29 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { assetsApi, inspectionsApi, imagesApi, analysisApi } from '@/lib/api';
 import { useDropzone } from 'react-dropzone';
-import { Upload, CheckCircle, AlertCircle, Loader, X, ImageIcon, ArrowRight } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, ImageIcon, ArrowRight, CloudUpload, Zap } from 'lucide-react';
 import Link from 'next/link';
 
+const TEAL  = '#082E29';
+const MINT  = '#EDF6F0';
+const BLUE  = '#93C5FD';
+const BRAND = '#0891B2';
+
 export default function UploadPage() {
-  const [assetId, setAssetId] = useState('');
+  const [assetId, setAssetId]               = useState('');
   const [inspectionName, setInspectionName] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
-  const [step, setStep] = useState<'form' | 'uploading' | 'analyzing' | 'done'>('form');
-  const [results, setResults] = useState<any[]>([]);
-  const [error, setError] = useState('');
+  const [files, setFiles]                   = useState<File[]>([]);
+  const [step, setStep]                     = useState<'form' | 'uploading' | 'analyzing' | 'done'>('form');
+  const [results, setResults]               = useState<any[]>([]);
+  const [error, setError]                   = useState('');
+  const [progress, setProgress]             = useState({ uploaded: 0, analyzed: 0, total: 0 });
 
   const queryClient = useQueryClient();
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.tiff'] },
-    onDrop: (accepted) => setFiles(prev => [...prev, ...accepted])
+    onDrop: accepted => setFiles(prev => [...prev, ...accepted]),
   });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -30,30 +36,30 @@ export default function UploadPage() {
     setError(''); setStep('uploading');
     try {
       const inspection = await inspectionsApi.create({ asset_id: assetId, name: inspectionName });
-      // Upload in batches of 5 to avoid overwhelming the server with a huge multipart request
-      const BATCH_SIZE = 5;
+      const BATCH = 5;
       const allImages: any[] = [];
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
-        const batchResult = await imagesApi.upload(inspection.id, batch);
-        allImages.push(...batchResult.images);
+      for (let i = 0; i < files.length; i += BATCH) {
+        const batch = files.slice(i, i + BATCH);
+        const res = await imagesApi.upload(inspection.id, batch);
+        allImages.push(...res.images);
+        setProgress(p => ({ ...p, uploaded: Math.min(i + BATCH, files.length), total: files.length }));
       }
-      const uploadResult = { images: allImages };
+
       setStep('analyzing');
-      const analysisResults = [];
-      for (const img of uploadResult.images) {
+      const analysisResults: any[] = [];
+      for (const img of allImages) {
         try {
           const result = await analysisApi.analyze(img.id);
           analysisResults.push({ ...img, analysis: result });
         } catch {
           analysisResults.push({ ...img, analysis: null, failed: true });
         }
+        setProgress(p => ({ ...p, analyzed: analysisResults.length, total: allImages.length }));
       }
+
       setResults(analysisResults);
-      // Mark inspection completed/failed based on results
       const allFailed = analysisResults.every(r => r.failed);
       await inspectionsApi.update(inspection.id, { status: allFailed ? 'failed' : 'completed' });
-      // Invalidate caches so inspections/assets pages show fresh data immediately
       queryClient.invalidateQueries({ queryKey: ['inspections'] });
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -64,162 +70,221 @@ export default function UploadPage() {
     }
   }
 
-  if (step === 'uploading') return (
-    <div className="flex flex-col items-center justify-center h-64 gap-4">
-      <div className="w-12 h-12 border-3 border-mira-blue border-t-transparent rounded-full animate-spin" />
-      <p className="text-mira-muted text-sm font-medium">Uploading {files.length} image{files.length !== 1 ? 's' : ''}...</p>
-    </div>
-  );
-
-  if (step === 'analyzing') return (
-    <div className="flex flex-col items-center justify-center h-64 gap-4">
-      <div className="w-12 h-12 border-3 border-mira-blue border-t-transparent rounded-full animate-spin" />
-      <div className="text-center">
-        <p className="text-slate-700 text-sm font-semibold">Running AI Analysis</p>
-        <p className="text-mira-muted text-xs mt-1">This may take a moment...</p>
-      </div>
-    </div>
-  );
-
-  if (step === 'done') return (
-    <div>
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-            <CheckCircle size={18} className="text-emerald-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800">Analysis Complete</h1>
+  /* ── Loading screens ── */
+  if (step === 'uploading' || step === 'analyzing') {
+    const isAnalyzing = step === 'analyzing';
+    const pct = progress.total > 0
+      ? Math.round(((isAnalyzing ? progress.analyzed : progress.uploaded) / progress.total) * 100)
+      : 0;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+          style={{ background: TEAL }}>
+          {isAnalyzing
+            ? <Zap size={28} color={BLUE} className="animate-pulse" />
+            : <CloudUpload size={28} color={BLUE} className="animate-bounce" />}
         </div>
-        <p className="text-sm text-mira-muted mt-1 ml-11">{results.length} image{results.length !== 1 ? 's' : ''} processed successfully</p>
+        <div className="text-center">
+          <h2 className="text-lg font-bold" style={{ color: TEAL }}>
+            {isAnalyzing ? 'Running AI Analysis' : `Uploading Images`}
+          </h2>
+          <p className="text-sm mt-1" style={{ color: '#6B9A87' }}>
+            {isAnalyzing
+              ? `Analysing ${progress.analyzed} of ${progress.total} images…`
+              : `Uploading ${progress.uploaded} of ${files.length} images…`}
+          </p>
+        </div>
+        {/* Progress bar */}
+        <div className="w-64 h-2 rounded-full overflow-hidden" style={{ background: '#C8E6D4' }}>
+          <div className="h-full rounded-full transition-all duration-300"
+            style={{ width: `${pct}%`, background: isAnalyzing ? BRAND : TEAL }} />
+        </div>
+        <p className="text-xs font-mono font-bold" style={{ color: '#6B9A87' }}>{pct}%</p>
+        <p className="text-xs" style={{ color: '#A5D4BB' }}>Please don't close this page</p>
       </div>
-      <div className="space-y-4">
-        {results.map((r) => (
-          <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-card">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <ImageIcon size={16} className="text-mira-muted" />
-                <span className="text-sm font-semibold text-slate-700">{r.filename}</span>
-              </div>
-              {r.failed ? (
-                <span className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 px-2.5 py-1 rounded-md font-medium"><AlertCircle size={14} /> Failed</span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-medium"><CheckCircle size={14} /> Completed</span>
-              )}
-            </div>
-            {r.analysis && (
-              <>
-                <p className="text-sm text-mira-muted mb-2">{r.analysis.total_detections} detection{r.analysis.total_detections !== 1 ? 's' : ''} found</p>
-                <div className="space-y-1.5">
-                  {r.analysis.detections.map((d: any, i: number) => (
-                    <div key={i} className="flex items-center gap-3 text-xs bg-slate-50 rounded-lg px-3 py-2">
-                      <span className="font-semibold text-slate-700">{d.damage_type}</span>
-                      <span className="text-mira-faint">{(d.confidence * 100).toFixed(0)}%</span>
-                      {d.severity && <span className={`px-2 py-0.5 rounded-md font-medium ${
-                        d.severity === 'S0' ? 'bg-emerald-50 text-emerald-700' :
-                        d.severity === 'S1' ? 'bg-lime-50 text-lime-700' :
-                        d.severity === 'S2' ? 'bg-amber-50 text-amber-700' :
-                        d.severity === 'S3' ? 'bg-red-50 text-red-700' :
-                        'bg-purple-50 text-purple-700'
-                      }`}>{d.severity}</span>}
-                    </div>
-                  ))}
-                </div>
-                {r.analysis.annotated_image_url && (
-                  <img src={r.analysis.annotated_image_url} alt="Annotated"
-                    className="mt-3 rounded-lg border border-slate-200 max-h-64 object-contain" />
-                )}
-              </>
-            )}
-            {r.analysis?.total_detections === 0 && (
-              <div className="flex items-center gap-2 text-sm text-emerald-600 mt-1">
-                <CheckCircle size={14} /> No damage detected
-              </div>
-            )}
+    );
+  }
+
+  /* ── Done screen ── */
+  if (step === 'done') {
+    const failed  = results.filter(r => r.failed).length;
+    const success = results.length - failed;
+    return (
+      <div className="max-w-2xl mx-auto space-y-5">
+        <div className="bg-white border border-[#C8E6D4] rounded-2xl p-8 text-center shadow-sm">
+          <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center mb-4"
+            style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+            <CheckCircle size={32} className="text-emerald-500" />
           </div>
-        ))}
+          <h2 className="text-xl font-bold" style={{ color: TEAL }}>Analysis Complete</h2>
+          <p className="text-sm mt-2" style={{ color: '#6B9A87' }}>
+            {success} image{success !== 1 ? 's' : ''} analysed successfully
+            {failed > 0 && <span className="text-amber-600"> · {failed} failed</span>}
+          </p>
+          <div className="flex items-center justify-center gap-4 mt-6">
+            <button onClick={() => { setStep('form'); setFiles([]); setResults([]); setAssetId(''); setInspectionName(''); setProgress({ uploaded: 0, analyzed: 0, total: 0 }); }}
+              className="px-5 py-2.5 text-sm font-semibold rounded-lg transition-colors"
+              style={{ background: MINT, color: '#2E6B5B', border: '1px solid #C8E6D4', cursor: 'pointer', fontFamily: 'inherit' }}>
+              New Inspection
+            </button>
+            <Link href="/inspections"
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-lg shadow-sm"
+              style={{ background: TEAL, color: BLUE }}>
+              View Inspections <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+
+        {/* Results grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {results.map((r, i) => (
+            <div key={i} className={`bg-white rounded-xl overflow-hidden border shadow-sm ${r.failed ? 'border-red-200' : 'border-[#C8E6D4]'}`}>
+              <div className="aspect-video bg-gray-100 relative">
+                {r.analysis?.annotated_url ? (
+                  <img src={r.analysis.annotated_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ImageIcon size={24} style={{ color: '#C8E6D4' }} />
+                  </div>
+                )}
+                {r.failed && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-red-50/80">
+                    <AlertCircle size={20} className="text-red-400" />
+                  </div>
+                )}
+              </div>
+              <div className="px-3 py-2">
+                <p className="text-[11px] font-medium truncate" style={{ color: TEAL }}>{r.filename}</p>
+                {!r.failed && r.analysis && (
+                  <p className="text-[10px] mt-0.5" style={{ color: '#6B9A87' }}>
+                    {r.analysis.detections_count ?? 0} detection{(r.analysis.detections_count ?? 0) !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="flex gap-3 mt-6">
-        <button onClick={() => { setStep('form'); setFiles([]); setResults([]); setInspectionName(''); }}
-          className="bg-gradient-to-r from-sky-500 to-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all">
-          New Upload
-        </button>
-        <Link href="/inspections"
-          className="border border-slate-200 text-slate-600 px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-50 transition-all flex items-center gap-2">
-          View Inspections <ArrowRight size={14} />
-        </Link>
-      </div>
-    </div>
-  );
+    );
+  }
+
+  /* ── Upload form ── */
+  const inputCls = 'w-full px-3 py-2.5 text-sm rounded-lg outline-none transition-all';
+  const inputStyle = { background: MINT, border: '1.5px solid #C8E6D4', color: TEAL, fontFamily: 'inherit' };
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Upload Inspection</h1>
-        <p className="text-sm text-mira-muted mt-1">Upload images for AI-powered damage analysis</p>
+    <div className="max-w-2xl mx-auto space-y-5">
+
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold tracking-tight" style={{ color: TEAL }}>New Inspection</h1>
+        <p className="text-xs mt-0.5" style={{ color: '#6B9A87' }}>Upload drone imagery for AI defect analysis</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
-        {/* Inspection Details */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card space-y-4">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Inspection Details</h2>
+      <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* Step 1 — Inspection details */}
+        <div className="bg-white border border-[#C8E6D4] rounded-2xl p-6 shadow-sm space-y-4">
+          <h2 className="text-sm font-bold" style={{ color: TEAL }}>
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black mr-2"
+              style={{ background: TEAL, color: BLUE }}>1</span>
+            Inspection Details
+          </h2>
+
           <div>
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block mb-1.5">Asset</label>
+            <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] mb-2" style={{ color: '#2E6B5B' }}>
+              Asset *
+            </label>
             <select value={assetId} onChange={e => setAssetId(e.target.value)} required
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 focus:bg-white">
-              <option value="">Select asset...</option>
-              {assets.map((a: any) => <option key={a.id} value={a.id}>{a.name} ({a.infrastructure_type.replace('_', ' ')})</option>)}
+              className={inputCls} style={inputStyle}>
+              <option value="">Select an asset…</option>
+              {(assets as any[]).map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
             </select>
           </div>
+
           <div>
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block mb-1.5">Inspection Name</label>
-            <input value={inspectionName} onChange={e => setInspectionName(e.target.value)} required
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white"
-              placeholder="e.g. Q1 2026 Routine Inspection" />
+            <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] mb-2" style={{ color: '#2E6B5B' }}>
+              Inspection Name *
+            </label>
+            <input type="text" value={inspectionName} onChange={e => setInspectionName(e.target.value)} required
+              placeholder="e.g. Q1 2025 Annual Survey"
+              className={inputCls} style={inputStyle} />
           </div>
         </div>
 
-        {/* Image Upload */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4">Images</h2>
+        {/* Step 2 — Image upload */}
+        <div className="bg-white border border-[#C8E6D4] rounded-2xl p-6 shadow-sm space-y-4">
+          <h2 className="text-sm font-bold" style={{ color: TEAL }}>
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black mr-2"
+              style={{ background: TEAL, color: BLUE }}>2</span>
+            Upload Images
+          </h2>
+
+          {/* Dropzone */}
           <div {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ${
-              isDragActive ? 'border-mira-blue bg-sky-50' : 'border-slate-200 hover:border-sky-300 hover:bg-slate-50'
-            }`}>
+            className="rounded-xl cursor-pointer transition-all flex flex-col items-center justify-center gap-3 py-10"
+            style={{
+              border: `2px dashed ${isDragActive ? BRAND : '#C8E6D4'}`,
+              background: isDragActive ? '#EFF6FF' : MINT,
+            }}>
             <input {...getInputProps()} />
-            <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center mx-auto mb-3">
-              <Upload size={24} className="text-mira-blue" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ background: isDragActive ? '#DBEAFE' : '#C8E6D4' }}>
+              <CloudUpload size={24} style={{ color: isDragActive ? BRAND : '#6B9A87' }} />
             </div>
-            <p className="text-sm font-medium text-slate-700">Drag & drop images here, or click to select</p>
-            <p className="text-xs text-mira-faint mt-1">JPEG, PNG, TIFF supported</p>
+            <div className="text-center">
+              <p className="text-sm font-semibold" style={{ color: isDragActive ? BRAND : TEAL }}>
+                {isDragActive ? 'Drop images here' : 'Drag & drop images'}
+              </p>
+              <p className="text-[11px] mt-1" style={{ color: '#6B9A87' }}>
+                or click to browse · JPG, PNG, TIFF supported
+              </p>
+            </div>
           </div>
 
+          {/* File list */}
           {files.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {files.map((f, i) => (
-                <div key={i} className="flex items-center justify-between text-xs bg-slate-50 border border-slate-100 rounded-lg px-3.5 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <ImageIcon size={14} className="text-mira-muted" />
-                    <span className="text-slate-700 font-medium">{f.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-mira-faint">{(f.size / 1024).toFixed(0)} KB</span>
-                    <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))}
-                      className="text-slate-400 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-50">
-                      <X size={14} />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold" style={{ color: TEAL }}>
+                  {files.length} image{files.length !== 1 ? 's' : ''} selected
+                </p>
+                <button type="button" onClick={() => setFiles([])}
+                  className="text-[10px] font-medium hover:underline"
+                  style={{ color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  Clear all
+                </button>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-40 overflow-y-auto">
+                {files.map((f, i) => (
+                  <div key={i} className="relative group aspect-square rounded-lg overflow-hidden"
+                    style={{ border: '1px solid #C8E6D4' }}>
+                    <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => setFiles(fl => fl.filter((_, j) => j !== i))}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ background: 'rgba(0,0,0,0.6)' }}>
+                      <X size={10} className="text-white" />
                     </button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        {error && <div className="text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5 font-medium">{error}</div>}
+        {error && (
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
+            style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+            <AlertCircle size={15} /> {error}
+          </div>
+        )}
 
         <button type="submit"
-          className="bg-gradient-to-r from-sky-500 to-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-semibold shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-50"
-          disabled={files.length === 0}>
-          Upload & Analyse {files.length > 0 ? `(${files.length} image${files.length !== 1 ? 's' : ''})` : ''}
+          className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl shadow-sm hover:shadow-md transition-all"
+          style={{ background: TEAL, color: BLUE, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+          <Upload size={16} color={BLUE} /> Start Analysis
         </button>
       </form>
     </div>
