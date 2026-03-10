@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText,
   LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
-  Settings,
+  Settings, Search, HelpCircle,
 } from 'lucide-react';
 import { clearAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/app/providers';
@@ -15,11 +15,11 @@ const BLUE  = '#93C5FD';
 const BRAND = '#0891B2';
 
 const NAV_ITEMS = [
-  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/assets',      label: 'Assets',      icon: Building2 },
-  { href: '/map',         label: 'Map',         icon: Map },
-  { href: '/inspections', label: 'Inspections', icon: ClipboardList },
-  { href: '/upload',      label: 'Upload',      icon: Upload },
+  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
+  { href: '/assets',      label: 'Assets',      icon: Building2,       tourId: 'nav-assets' },
+  { href: '/map',         label: 'Map',         icon: Map,             tourId: 'nav-map' },
+  { href: '/inspections', label: 'Inspections', icon: ClipboardList,   tourId: 'nav-inspections' },
+  { href: '/upload',      label: 'Upload',      icon: Upload,          tourId: 'nav-upload' },
   { href: '/reports',     label: 'Reports',     icon: FileText },
 ];
 
@@ -41,15 +41,16 @@ function LogoMark({ size = 34 }: { size?: number }) {
 }
 
 const NavLink = memo(function NavLink({
-  href, label, icon: Icon, active, small, collapsed,
+  href, label, icon: Icon, active, small, collapsed, tourId,
 }: {
   href: string; label: string; icon: React.ElementType;
-  active: boolean; small?: boolean; collapsed: boolean;
+  active: boolean; small?: boolean; collapsed: boolean; tourId?: string;
 }) {
   return (
     <Link
       href={href}
       title={collapsed ? label : undefined}
+      data-tour={tourId}
       className="sidebar-nav-link flex items-center gap-3 rounded-xl group relative"
       style={{
         padding: collapsed ? '10px 0' : '10px 12px',
@@ -74,7 +75,7 @@ const NavLink = memo(function NavLink({
   );
 });
 
-export default memo(function Sidebar() {
+export default memo(function Sidebar({ onStartTour }: { onStartTour?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const user = useCurrentUser();
@@ -132,6 +133,36 @@ export default memo(function Sidebar() {
           )}
         </div>
 
+        {/* Search trigger */}
+        <div style={{ padding: collapsed ? '8px 8px 0' : '8px 10px 0' }}>
+          <button
+            onClick={() => {
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+            }}
+            data-tour="search-trigger"
+            className="sidebar-nav-link flex items-center gap-2.5 rounded-xl w-full"
+            style={{
+              padding: collapsed ? '9px 0' : '9px 12px',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#6B9A87',
+            }}
+            title={collapsed ? 'Search (⌘K)' : undefined}
+          >
+            <Search size={14} style={{ flexShrink: 0 }} />
+            {!collapsed && (
+              <>
+                <span className="text-[11px] font-semibold flex-1 text-left">Search...</span>
+                <span className="flex items-center gap-0.5 ml-auto">
+                  <kbd className="text-[8px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>⌘</kbd>
+                  <kbd className="text-[8px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>K</kbd>
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden"
           style={{ padding: collapsed ? '16px 8px' : '16px 10px' }}>
@@ -142,8 +173,9 @@ export default memo(function Sidebar() {
             </p>
           )}
           <div className="space-y-0.5">
-            {NAV_ITEMS.map(({ href, label, icon }) => (
+            {NAV_ITEMS.map(({ href, label, icon, tourId }) => (
               <NavLink key={href} href={href} label={label} icon={icon} collapsed={collapsed}
+                tourId={tourId}
                 active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))} />
             ))}
           </div>
@@ -198,6 +230,14 @@ export default memo(function Sidebar() {
                   </p>
                 </div>
               </div>
+              {onStartTour && (
+                <button onClick={onStartTour}
+                  className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
+                  style={{ color: '#6B9A87' }}>
+                  <HelpCircle size={15} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
+                  <span className="text-[12px] font-semibold transition-colors group-hover:text-[#93C5FD]">Take a Tour</span>
+                </button>
+              )}
               <Link href="/settings"
                 className="sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-xl group"
                 style={{ color: '#6B9A87' }}>
@@ -218,6 +258,13 @@ export default memo(function Sidebar() {
                 style={{ background: BRAND, color: 'white' }}>
                 {initials}
               </div>
+              {onStartTour && (
+                <button onClick={onStartTour} title="Take a Tour"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
+                  style={{ color: '#6B9A87' }}>
+                  <HelpCircle size={15} />
+                </button>
+              )}
               <Link href="/settings" title="Settings"
                 className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
                 style={{ color: '#6B9A87' }}>
