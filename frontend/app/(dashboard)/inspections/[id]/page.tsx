@@ -243,6 +243,8 @@ export default function InspectionDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editName, setEditName] = useState('');
+  const [editingDate, setEditingDate] = useState(false);
+  const [editDate, setEditDate] = useState('');
 
   const deleteMutation = useMutation({
     mutationFn: () => inspectionsApi.delete(inspectionId),
@@ -256,12 +258,13 @@ export default function InspectionDetailPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name: string }) => inspectionsApi.update(inspectionId, data),
+    mutationFn: (data: Partial<{ name: string; inspected_at: string }>) => inspectionsApi.update(inspectionId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
       queryClient.invalidateQueries({ queryKey: ['inspections'] });
       toast.success('Inspection updated');
       setEditingName(false);
+      setEditingDate(false);
     },
     onError: () => toast.error('Failed to update inspection'),
   });
@@ -422,9 +425,47 @@ export default function InspectionDetailPage() {
                 inspection.status === 'pending' ? 'bg-amber-50 text-amber-700' :
                 'bg-slate-100 text-slate-500'
               }`}>{inspection.status}</span>
-              <span className="text-xs text-slate-400">
-                {new Date(inspection.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
+              {editingDate ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={e => setEditDate(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && editDate) updateMutation.mutate({ inspected_at: new Date(editDate).toISOString() });
+                      if (e.key === 'Escape') setEditingDate(false);
+                    }}
+                    className="text-xs rounded-md px-2 py-1 outline-none"
+                    style={{ border: '2px solid #0891B2', background: '#EDF6F0', color: '#082E29' }}
+                    autoFocus
+                  />
+                  <button onClick={() => { if (editDate) updateMutation.mutate({ inspected_at: new Date(editDate).toISOString() }); }}
+                    disabled={updateMutation.isPending || !editDate}
+                    className="p-1 rounded-md transition-colors hover:bg-emerald-50"
+                    style={{ color: '#10B981' }}>
+                    <Check size={13} />
+                  </button>
+                  <button onClick={() => setEditingDate(false)}
+                    className="p-1 rounded-md transition-colors hover:bg-red-50 text-red-400">
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1 group/date">
+                  <span className="text-xs text-slate-400">
+                    {new Date(inspection.inspected_at || inspection.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                  <button onClick={() => {
+                    const d = new Date(inspection.inspected_at || inspection.created_at);
+                    setEditDate(d.toISOString().split('T')[0]);
+                    setEditingDate(true);
+                  }}
+                    className="p-1 rounded-md transition-colors hover:bg-[#EDF6F0] opacity-0 group-hover/date:opacity-100"
+                    style={{ color: '#082E29' }} title="Edit date">
+                    <Pencil size={11} />
+                  </button>
+                </span>
+              )}
               {inspection.weather_conditions && <span className="text-xs text-slate-400">Weather: {inspection.weather_conditions}</span>}
               {inspection.inspector_name && <span className="text-xs text-slate-400">Inspector: {inspection.inspector_name}</span>}
             </div>

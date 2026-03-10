@@ -12,6 +12,7 @@ class InspectionCreate(BaseModel):
 class InspectionUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
+    inspected_at: Optional[datetime] = None
     weather_conditions: Optional[str] = None
 
 class InspectionResponse(BaseModel):

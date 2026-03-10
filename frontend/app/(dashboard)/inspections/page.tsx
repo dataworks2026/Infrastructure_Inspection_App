@@ -97,7 +97,7 @@ export default function InspectionsPage() {
       if (sortKey === 'name')   { av = a.name;                           bv = b.name; }
       if (sortKey === 'asset')  { av = assetMap[a.asset_id]?.name ?? ''; bv = assetMap[b.asset_id]?.name ?? ''; }
       if (sortKey === 'images') { av = a.image_count;                    bv = b.image_count; }
-      if (sortKey === 'date')   { av = new Date(a.created_at);           bv = new Date(b.created_at); }
+      if (sortKey === 'date')   { av = new Date(a.inspected_at || a.created_at); bv = new Date(b.inspected_at || b.created_at); }
       if (sortKey === 'status') { av = a.status;                         bv = b.status; }
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
       if (av > bv) return sortDir === 'asc' ? 1  : -1;
@@ -213,7 +213,7 @@ export default function InspectionsPage() {
                   </Link>
                   <Link href={`/inspections/${insp.id}`} className="flex items-center gap-1.5">
                     <Calendar size={12} className="text-slate-400" />
-                    <span className="text-[12px] text-slate-500">{new Date(insp.created_at).toLocaleDateString()}</span>
+                    <span className="text-[12px] text-slate-500">{new Date(insp.inspected_at || insp.created_at).toLocaleDateString()}</span>
                   </Link>
                   <Link href={`/inspections/${insp.id}`}>
                     <StatusChip status={insp.status} />
