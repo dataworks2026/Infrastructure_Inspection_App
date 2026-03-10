@@ -14,8 +14,22 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// ── Icon cache — generate each SVG icon only once per (color, selected) pair ──
-const iconCache = new Map<string, L.DivIcon>();
+export interface ImageGpsPoint {
+  id: string;
+  lat: number;
+  lon: number;
+  gps_accuracy_m?: number | null;
+  inspection_id: string;
+  inspection_name: string;
+  filename: string;
+  detection_count: number;
+  max_severity: string | null;
+  thumbnail_url: string;
+}
+
+// ── Icon caches ────────────────────────────────────────────────────────────────
+const assetIconCache  = new Map<string, L.DivIcon>();
+const imageIconCache  = new Map<string, L.DivIcon>();
 
 function adjustColor(hex: string, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
@@ -25,9 +39,9 @@ function adjustColor(hex: string, amount: number): string {
   return `#${(1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1)}`;
 }
 
-function getIcon(color: string, isSelected: boolean): L.DivIcon {
+function getAssetIcon(color: string, isSelected: boolean): L.DivIcon {
   const key = `${color}-${isSelected ? 1 : 0}`;
-  const cached = iconCache.get(key);
+  const cached = assetIconCache.get(key);
   if (cached) return cached;
 
   const size = isSelected ? 40 : 30;
@@ -61,11 +75,45 @@ function getIcon(color: string, isSelected: boolean): L.DivIcon {
     iconAnchor: [size / 2, size * 1.4],
     popupAnchor: [0, -size * 1.1],
   });
-  iconCache.set(key, icon);
+  assetIconCache.set(key, icon);
   return icon;
 }
 
-// Component to fly to selected asset
+function severityColor(sev: string | null): string {
+  if (sev === 'S3') return '#EF4444';
+  if (sev === 'S2') return '#F59E0B';
+  if (sev === 'S1') return '#EAB308';
+  if (sev === 'S0') return '#10B981';
+  return '#0891B2';
+}
+
+function getImageIcon(sev: string | null): L.DivIcon {
+  const key = `img-${sev ?? 'none'}`;
+  const cached = imageIconCache.get(key);
+  if (cached) return cached;
+
+  const color = severityColor(sev);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="28" height="28">
+      <rect x="2" y="6" width="28" height="20" rx="4" fill="${color}" opacity="0.9" stroke="white" stroke-width="1.5"/>
+      <rect x="5" y="9" width="22" height="14" rx="2" fill="white" opacity="0.2"/>
+      <circle cx="16" cy="16" r="5" fill="white" opacity="0.9"/>
+      <circle cx="16" cy="16" r="3" fill="${color}"/>
+      <rect x="12" y="3" width="8" height="4" rx="1.5" fill="${color}" stroke="white" stroke-width="1"/>
+    </svg>`;
+
+  const icon = L.divIcon({
+    html: svg,
+    className: 'custom-image-icon',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
+  imageIconCache.set(key, icon);
+  return icon;
+}
+
+// ── Map helpers ────────────────────────────────────────────────────────────────
 function FlyToAsset({ asset }: { asset?: Asset }) {
   const map = useMap();
   useEffect(() => {
@@ -76,31 +124,31 @@ function FlyToAsset({ asset }: { asset?: Asset }) {
   return null;
 }
 
-// Component to fit bounds on all markers
-function FitBounds({ assets }: { assets: Asset[] }) {
+function FitBounds({ assets, imagePoints }: { assets: Asset[]; imagePoints: ImageGpsPoint[] }) {
   const map = useMap();
   const hasFitted = useRef(false);
   useEffect(() => {
-    if (assets.length > 0 && !hasFitted.current) {
-      const bounds = L.latLngBounds(assets.map(a => [a.latitude!, a.longitude!] as [number, number]));
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12 });
+    if (hasFitted.current) return;
+    const assetCoords: [number, number][] = assets
+      .filter(a => a.latitude != null && a.longitude != null)
+      .map(a => [a.latitude!, a.longitude!]);
+    const imgCoords: [number, number][] = imagePoints.map(p => [p.lat, p.lon]);
+    const all = [...assetCoords, ...imgCoords];
+    if (all.length > 0) {
+      map.fitBounds(L.latLngBounds(all), { padding: [60, 60], maxZoom: 12 });
       hasFitted.current = true;
     }
-  }, [assets, map]);
+  }, [assets, imagePoints, map]);
   return null;
 }
 
-// ── Single marker — memoized so it only re-renders when its own props change ──
+// ── Markers ────────────────────────────────────────────────────────────────────
 const AssetMarker = memo(function AssetMarker({ asset, isSelected, onSelect, markerColor, configLabel }:
   { asset: Asset; isSelected: boolean; onSelect: () => void; markerColor: string; configLabel: string }
 ) {
-  const icon = getIcon(markerColor, isSelected);
+  const icon = getAssetIcon(markerColor, isSelected);
   return (
-    <Marker
-      position={[asset.latitude!, asset.longitude!]}
-      icon={icon}
-      eventHandlers={{ click: onSelect }}
-    >
+    <Marker position={[asset.latitude!, asset.longitude!]} icon={icon} eventHandlers={{ click: onSelect }}>
       <Popup>
         <div className="asset-popup">
           <div className="asset-popup-header">{asset.name}</div>
@@ -111,11 +159,7 @@ const AssetMarker = memo(function AssetMarker({ asset, isSelected, onSelect, mar
             </div>
           )}
           <div className="asset-popup-meta">
-            <span className="asset-popup-badge" style={{
-              backgroundColor: markerColor + '25',
-              color: markerColor,
-              border: `1px solid ${markerColor}40`,
-            }}>
+            <span className="asset-popup-badge" style={{ backgroundColor: markerColor + '25', color: markerColor, border: `1px solid ${markerColor}40` }}>
               {configLabel || asset.infrastructure_type}
             </span>
             <span className="asset-popup-badge" style={{
@@ -142,17 +186,47 @@ const AssetMarker = memo(function AssetMarker({ asset, isSelected, onSelect, mar
   );
 });
 
-interface MapViewProps {
-  assets: Asset[];
-  selectedAssetId: string | null;
-  onSelectAsset: (id: string) => void;
-  infraConfig: Record<string, { label: string; markerColor: string }>;
-}
+const ImageMarker = memo(function ImageMarker({ point }: { point: ImageGpsPoint }) {
+  const icon = getImageIcon(point.max_severity);
+  const color = severityColor(point.max_severity);
+  return (
+    <Marker position={[point.lat, point.lon]} icon={icon}>
+      <Popup>
+        <div className="asset-popup">
+          <div className="asset-popup-header">{point.filename}</div>
+          <div className="asset-popup-location">{point.inspection_name}</div>
+          <div className="asset-popup-meta">
+            {point.max_severity && (
+              <span className="asset-popup-badge" style={{ backgroundColor: color + '25', color, border: `1px solid ${color}40` }}>
+                {point.max_severity}
+              </span>
+            )}
+            <span className="asset-popup-badge" style={{ backgroundColor: 'rgba(147,197,253,0.15)', color: '#93C5FD', border: '1px solid rgba(147,197,253,0.3)' }}>
+              {point.detection_count} detection{point.detection_count !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {point.gps_accuracy_m != null && (
+            <div className="asset-popup-coords">GPS ±{point.gps_accuracy_m.toFixed(1)}m</div>
+          )}
+          <div className="asset-popup-divider" />
+          <a href={`/inspections/${point.inspection_id}`} className="asset-popup-link">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            View Inspection
+          </a>
+        </div>
+      </Popup>
+    </Marker>
+  );
+});
 
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const MAP_STYLES = `
   .custom-marker-icon { background: none !important; border: none !important; }
   .custom-marker-icon svg { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); transition: transform 0.2s ease; }
   .custom-marker-icon:hover svg { transform: scale(1.15) translateY(-2px); }
+  .custom-image-icon { background: none !important; border: none !important; }
+  .custom-image-icon svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25)); transition: transform 0.2s ease; }
+  .custom-image-icon:hover svg { transform: scale(1.2); }
   .leaflet-container { font-family: 'Inter', system-ui, sans-serif !important; background: #0a0f1a; }
   .leaflet-popup-content-wrapper { border-radius: 14px !important; box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.08) !important; padding: 0 !important; overflow: hidden; background: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(20px); }
   .leaflet-popup-content { margin: 0 !important; width: auto !important; min-width: 220px; }
@@ -177,7 +251,16 @@ const MAP_STYLES = `
   .asset-popup-link:hover { background: rgba(56, 189, 248, 0.15); color: #7dd3fc; }
 `;
 
-function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig }: MapViewProps) {
+// ── Main component ─────────────────────────────────────────────────────────────
+interface MapViewProps {
+  assets: Asset[];
+  selectedAssetId: string | null;
+  onSelectAsset: (id: string) => void;
+  infraConfig: Record<string, { label: string; markerColor: string }>;
+  imagePoints: ImageGpsPoint[];
+}
+
+function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoints }: MapViewProps) {
   const selectedAsset = useMemo(
     () => assets.find(a => a.id === selectedAssetId),
     [assets, selectedAssetId]
@@ -220,7 +303,7 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig }: MapVie
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        <FitBounds assets={assets} />
+        <FitBounds assets={assets} imagePoints={imagePoints} />
         <FlyToAsset asset={selectedAsset} />
 
         {assets.map((asset) => {
@@ -236,6 +319,10 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig }: MapVie
             />
           );
         })}
+
+        {imagePoints.map((point) => (
+          <ImageMarker key={point.id} point={point} />
+        ))}
       </MapContainer>
     </>
   );

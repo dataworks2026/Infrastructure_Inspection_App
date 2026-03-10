@@ -72,6 +72,27 @@ export interface AnalysisResult {
   message: string;
 }
 
+export interface DashboardAnalyzedImage {
+  id: string;
+  filename: string;
+  url: string;
+  inspection_id: string;
+  inspection_name: string;
+  asset_name: string;
+  detection_count: number;
+  max_severity: string | null;
+}
+
+export interface DashboardAssetHealth {
+  id: string;
+  name: string;
+  infrastructure_type: string;
+  status: string;
+  inspection_count: number;
+  total_detections: number;
+  worst_severity: string | null;
+}
+
 export interface DashboardOverview {
   total_assets: number;
   active_assets: number;
@@ -79,8 +100,12 @@ export interface DashboardOverview {
   pending_inspections: number;
   total_images: number;
   total_detections: number;
+  fleet_health_pct: number;
   assets_by_type: Record<string, number>;
+  severity_breakdown: Record<string, number>;
   recent_inspections: Array<{id: string; name: string; asset_id: string; status: string; created_at: string}>;
+  recent_analyzed_images: DashboardAnalyzedImage[];
+  asset_health: DashboardAssetHealth[];
 }
 
 export interface AuthToken {

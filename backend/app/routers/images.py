@@ -124,6 +124,65 @@ def get_inspection_images(
     return [_image_to_record(img) for img in images]
 
 
+@router.get("/images/gps-points")
+def get_image_gps_points(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all images with GPS coordinates for the org, with detection summary."""
+    from sqlalchemy import func
+    from app.models.detection import Detection
+    from app.models.inspection import Inspection as InspectionModel
+
+    org_id = current_user.organization_id
+
+    rows = (
+        db.query(
+            Image.id,
+            Image.gps_lat,
+            Image.gps_lon,
+            Image.gps_accuracy_m,
+            Image.stored_path,
+            Image.filename,
+            InspectionModel.id.label("inspection_id"),
+            InspectionModel.name.label("inspection_name"),
+            func.count(Detection.id).label("detection_count"),
+            func.max(Detection.severity).label("max_severity"),
+        )
+        .join(InspectionModel, Image.inspection_id == InspectionModel.id)
+        .outerjoin(Detection, Detection.image_id == Image.id)
+        .filter(
+            Image.organization_id == org_id,
+            Image.gps_lat.isnot(None),
+            Image.gps_lon.isnot(None),
+            Image.deleted_at.is_(None),
+        )
+        .group_by(
+            Image.id, Image.gps_lat, Image.gps_lon, Image.gps_accuracy_m,
+            Image.stored_path, Image.filename,
+            InspectionModel.id, InspectionModel.name,
+        )
+        .all()
+    )
+
+    points = [
+        {
+            "id": row.id,
+            "lat": row.gps_lat,
+            "lon": row.gps_lon,
+            "gps_accuracy_m": row.gps_accuracy_m,
+            "inspection_id": row.inspection_id,
+            "inspection_name": row.inspection_name,
+            "filename": row.filename,
+            "detection_count": row.detection_count,
+            "max_severity": row.max_severity,
+            "thumbnail_url": f"/storage/{row.stored_path}" if row.stored_path else None,
+        }
+        for row in rows
+    ]
+    return {"points": points, "count": len(points)}
+
+
 @router.get(
     "/images/{image_id}",
     response_model=ImageRecord,

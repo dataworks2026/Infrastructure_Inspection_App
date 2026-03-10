@@ -3,16 +3,22 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetsApi } from '@/lib/api';
 import { Asset, InfrastructureType } from '@/types';
-import { Building2, Plus, MapPin, X, Navigation, ChevronDown, ArrowRight, Wind, Waves, Train, Anchor } from 'lucide-react';
+import {
+  Building2, Plus, MapPin, X, Navigation, ChevronDown, ArrowRight,
+  Wind, Waves, Train, Anchor, CheckCircle, Clock,
+} from 'lucide-react';
 import Link from 'next/link';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 
+const TEAL  = '#082E29';
+const BLUE  = '#93C5FD';
+
 const INFRA_TYPES: { value: InfrastructureType; label: string; hex: string; Icon: React.ElementType }[] = [
-  { value: 'wind_turbine', label: 'Wind Turbine', hex: '#38BDF8', Icon: Wind   },
-  { value: 'coastal',      label: 'Coastal',      hex: '#22D3EE', Icon: Waves  },
-  { value: 'pier',         label: 'Pier & Dock',  hex: '#60A5FA', Icon: Anchor },
-  { value: 'railway',      label: 'Railway',      hex: '#818CF8', Icon: Train  },
+  { value: 'wind_turbine', label: 'Wind Turbine', hex: '#0891B2', Icon: Wind   },
+  { value: 'coastal',      label: 'Coastal',      hex: '#0EA5E9', Icon: Waves  },
+  { value: 'pier',         label: 'Pier & Dock',  hex: '#6366F1', Icon: Anchor },
+  { value: 'railway',      label: 'Railway',      hex: '#8B5CF6', Icon: Train  },
 ];
 
 const PRESET_LOCATIONS = [
@@ -41,15 +47,18 @@ const emptyForm: AssetForm = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active:         'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    maintenance:    'bg-amber-500/10  text-amber-400  border-amber-500/20',
-    decommissioned: 'bg-slate-500/10  text-slate-400  border-slate-500/20',
-  };
-  const isPending = status === 'maintenance';
+  if (status === 'active') return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+      <CheckCircle size={11} /> Active
+    </span>
+  );
+  if (status === 'maintenance') return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      <Clock size={11} /> Maintenance
+    </span>
+  );
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-medium border ${map[status] ?? map.decommissioned}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${status === 'active' ? 'bg-emerald-400' : status === 'maintenance' ? 'bg-amber-400 status-pulse' : 'bg-slate-400'}`} />
+    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200">
       {status}
     </span>
   );
@@ -57,8 +66,8 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AssetsPage() {
   const toast = useToast();
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm]             = useState<AssetForm>(emptyForm);
+  const [showCreate, setShowCreate]   = useState(false);
+  const [form, setForm]               = useState<AssetForm>(emptyForm);
   const [showPresets, setShowPresets] = useState(false);
   const queryClient = useQueryClient();
 
@@ -100,14 +109,15 @@ export default function AssetsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 card-animate">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Assets</h1>
-          <p className="text-sm text-mira-muted mt-1">Infrastructure assets under inspection</p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: TEAL }}>Assets</h1>
+          <p className="text-sm text-slate-500 mt-1">Infrastructure assets under inspection</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:-translate-y-px transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 shadow-sm"
+          style={{ background: TEAL, color: BLUE }}
         >
           <Plus size={16} /> New Asset
         </button>
@@ -115,46 +125,51 @@ export default function AssetsPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card-dark border border-card-border rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto palette-animate">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-semibold text-card-text">Create Asset</h2>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-[#C8E6D4] rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 rounded-t-2xl" style={{ background: '#EDF6F0', borderBottom: '1px solid #C8E6D4' }}>
+              <h2 className="text-sm font-bold" style={{ color: TEAL }}>Create Asset</h2>
               <button onClick={() => { setShowCreate(false); setForm(emptyForm); }}
-                className="text-card-faint hover:text-card-text p-1 rounded-lg hover:bg-white/10 transition-colors">
-                <X size={18} />
+                className="p-1.5 rounded-lg transition-colors hover:bg-[#C8E6D4]/60"
+                style={{ color: '#6B9A87' }}>
+                <X size={16} />
               </button>
             </div>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
-                <label className="text-[11px] font-semibold text-card-muted uppercase tracking-wider block mb-1.5">Asset Name</label>
+                <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: TEAL }}>Asset Name</label>
                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required
-                  className="w-full bg-slate-800 border border-card-border rounded-lg px-3.5 py-2.5 text-sm text-card-text placeholder:text-card-faint focus:border-sky-500/50 focus:bg-slate-700/50 outline-none transition-colors"
+                  className="w-full rounded-lg px-3.5 py-2.5 text-sm text-slate-800 outline-none transition-colors"
+                  style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}
                   placeholder="e.g. Turbine T-12" />
               </div>
               <div>
-                <label className="text-[11px] font-semibold text-card-muted uppercase tracking-wider block mb-1.5">Infrastructure Type</label>
+                <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: TEAL }}>Infrastructure Type</label>
                 <select value={form.infrastructure_type} onChange={e => setForm({ ...form, infrastructure_type: e.target.value as InfrastructureType })}
-                  className="w-full bg-slate-800 border border-card-border rounded-lg px-3.5 py-2.5 text-sm text-card-text focus:border-sky-500/50 outline-none transition-colors">
+                  className="w-full rounded-lg px-3.5 py-2.5 text-sm text-slate-800 outline-none"
+                  style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
                   {INFRA_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
-              <div className="border border-card-border rounded-lg p-4 bg-slate-800/50">
+              <div className="rounded-xl p-4" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-[11px] font-semibold text-card-muted uppercase tracking-wider flex items-center gap-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: TEAL }}>
                     <Navigation size={12} /> Location
                   </label>
                   <div className="relative">
                     <button type="button" onClick={() => setShowPresets(!showPresets)}
-                      className="text-[10px] font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 px-2.5 py-1 rounded-md flex items-center gap-1 transition-all">
+                      className="text-[10px] font-semibold px-2.5 py-1 rounded-md flex items-center gap-1 transition-all"
+                      style={{ background: 'white', color: TEAL, border: '1px solid #C8E6D4' }}>
                       Quick Fill <ChevronDown size={10} />
                     </button>
                     {showPresets && (
-                      <div className="absolute right-0 top-full mt-1 bg-card-dark border border-card-border rounded-lg shadow-2xl z-50 w-64 max-h-56 overflow-y-auto">
+                      <div className="absolute right-0 top-full mt-1 bg-white border border-[#C8E6D4] rounded-xl shadow-xl z-50 w-64 max-h-56 overflow-y-auto">
                         {PRESET_LOCATIONS.map((p, i) => (
                           <button key={i} type="button" onClick={() => applyPreset(p)}
-                            className="w-full text-left px-3 py-2.5 text-xs hover:bg-white/5 transition-colors border-b border-card-border last:border-0">
-                            <span className="font-medium text-card-text">{p.name}</span>
-                            <span className="text-[10px] text-card-faint block mt-0.5">{p.lat.toFixed(3)}°, {p.lng.toFixed(3)}°</span>
+                            className="w-full text-left px-3 py-2.5 text-xs transition-colors border-b border-[#C8E6D4] last:border-0 hover:bg-[#EDF6F0]">
+                            <span className="font-semibold text-slate-700">{p.name}</span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">{p.lat.toFixed(3)}°, {p.lng.toFixed(3)}°</span>
                           </button>
                         ))}
                       </div>
@@ -163,21 +178,24 @@ export default function AssetsPage() {
                 </div>
                 <div className="space-y-3">
                   <input value={form.location_name} onChange={e => setForm({ ...form, location_name: e.target.value })}
-                    className="w-full bg-slate-800 border border-card-border rounded-lg px-3.5 py-2.5 text-sm text-card-text placeholder:text-card-faint focus:border-sky-500/50 outline-none transition-colors"
+                    className="w-full rounded-lg px-3.5 py-2.5 text-sm text-slate-800 outline-none"
+                    style={{ background: 'white', border: '1px solid #C8E6D4' }}
                     placeholder="Location name, e.g. Hornsea Wind Farm" />
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-medium text-card-faint block mb-1">Latitude</label>
+                      <label className="text-[10px] font-medium text-slate-500 block mb-1">Latitude</label>
                       <input value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })}
                         type="number" step="any" min="-90" max="90"
-                        className="w-full bg-slate-800 border border-card-border rounded-lg px-3 py-2 text-sm text-card-text placeholder:text-card-faint font-mono focus:border-sky-500/50 outline-none transition-colors"
+                        className="w-full rounded-lg px-3 py-2 text-sm font-mono outline-none"
+                        style={{ background: 'white', border: '1px solid #C8E6D4', color: '#082E29' }}
                         placeholder="53.885" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-medium text-card-faint block mb-1">Longitude</label>
+                      <label className="text-[10px] font-medium text-slate-500 block mb-1">Longitude</label>
                       <input value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })}
                         type="number" step="any" min="-180" max="180"
-                        className="w-full bg-slate-800 border border-card-border rounded-lg px-3 py-2 text-sm text-card-text placeholder:text-card-faint font-mono focus:border-sky-500/50 outline-none transition-colors"
+                        className="w-full rounded-lg px-3 py-2 text-sm font-mono outline-none"
+                        style={{ background: 'white', border: '1px solid #C8E6D4', color: '#082E29' }}
                         placeholder="1.791" />
                     </div>
                   </div>
@@ -185,11 +203,13 @@ export default function AssetsPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={createMutation.isPending}
-                  className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50">
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50 hover:opacity-90"
+                  style={{ background: TEAL, color: BLUE }}>
                   {createMutation.isPending ? 'Creating...' : 'Create Asset'}
                 </button>
                 <button type="button" onClick={() => { setShowCreate(false); setForm(emptyForm); }}
-                  className="flex-1 border border-card-border text-card-muted py-2.5 rounded-lg text-sm font-medium hover:bg-white/5 transition-all">
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-slate-50"
+                  style={{ border: '1px solid #C8E6D4', color: '#6B9A87' }}>
                   Cancel
                 </button>
               </div>
@@ -204,14 +224,15 @@ export default function AssetsPage() {
           {[0,1,2,3,4,5].map(i => <CardSkeleton key={i} />)}
         </div>
       ) : assets.length === 0 ? (
-        <div className="card-animate flex flex-col items-center justify-center py-20 bg-card-dark border border-card-border rounded-2xl shadow-card-dark">
-          <div className="w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center mb-4">
-            <Building2 size={28} className="text-sky-400" />
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm" style={{ border: '1px solid #C8E6D4' }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
+            <Building2 size={28} style={{ color: TEAL }} />
           </div>
-          <p className="text-base font-semibold text-card-text">No assets yet</p>
-          <p className="text-sm text-card-muted mt-1">Create your first infrastructure asset to get started.</p>
+          <p className="text-base font-semibold text-slate-700">No assets yet</p>
+          <p className="text-sm text-slate-500 mt-1">Create your first infrastructure asset to get started.</p>
           <button onClick={() => setShowCreate(true)}
-            className="mt-5 inline-flex items-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all">
+            className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 shadow-sm"
+            style={{ background: TEAL, color: BLUE }}>
             <Plus size={16} /> Create Asset
           </button>
         </div>
@@ -224,18 +245,18 @@ export default function AssetsPage() {
               <Link
                 key={asset.id}
                 href={`/assets/${asset.id}`}
-                className="card-animate group bg-card-dark border border-card-border rounded-xl p-5 shadow-card-dark hover:shadow-card-dark-hover hover:border-card-border-hover hover:-translate-y-0.5 transition-all"
-                style={{ animationDelay: `${Math.min(i * 50, 400)}ms` }}
+                className="group bg-white rounded-xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+                style={{ border: '1px solid #C8E6D4' }}
               >
                 {/* Top row: type + status */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: (typeInfo?.hex || '#64748B') + '20', border: `1px solid ${typeInfo?.hex || '#64748B'}30` }}>
-                      <Icon size={15} style={{ color: typeInfo?.hex || '#94A3B8' }} />
+                      style={{ background: (typeInfo?.hex || '#64748B') + '18', border: `1px solid ${typeInfo?.hex || '#64748B'}30` }}>
+                      <Icon size={15} style={{ color: typeInfo?.hex || '#64748B' }} />
                     </div>
-                    <span className="text-[11px] font-semibold capitalize"
-                      style={{ color: typeInfo?.hex || '#94A3B8' }}>
+                    <span className="text-[11px] font-bold capitalize"
+                      style={{ color: typeInfo?.hex || '#64748B' }}>
                       {typeInfo?.label || asset.infrastructure_type}
                     </span>
                   </div>
@@ -243,28 +264,28 @@ export default function AssetsPage() {
                 </div>
 
                 {/* Name */}
-                <h3 className="text-[15px] font-semibold text-card-text group-hover:text-sky-300 transition-colors leading-snug">
+                <h3 className="text-[15px] font-semibold text-slate-800 group-hover:text-[#0891B2] transition-colors leading-snug">
                   {asset.name}
                 </h3>
 
                 {/* Location */}
                 {asset.location_name && (
-                  <div className="flex items-center gap-1.5 mt-2 text-xs text-card-muted">
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500">
                     <MapPin size={11} /> {asset.location_name}
                   </div>
                 )}
                 {asset.latitude != null && asset.longitude != null && (
-                  <div className="text-[10px] text-card-faint font-mono mt-1 ml-4">
+                  <div className="text-[10px] text-slate-400 font-mono mt-1 ml-4">
                     {asset.latitude.toFixed(3)}°, {asset.longitude.toFixed(3)}°
                   </div>
                 )}
 
                 {/* Footer */}
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-card-border">
-                  <span className="text-xs text-card-faint font-medium">
+                <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: '1px solid #C8E6D4' }}>
+                  <span className="text-xs text-slate-500 font-medium">
                     {asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
                   </span>
-                  <div className="flex items-center gap-1 text-card-faint group-hover:text-sky-400 transition-colors">
+                  <div className="flex items-center gap-1 text-slate-400 group-hover:text-[#0891B2] transition-colors">
                     {asset.last_inspection_at && (
                       <span className="text-xs">{new Date(asset.last_inspection_at).toLocaleDateString()}</span>
                     )}
