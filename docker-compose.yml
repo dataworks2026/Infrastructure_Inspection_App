@@ -14,8 +14,6 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./mira_intel.db}
       - SECRET_KEY=${SECRET_KEY}
       - STORAGE_BASE_PATH=/app/storage
-      - OMP_NUM_THREADS=2
-      - MKL_NUM_THREADS=2
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s

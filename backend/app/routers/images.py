@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sqlfunc
 from typing import List, Optional
 import os, uuid, aiofiles
 
@@ -9,7 +8,6 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.inspection import Inspection
 from app.models.image import Image
-from app.models.detection import Detection
 from app.schemas.image import ImageRecord, ImageUploadItem, ImageUploadResponse, ImageUpdate
 
 router = APIRouter()
@@ -72,6 +70,7 @@ async def upload_images(
         abs_path = os.path.join(settings.STORAGE_BASE_PATH, rel_path)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
 
+        # Stream to disk in 256 KB chunks — avoids loading entire file into RAM
         CHUNK = 256 * 1024
         file_size = 0
         async with aiofiles.open(abs_path, "wb") as f:
@@ -123,88 +122,6 @@ def get_inspection_images(
         Image.deleted_at.is_(None),
     ).all()
     return [_image_to_record(img) for img in images]
-
-
-# ── GPS Map Points — MUST be before /images/{image_id} to avoid route conflict ──
-@router.get("/images/gps-points")
-def get_gps_points(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Return all images with GPS coordinates for map visualization."""
-    org_id = current_user.organization_id
-
-    rows = (
-        db.query(Image, Inspection)
-        .join(Inspection, Image.inspection_id == Inspection.id)
-        .filter(
-            Image.organization_id == org_id,
-            Image.gps_lat.isnot(None),
-            Image.gps_lon.isnot(None),
-        )
-        .all()
-    )
-
-    if not rows:
-        return {"points": []}
-
-    image_ids = [img.id for img, _ in rows]
-
-    # Detection counts per image
-    det_counts = (
-        db.query(Detection.image_id, sqlfunc.count(Detection.id).label("cnt"))
-        .filter(Detection.image_id.in_(image_ids))
-        .group_by(Detection.image_id)
-        .all()
-    )
-    det_map = {str(r.image_id): r.cnt for r in det_counts}
-
-    # Max severity per image (S3 > S2 > S1 > S0)
-    sev_rows = (
-        db.query(Detection.image_id, Detection.severity)
-        .filter(Detection.image_id.in_(image_ids), Detection.severity.isnot(None))
-        .all()
-    )
-    sev_order = {"S3": 4, "S2": 3, "S1": 2, "S0": 1}
-    sev_map: dict = {}
-    for r in sev_rows:
-        iid = str(r.image_id)
-        if sev_order.get(r.severity, 0) > sev_order.get(sev_map.get(iid, ""), 0):
-            sev_map[iid] = r.severity
-
-    # Annotated image paths (prefer annotated over raw)
-    ann_rows = (
-        db.query(Detection.image_id, Detection.annotated_image_path)
-        .filter(
-            Detection.image_id.in_(image_ids),
-            Detection.annotated_image_path.isnot(None),
-        )
-        .all()
-    )
-    ann_map = {str(r.image_id): r.annotated_image_path for r in ann_rows}
-
-    points = []
-    for img, insp in rows:
-        iid = str(img.id)
-        ann = ann_map.get(iid)
-        thumb = (
-            f"/storage/{ann}" if ann else
-            f"/storage/{img.stored_path}" if img.stored_path else None
-        )
-        points.append({
-            "id": iid,
-            "lat": img.gps_lat,
-            "lon": img.gps_lon,
-            "gps_accuracy_m": img.gps_accuracy_m,
-            "inspection_id": str(insp.id),
-            "inspection_name": insp.name,
-            "filename": img.original_filename or img.filename or iid,
-            "detection_count": det_map.get(iid, 0),
-            "max_severity": sev_map.get(iid),
-            "thumbnail_url": thumb,
-        })
-
-    return {"points": points}
 
 
 @router.get(

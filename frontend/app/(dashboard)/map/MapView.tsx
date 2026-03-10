@@ -14,21 +14,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// ── Image GPS point type ──
-export interface ImageGpsPoint {
-  id: string;
-  lat: number;
-  lon: number;
-  gps_accuracy_m?: number;
-  inspection_id: string;
-  inspection_name: string;
-  filename: string;
-  detection_count: number;
-  max_severity?: string;
-  thumbnail_url?: string;
-}
-
-// ── Icon cache ──
+// ── Icon cache — generate each SVG icon only once per (color, selected) pair ──
 const iconCache = new Map<string, L.DivIcon>();
 
 function adjustColor(hex: string, amount: number): string {
@@ -39,9 +25,8 @@ function adjustColor(hex: string, amount: number): string {
   return `#${(1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1)}`;
 }
 
-// ── Asset pin icon (teardrop) ──
-function getAssetIcon(color: string, isSelected: boolean): L.DivIcon {
-  const key = `asset-${color}-${isSelected ? 1 : 0}`;
+function getIcon(color: string, isSelected: boolean): L.DivIcon {
+  const key = `${color}-${isSelected ? 1 : 0}`;
   const cached = iconCache.get(key);
   if (cached) return cached;
 
@@ -80,41 +65,7 @@ function getAssetIcon(color: string, isSelected: boolean): L.DivIcon {
   return icon;
 }
 
-// ── Camera icon for image GPS markers ──
-function getImageIcon(severity?: string): L.DivIcon {
-  const colorMap: Record<string, string> = {
-    S3: '#EF4444', S2: '#F59E0B', S1: '#EAB308', S0: '#10B981',
-  };
-  const c = severity ? (colorMap[severity] || '#082E29') : '#6B9A87';
-  const key = `img-${c}`;
-  const cached = iconCache.get(key);
-  if (cached) return cached;
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 28" width="28" height="24">
-      <defs>
-        <filter id="sh-${c.replace('#','')}">
-          <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="${c}" flood-opacity="0.4"/>
-        </filter>
-      </defs>
-      <rect x="2" y="7" width="28" height="19" rx="4" fill="${c}" filter="url(#sh-${c.replace('#','')})"/>
-      <rect x="11" y="3" width="10" height="6" rx="2" fill="${c}"/>
-      <circle cx="16" cy="16.5" r="6" fill="white" opacity="0.9"/>
-      <circle cx="16" cy="16.5" r="4" fill="${c}"/>
-      <circle cx="16" cy="16.5" r="2" fill="white" opacity="0.6"/>
-    </svg>`;
-
-  const icon = L.divIcon({
-    html: svg,
-    className: 'custom-marker-icon',
-    iconSize: [28, 24],
-    iconAnchor: [14, 24],
-    popupAnchor: [0, -26],
-  });
-  iconCache.set(key, icon);
-  return icon;
-}
-
+// Component to fly to selected asset
 function FlyToAsset({ asset }: { asset?: Asset }) {
   const map = useMap();
   useEffect(() => {
@@ -125,87 +76,65 @@ function FlyToAsset({ asset }: { asset?: Asset }) {
   return null;
 }
 
-function FitBounds({ assets, imagePoints }: { assets: Asset[]; imagePoints: ImageGpsPoint[] }) {
+// Component to fit bounds on all markers
+function FitBounds({ assets }: { assets: Asset[] }) {
   const map = useMap();
   const hasFitted = useRef(false);
   useEffect(() => {
-    const coords: [number, number][] = [
-      ...assets.filter(a => a.latitude && a.longitude).map(a => [a.latitude!, a.longitude!] as [number, number]),
-      ...imagePoints.map(p => [p.lat, p.lon] as [number, number]),
-    ];
-    if (coords.length > 0 && !hasFitted.current) {
-      const bounds = L.latLngBounds(coords);
+    if (assets.length > 0 && !hasFitted.current) {
+      const bounds = L.latLngBounds(assets.map(a => [a.latitude!, a.longitude!] as [number, number]));
       map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12 });
       hasFitted.current = true;
     }
-  }, [assets, imagePoints, map]);
+  }, [assets, map]);
   return null;
 }
 
+// ── Single marker — memoized so it only re-renders when its own props change ──
 const AssetMarker = memo(function AssetMarker({ asset, isSelected, onSelect, markerColor, configLabel }:
   { asset: Asset; isSelected: boolean; onSelect: () => void; markerColor: string; configLabel: string }
 ) {
-  const icon = getAssetIcon(markerColor, isSelected);
+  const icon = getIcon(markerColor, isSelected);
   return (
-    <Marker position={[asset.latitude!, asset.longitude!]} icon={icon} eventHandlers={{ click: onSelect }}>
+    <Marker
+      position={[asset.latitude!, asset.longitude!]}
+      icon={icon}
+      eventHandlers={{ click: onSelect }}
+    >
       <Popup>
-        <div className="img-popup">
-          <div className="img-popup-name">{asset.name}</div>
+        <div className="asset-popup">
+          <div className="asset-popup-header">{asset.name}</div>
           {asset.location_name && (
-            <div className="img-popup-meta" style={{ color: '#6B9A87', marginBottom: 8 }}>
+            <div className="asset-popup-location">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               {asset.location_name}
             </div>
           )}
-          <div className="img-popup-meta">
-            <span className="img-popup-badge" style={{ background: markerColor + '20', color: markerColor, border: `1px solid ${markerColor}40` }}>{configLabel}</span>
-            <span className="img-popup-badge" style={{ background: asset.status === 'active' ? '#F0FDF4' : '#FFFBEB', color: asset.status === 'active' ? '#15803D' : '#92400E', border: `1px solid ${asset.status === 'active' ? '#BBF7D0' : '#FDE68A'}` }}>{asset.status}</span>
-          </div>
-          <div className="img-popup-coords">{asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}</div>
-          <div className="img-popup-divider" />
-          <a href={`/assets/${asset.id}`} className="img-popup-link">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            View Asset
-          </a>
-        </div>
-      </Popup>
-    </Marker>
-  );
-});
-
-const ImageMarker = memo(function ImageMarker({ point }: { point: ImageGpsPoint }) {
-  const icon = getImageIcon(point.max_severity);
-  const sevColors: Record<string, string> = { S3: '#EF4444', S2: '#F59E0B', S1: '#EAB308', S0: '#10B981' };
-  const sevBg: Record<string, string>     = { S3: '#FEF2F2', S2: '#FFFBEB', S1: '#FEFCE8', S0: '#F0FDF4' };
-  const sevBorder: Record<string, string> = { S3: '#FECACA', S2: '#FDE68A', S1: '#FEF08A', S0: '#BBF7D0' };
-  return (
-    <Marker position={[point.lat, point.lon]} icon={icon}>
-      <Popup>
-        <div className="img-popup">
-          {point.thumbnail_url && (
-            <div style={{ margin: '-16px -18px 10px -18px', height: 90, overflow: 'hidden', borderRadius: '14px 14px 0 0' }}>
-              <img src={point.thumbnail_url} alt={point.filename} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-          )}
-          <div className="img-popup-name">{point.filename}</div>
-          <div className="img-popup-meta" style={{ color: '#6B9A87', fontSize: 10 }}>{point.inspection_name}</div>
-          <div className="img-popup-meta" style={{ marginTop: 8 }}>
-            <span className="img-popup-badge" style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
-              {point.detection_count} detection{point.detection_count !== 1 ? 's' : ''}
+          <div className="asset-popup-meta">
+            <span className="asset-popup-badge" style={{
+              backgroundColor: markerColor + '25',
+              color: markerColor,
+              border: `1px solid ${markerColor}40`,
+            }}>
+              {configLabel || asset.infrastructure_type}
             </span>
-            {point.max_severity && (
-              <span className="img-popup-badge" style={{ background: sevBg[point.max_severity] || '#F9FAFB', color: sevColors[point.max_severity] || '#6B7280', border: `1px solid ${sevBorder[point.max_severity] || '#E5E7EB'}` }}>
-                {point.max_severity}
-              </span>
-            )}
+            <span className="asset-popup-badge" style={{
+              backgroundColor: asset.status === 'active' ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)',
+              color: asset.status === 'active' ? '#4ade80' : '#fbbf24',
+              border: `1px solid ${asset.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}`,
+            }}>
+              {asset.status}
+            </span>
           </div>
-          {point.gps_accuracy_m && (
-            <div className="img-popup-coords">GPS ±{point.gps_accuracy_m.toFixed(1)} m</div>
-          )}
-          <div className="img-popup-divider" />
-          <a href={`/inspections/${point.inspection_id}`} className="img-popup-link">
+          <div className="asset-popup-coords">
+            {asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
+            {' · '}
+            {asset.latitude?.toFixed(4)}°, {asset.longitude?.toFixed(4)}°
+          </div>
+          <div className="asset-popup-divider" />
+          <a href={`/assets/${asset.id}`} className="asset-popup-link">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            View Inspection
+            View Asset Details
           </a>
         </div>
       </Popup>
@@ -218,64 +147,63 @@ interface MapViewProps {
   selectedAssetId: string | null;
   onSelectAsset: (id: string) => void;
   infraConfig: Record<string, { label: string; markerColor: string }>;
-  imagePoints?: ImageGpsPoint[];
 }
 
 const MAP_STYLES = `
   .custom-marker-icon { background: none !important; border: none !important; }
   .custom-marker-icon svg { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); transition: transform 0.2s ease; }
   .custom-marker-icon:hover svg { transform: scale(1.15) translateY(-2px); }
-  .leaflet-container { font-family: 'Inter', system-ui, sans-serif !important; }
-  .leaflet-popup-content-wrapper {
-    border-radius: 14px !important;
-    box-shadow: 0 8px 32px rgba(8,46,41,0.15), 0 0 0 1px rgba(200,230,212,0.4) !important;
-    padding: 0 !important; overflow: hidden; background: #fff !important;
-  }
+  .leaflet-container { font-family: 'Inter', system-ui, sans-serif !important; background: #0a0f1a; }
+  .leaflet-popup-content-wrapper { border-radius: 14px !important; box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.08) !important; padding: 0 !important; overflow: hidden; background: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(20px); }
   .leaflet-popup-content { margin: 0 !important; width: auto !important; min-width: 220px; }
   .leaflet-popup-tip-container { display: none; }
-  .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 16px rgba(8,46,41,0.15) !important; border-radius: 12px !important; overflow: hidden; }
-  .leaflet-control-zoom a { background: rgba(255,255,255,0.95) !important; color: #082E29 !important; border: none !important; border-bottom: 1px solid #EDF6F0 !important; width: 36px !important; height: 36px !important; line-height: 36px !important; font-size: 16px !important; }
-  .leaflet-control-zoom a:hover { background: #EDF6F0 !important; }
-  .leaflet-control-layers { border: none !important; border-radius: 12px !important; box-shadow: 0 4px 16px rgba(8,46,41,0.15) !important; background: rgba(255,255,255,0.95) !important; color: #082E29 !important; }
+  .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important; border-radius: 12px !important; overflow: hidden; }
+  .leaflet-control-zoom a { background: rgba(15, 23, 42, 0.9) !important; color: white !important; border: none !important; backdrop-filter: blur(10px); width: 36px !important; height: 36px !important; line-height: 36px !important; font-size: 16px !important; }
+  .leaflet-control-zoom a:hover { background: rgba(30, 41, 59, 0.95) !important; }
+  .leaflet-control-layers { border: none !important; border-radius: 12px !important; box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important; background: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(10px); color: white !important; }
   .leaflet-control-layers-expanded { padding: 8px 14px !important; }
-  .leaflet-control-layers label { color: #2E6B5B !important; font-size: 12px !important; }
+  .leaflet-control-layers label { color: #cbd5e1 !important; font-size: 12px !important; }
   .leaflet-control-layers-toggle { width: 36px !important; height: 36px !important; }
-  .leaflet-control-attribution { background: rgba(255,255,255,0.85) !important; color: #6B9A87 !important; font-size: 9px !important; border-radius: 6px 0 0 0 !important; }
-  .leaflet-control-attribution a { color: #0891B2 !important; }
-  .img-popup { padding: 16px 18px; color: #082E29; }
-  .img-popup-name { font-size: 13px; font-weight: 700; color: #082E29; margin-bottom: 3px; letter-spacing: -0.01em; }
-  .img-popup-meta { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; font-size: 10px; color: #6B9A87; }
-  .img-popup-badge { font-size: 10px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
-  .img-popup-coords { font-size: 10px; color: #6B9A87; margin-top: 6px; font-family: monospace; }
-  .img-popup-divider { height: 1px; background: #EDF6F0; margin: 10px -18px; }
-  .img-popup-link { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; font-weight: 600; color: #0891B2; padding: 7px; margin: 0 -18px -16px -18px; background: #EDF6F0; transition: all 0.15s ease; text-decoration: none; }
-  .img-popup-link:hover { background: #C8E6D4; color: #082E29; }
+  .leaflet-control-attribution { background: rgba(15, 23, 42, 0.7) !important; color: #64748b !important; font-size: 9px !important; border-radius: 6px 0 0 0 !important; backdrop-filter: blur(10px); }
+  .leaflet-control-attribution a { color: #94a3b8 !important; }
+  .asset-popup { padding: 16px 18px; color: white; }
+  .asset-popup-header { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; letter-spacing: -0.01em; }
+  .asset-popup-location { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 5px; }
+  .asset-popup-meta { display: flex; gap: 6px; margin-top: 10px; }
+  .asset-popup-badge { font-size: 10px; padding: 3px 10px; border-radius: 8px; font-weight: 600; }
+  .asset-popup-coords { font-size: 10px; color: #64748b; margin-top: 8px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.02em; }
+  .asset-popup-divider { height: 1px; background: linear-gradient(90deg, transparent, #334155, transparent); margin: 12px -18px; }
+  .asset-popup-link { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 600; color: #38bdf8; padding: 8px; margin: 0 -18px -16px -18px; background: rgba(56, 189, 248, 0.08); transition: all 0.15s ease; text-decoration: none; }
+  .asset-popup-link:hover { background: rgba(56, 189, 248, 0.15); color: #7dd3fc; }
 `;
 
-function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoints = [] }: MapViewProps) {
-  const selectedAsset = useMemo(() => assets.find(a => a.id === selectedAssetId), [assets, selectedAssetId]);
+function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig }: MapViewProps) {
+  const selectedAsset = useMemo(
+    () => assets.find(a => a.id === selectedAssetId),
+    [assets, selectedAssetId]
+  );
 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: MAP_STYLES }} />
-      <MapContainer center={[53.5, 0.5]} zoom={5} style={{ width: '100%', height: '100%' }} zoomControl={true} scrollWheelZoom={true}>
+      <MapContainer
+        center={[53.5, 0.5]}
+        zoom={5}
+        style={{ width: '100%', height: '100%' }}
+        zoomControl={true}
+        scrollWheelZoom={true}
+      >
         <LayersControl position="topright">
-          <LayersControl.BaseLayer checked name="Satellite">
-            <TileLayer
-              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Light">
-            <TileLayer
-              attribution='&copy; <a href="https://stadiamaps.com/">Stadia</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://openstreetmap.org">OSM</a>'
-              url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
-            />
-          </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Dark">
             <TileLayer
               attribution='&copy; <a href="https://stadiamaps.com/">Stadia</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://openstreetmap.org">OSM</a>'
               url="https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
+            />
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer checked name="Satellite">
+            <TileLayer
+              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Ocean">
@@ -284,9 +212,15 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
               url="https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}"
             />
           </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="Light">
+            <TileLayer
+              attribution='&copy; <a href="https://stadiamaps.com/">Stadia</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://openstreetmap.org">OSM</a>'
+              url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+            />
+          </LayersControl.BaseLayer>
         </LayersControl>
 
-        <FitBounds assets={assets} imagePoints={imagePoints} />
+        <FitBounds assets={assets} />
         <FlyToAsset asset={selectedAsset} />
 
         {assets.map((asset) => {
@@ -297,15 +231,11 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
               asset={asset}
               isSelected={asset.id === selectedAssetId}
               onSelect={() => onSelectAsset(asset.id)}
-              markerColor={config?.markerColor || '#6B9A87'}
+              markerColor={config?.markerColor || '#64748B'}
               configLabel={config?.label || asset.infrastructure_type}
             />
           );
         })}
-
-        {imagePoints.map((point) => (
-          <ImageMarker key={point.id} point={point} />
-        ))}
       </MapContainer>
     </>
   );

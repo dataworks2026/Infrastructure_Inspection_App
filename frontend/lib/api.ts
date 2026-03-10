@@ -69,7 +69,6 @@ export const imagesApi = {
   list: (inspectionId: string) =>
     api.get<ImageRecord[]>(`/inspections/${inspectionId}/images`).then(r => r.data),
   get: (id: string) => api.get<ImageRecord>(`/images/${id}`).then(r => r.data),
-  gpsPoints: () => api.get('/images/gps-points').then(r => r.data),
 };
 
 // Analysis

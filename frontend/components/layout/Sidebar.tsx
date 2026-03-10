@@ -1,196 +1,233 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { memo, useCallback, useState } from 'react';
+import Image from 'next/image';
+import { memo, useCallback } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText,
-  LogOut, Map, ChevronLeft, ChevronRight, Settings,
+  LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight, Settings,
 } from 'lucide-react';
 import { clearAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/app/providers';
+import clsx from 'clsx';
 
-const TEAL  = '#082E29';
-const BLUE  = '#93C5FD';
-const BRAND = '#0891B2';
-
-const NAV_ITEMS = [
-  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/assets',      label: 'Assets',      icon: Building2 },
-  { href: '/map',         label: 'Map',         icon: Map },
-  { href: '/inspections', label: 'Inspections', icon: ClipboardList },
-  { href: '/upload',      label: 'Upload',      icon: Upload },
-  { href: '/reports',     label: 'Reports',     icon: FileText },
+const NAV_ITEMS: { href: string; label: string; icon: React.ElementType }[] = [
+  { href: '/dashboard',    label: 'Dashboard',   icon: LayoutDashboard },
+  { href: '/assets',       label: 'Assets',      icon: Building2 },
+  { href: '/map',          label: 'Map',         icon: Map },
+  { href: '/inspections',  label: 'Inspections', icon: ClipboardList },
+  { href: '/upload',       label: 'Upload',      icon: Upload },
+  { href: '/reports',      label: 'Reports',     icon: FileText },
 ];
 
-/** Mira Intel logo — uses logo.png in a white rounded container */
+const TWIN_ITEMS: { href: string; label: string; icon: React.ElementType }[] = [
+  { href: '/digital-twin',         label: 'Overview',  icon: Box },
+  { href: '/digital-twin/viewer',  label: '3D Viewer', icon: Box },
+  { href: '/digital-twin/compare', label: 'Compare',   icon: GitCompareArrows },
+  { href: '/digital-twin/heatmap', label: 'Heatmap',  icon: Flame },
+];
+
+/** Mira Intel logo — uses actual logo.png from /public */
 function LogoMark({ size = 36 }: { size?: number }) {
   return (
-    <div className="flex items-center justify-center rounded-xl flex-shrink-0 bg-white overflow-hidden"
-      style={{ width: size, height: size }}>
-      <img
-        src="/logo.png"
-        alt="Mira Intel"
-        width={size}
-        height={size}
-        style={{ objectFit: 'contain' }}
-      />
-    </div>
+    <Image
+      src="/logo.png"
+      alt="Mira Intel"
+      width={size}
+      height={size}
+      style={{ objectFit: 'contain', flexShrink: 0 }}
+      priority
+    />
   );
 }
 
+/** Navigation link — memoized to avoid re-render when sibling updates */
 const NavLink = memo(function NavLink({
-  href, label, icon: Icon, active, collapsed,
+  href, label, icon: Icon, active, variant, collapsed,
 }: {
   href: string; label: string; icon: React.ElementType;
-  active: boolean; collapsed: boolean;
+  active: boolean; variant?: 'twin'; collapsed: boolean;
 }) {
   return (
     <Link
       href={href}
+      prefetch={true}
       title={collapsed ? label : undefined}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group relative"
-      style={active
-        ? { background: 'rgba(147,197,253,0.1)', color: BLUE }
-        : { color: '#A5D4BB' }
-      }
+      className={clsx(
+        'flex items-center rounded-lg text-[13px] font-medium transition-all',
+        collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-4 py-2.5',
+        variant === 'twin'
+          ? (active
+            ? 'bg-gradient-to-r from-sky-500/20 to-blue-500/20 text-sky-300 shadow-sm'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200')
+          : (active
+            ? 'bg-sky-500/20 text-sky-300 shadow-sm'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200')
+      )}
     >
-      <Icon
-        size={17}
-        style={{ flexShrink: 0, color: active ? BLUE : '#A5D4BB' }}
-        className="transition-colors group-hover:text-[#93C5FD]"
-      />
-      {!collapsed && (
-        <span className="text-[13px] font-semibold truncate transition-colors group-hover:text-[#93C5FD]">
-          {label}
-        </span>
-      )}
-      {active && (
-        <span
-          className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-l-full"
-          style={{ background: BLUE }}
-        />
-      )}
+      <Icon size={18} strokeWidth={active ? 2 : 1.5} />
+      {!collapsed && <span>{label}</span>}
     </Link>
   );
 });
 
-export default function Sidebar() {
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useCurrentUser();
-  const [collapsed, setCollapsed] = useState(false);
+  const user = useCurrentUser();
 
   const handleLogout = useCallback(() => {
     clearAuth();
     router.replace('/login');
   }, [router]);
 
-  const initials = user?.full_name
-    ? user.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-    : user?.email?.[0]?.toUpperCase() ?? 'U';
-
-  const w = collapsed ? 64 : 220;
-
   return (
     <aside
-      className="flex flex-col h-screen flex-shrink-0 transition-all duration-300"
-      style={{ width: w, background: TEAL, borderRight: '1px solid rgba(255,255,255,0.06)' }}
+      className="bg-mira-sidebar shadow-sidebar flex flex-col min-h-screen fixed left-0 top-0 z-30 transition-all duration-300 overflow-hidden"
+      style={{ width: collapsed ? '64px' : '260px' }}
     >
-      {/* ── Logo row ── */}
-      <div className="flex items-center gap-3 px-4 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <LogoMark size={34} />
+      {/* Brand row */}
+      <div className={clsx(
+        'border-b border-white/10 flex items-center',
+        collapsed ? 'flex-col gap-2 py-4 px-2' : 'px-4 py-5 gap-3',
+      )}>
+        {/* Logo icon — always visible */}
+        <LogoMark size={collapsed ? 32 : 36} />
+
+        {/* Text — hidden when collapsed */}
         {!collapsed && (
-          <div className="min-w-0">
-            <p className="text-[13px] font-black tracking-wide truncate" style={{ color: '#F0FDF4', letterSpacing: '0.04em' }}>
-              MIRA INTEL
-            </p>
-            <p className="text-[9px] font-medium truncate" style={{ color: '#6B9A87', letterSpacing: '0.06em' }}>
-              INSPECTION PLATFORM
-            </p>
+          <div className="flex-1 min-w-0">
+            <div className="text-[15px] font-bold text-white tracking-tight leading-none">MIRA INTEL</div>
+            <div className="text-[10px] text-slate-400 uppercase tracking-[0.12em] mt-0.5">Inspection Platform</div>
           </div>
         )}
-      </div>
 
-      {/* ── Navigation ── */}
-      <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV_ITEMS.map(({ href, label, icon }) => (
-          <NavLink
-            key={href}
-            href={href}
-            label={label}
-            icon={icon}
-            active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))}
-            collapsed={collapsed}
-          />
-        ))}
-      </nav>
-
-      {/* ── Bottom: user + collapse ── */}
-      <div className="px-2 py-3 space-y-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        {/* Collapse toggle */}
+        {/* Toggle chevron button */}
         <button
-          onClick={() => setCollapsed(c => !c)}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all"
-          style={{ color: '#6B9A87', background: 'none', border: 'none', cursor: 'pointer' }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          onClick={onToggle}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={clsx(
+            'rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center',
+            collapsed ? 'w-8 h-8' : 'w-7 h-7 ml-auto flex-shrink-0',
+          )}
         >
           {collapsed
-            ? <ChevronRight size={15} style={{ flexShrink: 0 }} />
-            : <ChevronLeft  size={15} style={{ flexShrink: 0 }} />}
-          {!collapsed && <span className="text-[12px] font-medium">Collapse</span>}
+            ? <ChevronRight size={15} />
+            : <ChevronLeft  size={15} />
+          }
         </button>
+      </div>
 
-        {/* Settings */}
-        <Link
-          href="/settings"
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all"
-          style={{ color: '#6B9A87' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLElement).style.color = '#A5D4BB'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = '#6B9A87'; }}
-          title="Profile Settings"
-        >
-          <Settings size={15} style={{ flexShrink: 0 }} />
-          {!collapsed && <span className="text-[12px] font-medium">Settings</span>}
-        </Link>
-
-        {/* Logout */}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all"
-          style={{ color: '#6B9A87', background: 'none', border: 'none', cursor: 'pointer' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLElement).style.color = '#A5D4BB'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = '#6B9A87'; }}
-          title="Sign out"
-        >
-          <LogOut size={15} style={{ flexShrink: 0 }} />
-          {!collapsed && <span className="text-[12px] font-medium">Sign out</span>}
-        </button>
-
-        {/* User avatar */}
-        <div
-          className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 4, paddingTop: 12 }}
-        >
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-white text-[11px] font-black"
-            style={{ background: BRAND }}
-          >
-            {initials}
+      {/* Navigation */}
+      <nav className={clsx('flex-1 py-5 overflow-y-auto space-y-1', collapsed ? 'px-2' : 'px-3')}>
+        {/* Section label */}
+        {!collapsed && (
+          <div className="px-3 mb-3">
+            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.15em]">Menu</span>
           </div>
-          {!collapsed && user && (
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold truncate" style={{ color: '#C8E6D4' }}>
-                {user.full_name || user.email}
-              </p>
-              {user.full_name && (
-                <p className="text-[9px] truncate" style={{ color: '#6B9A87' }}>{user.email}</p>
-              )}
+        )}
+
+        {NAV_ITEMS.map(({ href, label, icon }) => {
+          const active = pathname === href || (pathname.startsWith(href + '/') && href !== '/');
+          return (
+            <NavLink
+              key={href}
+              href={href}
+              label={label}
+              icon={icon}
+              active={active}
+              collapsed={collapsed}
+            />
+          );
+        })}
+
+        {/* Digital Twin section */}
+        {!collapsed && (
+          <div className="px-3 mt-6 mb-3">
+            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.15em]">Digital Twin</span>
+          </div>
+        )}
+        {collapsed && <div className="my-3 mx-auto w-5 h-px bg-white/10" />}
+
+        {TWIN_ITEMS.map(({ href, label, icon }) => {
+          const active = pathname === href;
+          return (
+            <NavLink
+              key={href}
+              href={href}
+              label={label}
+              icon={icon}
+              active={active}
+              variant="twin"
+              collapsed={collapsed}
+            />
+          );
+        })}
+      </nav>
+
+      {/* User section */}
+      <div className={clsx('border-t border-white/10', collapsed ? 'p-2' : 'p-4')}>
+        {!collapsed ? (
+          <>
+            <div className="flex items-center gap-3 mb-3 px-2">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white shadow-md flex-shrink-0">
+                {user?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-slate-200 truncate">
+                  {user?.full_name || user?.email || '\u00A0'}
+                </div>
+                <div className="text-[11px] text-slate-500 truncate">
+                  {user?.organization_name || user?.role || '\u00A0'}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+            <Link
+              href="/settings"
+              className="w-full flex items-center gap-2 text-[12px] text-slate-500 hover:text-slate-200 transition-colors py-1.5 px-2 rounded-md hover:bg-white/5 mb-1"
+            >
+              <Settings size={14} /> Profile Settings
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 text-[12px] text-slate-500 hover:text-red-400 transition-colors py-1.5 px-2 rounded-md hover:bg-white/5"
+            >
+              <LogOut size={14} /> Sign out
+            </button>
+          </>
+        ) : (
+          /* Collapsed: avatar + settings + logout stacked */
+          <div className="flex flex-col items-center gap-2">
+            <div
+              title={user?.full_name || user?.email || 'User'}
+              className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white shadow-md cursor-default"
+            >
+              {user?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+            </div>
+            <Link
+              href="/settings"
+              title="Profile Settings"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-colors"
+            >
+              <Settings size={15} />
+            </Link>
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 hover:bg-white/5 transition-colors"
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
 }
+
+export default memo(Sidebar);
