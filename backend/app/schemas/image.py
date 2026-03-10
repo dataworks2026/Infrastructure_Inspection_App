@@ -3,6 +3,15 @@ from typing import Optional, List
 from datetime import datetime
 
 
+class ImageUpdate(BaseModel):
+    """Fields that can be patched on an existing image."""
+    gps_lat: Optional[float] = None
+    gps_lon: Optional[float] = None
+    gps_accuracy_m: Optional[float] = None
+    component_type: Optional[str] = None
+    capture_datetime: Optional[datetime] = None
+
+
 class ImageUploadItem(BaseModel):
     """Single image entry returned after a successful upload."""
     id: str

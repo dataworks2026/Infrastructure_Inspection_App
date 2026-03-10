@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.inspection import Inspection
 from app.models.image import Image
-from app.schemas.image import ImageRecord, ImageUploadItem, ImageUploadResponse
+from app.schemas.image import ImageRecord, ImageUploadItem, ImageUploadResponse, ImageUpdate
 
 router = APIRouter()
 
@@ -140,4 +140,30 @@ def get_image(
     ).first()
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
+    return _image_to_record(img)
+
+
+@router.patch(
+    "/images/{image_id}",
+    response_model=ImageRecord,
+)
+def update_image(
+    image_id: str,
+    data: ImageUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    img = db.query(Image).filter(
+        Image.id == image_id,
+        Image.organization_id == current_user.organization_id,
+        Image.deleted_at.is_(None),
+    ).first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(img, field, value)
+
+    db.commit()
+    db.refresh(img)
     return _image_to_record(img)
