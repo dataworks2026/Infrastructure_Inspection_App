@@ -6,7 +6,6 @@
 
 html, body {
   height: 100%;
-  overflow: hidden;
 }
 
 body {
@@ -86,6 +85,132 @@ input:focus, select:focus, textarea:focus {
   background: rgba(237, 241, 247, 0.85);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(203, 213, 225, 0.5);
+}
+
+/* ── Search button (themed) ── */
+.search-btn {
+  background: rgba(8, 46, 41, 0.06);
+  border: 1px solid #C8E6D4;
+  color: #6B9A87;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.search-btn:hover {
+  background: rgba(8, 46, 41, 0.1);
+  border-color: #0891B2;
+  color: #082E29;
+  box-shadow: 0 0 0 3px rgba(8,145,178,0.08);
+}
+.search-kbd {
+  background: rgba(8, 46, 41, 0.08);
+  color: #6B9A87;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: 'Inter', monospace;
+  font-weight: 700;
+}
+
+/* ── Sidebar nav link hover ── */
+.sidebar-nav-link {
+  transition: all 0.18s ease;
+}
+.sidebar-nav-link:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+/* ── Sidebar toggle button ── */
+.sidebar-toggle-btn {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-toggle-btn:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+/* ── Interactive cards ── */
+.interactive-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.interactive-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(8, 46, 41, 0.08), 0 1px 4px rgba(8, 46, 41, 0.04);
+}
+
+/* ── Interactive rows (table, list) ── */
+.interactive-row {
+  transition: background-color 0.15s ease, transform 0.12s ease;
+}
+.interactive-row:hover {
+  background-color: #F7FCF9;
+}
+
+/* ── Interactive links ── */
+.interactive-link {
+  transition: all 0.15s ease;
+}
+.interactive-link:hover {
+  opacity: 0.8;
+  transform: translateX(2px);
+}
+
+/* ── Interactive chips (header badges) ── */
+.interactive-chip {
+  transition: all 0.2s ease;
+}
+.interactive-chip:hover {
+  border-color: #0891B2 !important;
+  box-shadow: 0 0 0 2px rgba(8,145,178,0.08);
+}
+
+/* ── Carousel arrows ── */
+.carousel-arrow {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  transition: all 0.18s ease;
+}
+.carousel-arrow:hover:not(:disabled) {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transform: translateY(-50%) scale(1.1);
+}
+
+/* ── Carousel horizontal scroll ── */
+.carousel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #C8E6D4 transparent;
+}
+.carousel-scroll::-webkit-scrollbar { height: 4px; }
+.carousel-scroll::-webkit-scrollbar-track { background: transparent; }
+.carousel-scroll::-webkit-scrollbar-thumb { background: #C8E6D4; border-radius: 4px; }
+.carousel-scroll::-webkit-scrollbar-thumb:hover { background: #6B9A87; }
+
+/* ── Carousel scroll buttons ── */
+.carousel-scroll-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid #C8E6D4;
+  color: #082E29;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.carousel-scroll-btn:hover {
+  background: #082E29;
+  color: white;
+  border-color: #082E29;
+  box-shadow: 0 4px 12px rgba(8,46,41,0.25);
+  transform: translateY(-50%) scale(1.05);
 }
 
 /* ── Map page: push Leaflet zoom controls below the floating header pill ── */

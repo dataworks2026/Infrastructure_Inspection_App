@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
@@ -54,7 +54,7 @@ function KPICard({ label, value, sub, icon, accentColor }: {
   icon: React.ReactNode; accentColor: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col gap-2 min-w-0"
+    <div className="interactive-card bg-white rounded-2xl p-4 shadow-sm flex flex-col gap-2 min-w-0"
       style={{ border: '1px solid #C8E6D4' }}>
       <div className="flex items-start justify-between gap-2">
         <p className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: '#6B9A87' }}>{label}</p>
@@ -80,7 +80,7 @@ function AssetRow({ asset }: { asset: DashboardAssetHealth }) {
   const borderColor = sev === 'S3' ? '#EF4444' : sev === 'S2' ? '#F59E0B' : sev === 'S1' ? '#EAB308' : '#10B981';
   return (
     <Link href={`/assets/${asset.id}`}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-[#F7FCF9] transition-colors group border-l-[3px]"
+      className="interactive-row flex items-center gap-3 px-4 py-3 group border-l-[3px]"
       style={{ borderLeftColor: borderColor }}>
       <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
         style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
@@ -122,11 +122,9 @@ function AssetCarouselCard({
   group: { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] };
 }) {
   const [idx, setIdx] = useState(0);
-  const imgs = group.images;
+  const imgs = group.images.slice(0, 10); // max 10 per asset
   const img = imgs[idx];
-  if (!img) return null;
 
-  const sev = img.max_severity ? SEV[img.max_severity] : null;
   const totalDetections = imgs.reduce((sum, i) => sum + i.detection_count, 0);
   const worstSev = imgs.find(i => i.max_severity)?.max_severity ?? null;
   const borderAccent = worstSev === 'S3' ? '#EF4444' : worstSev === 'S2' ? '#F59E0B' : worstSev === 'S1' ? '#EAB308' : '#C8E6D4';
@@ -134,9 +132,35 @@ function AssetCarouselCard({
   const prev = () => setIdx(i => Math.max(0, i - 1));
   const next = () => setIdx(i => Math.min(imgs.length - 1, i + 1));
 
+  if (!img) {
+    return (
+      <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0"
+        style={{ border: '1px solid #C8E6D4', minWidth: 280 }}>
+        <div className="flex items-center justify-between px-3 py-2 flex-shrink-0"
+          style={{ background: MINT, borderBottom: '1px solid #C8E6D4' }}>
+          <p className="text-[11px] font-black truncate" style={{ color: TEAL }}>{group.asset_name}</p>
+          {group.asset_id && (
+            <Link href={`/assets/${group.asset_id}`}
+              className="flex items-center gap-0.5 text-[9px] font-bold ml-2 flex-shrink-0 hover:opacity-70"
+              style={{ color: BRAND }}>
+              View <ChevronRight size={9} />
+            </Link>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center py-10 gap-2" style={{ aspectRatio: '4/3' }}>
+          <ImageIcon size={28} style={{ color: '#C8E6D4' }} />
+          <p className="text-[11px] font-medium" style={{ color: '#6B9A87' }}>No images analyzed yet</p>
+          <Link href="/upload" className="text-[10px] font-bold" style={{ color: BRAND }}>Upload images →</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const sev = img.max_severity ? SEV[img.max_severity] : null;
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0"
-      style={{ border: `1px solid ${borderAccent}` }}>
+    <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0"
+      style={{ border: `1px solid ${borderAccent}`, minWidth: 280 }}>
 
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 flex-shrink-0"
@@ -164,7 +188,8 @@ function AssetCarouselCard({
         <img
           src={img.url}
           alt={img.filename}
-          className="w-full h-full object-cover transition-opacity duration-200"
+          className="w-full h-full object-cover"
+          style={{ transition: 'opacity 0.2s ease' }}
           onError={e => {
             (e.target as HTMLImageElement).src =
               'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
@@ -187,48 +212,33 @@ function AssetCarouselCard({
         {/* Carousel controls */}
         {imgs.length > 1 && (
           <>
-            <button
-              onClick={prev}
-              disabled={idx === 0}
-              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center shadow-md transition-all"
-              style={{
-                background: 'rgba(255,255,255,0.92)',
-                opacity: idx === 0 ? 0.35 : 1,
-                cursor: idx === 0 ? 'default' : 'pointer',
-              }}>
+            <button onClick={prev} disabled={idx === 0}
+              className="carousel-arrow absolute left-1.5 top-1/2 -translate-y-1/2"
+              style={{ opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'default' : 'pointer' }}>
               <ChevronLeft size={12} style={{ color: TEAL }} />
             </button>
-            <button
-              onClick={next}
-              disabled={idx === imgs.length - 1}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center shadow-md transition-all"
-              style={{
-                background: 'rgba(255,255,255,0.92)',
-                opacity: idx === imgs.length - 1 ? 0.35 : 1,
-                cursor: idx === imgs.length - 1 ? 'default' : 'pointer',
-              }}>
+            <button onClick={next} disabled={idx === imgs.length - 1}
+              className="carousel-arrow absolute right-1.5 top-1/2 -translate-y-1/2"
+              style={{ opacity: idx === imgs.length - 1 ? 0.3 : 1, cursor: idx === imgs.length - 1 ? 'default' : 'pointer' }}>
               <ChevronRight size={12} style={{ color: TEAL }} />
             </button>
           </>
         )}
 
-        {/* Dots */}
-        {imgs.length > 1 && imgs.length <= 9 && (
-          <div className="absolute bottom-1.5 left-0 right-0 flex justify-center gap-1 pointer-events-none">
-            {imgs.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setIdx(i)}
-                className="w-1.5 h-1.5 rounded-full transition-all pointer-events-auto"
-                style={{ background: i === idx ? 'white' : 'rgba(255,255,255,0.45)' }}
-              />
-            ))}
+        {/* Progress bar instead of dots for 10 images */}
+        {imgs.length > 1 && (
+          <div className="absolute bottom-0 left-0 right-0 h-1" style={{ background: 'rgba(0,0,0,0.2)' }}>
+            <div className="h-full transition-all duration-300 ease-out"
+              style={{
+                width: `${((idx + 1) / imgs.length) * 100}%`,
+                background: sev?.color || BRAND,
+              }} />
           </div>
         )}
 
         {/* Counter */}
-        <div className="absolute bottom-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded"
-          style={{ background: 'rgba(8,46,41,0.65)', color: 'white' }}>
+        <div className="absolute bottom-2 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{ background: 'rgba(8,46,41,0.7)', color: 'white' }}>
           {idx + 1}/{imgs.length}
         </div>
       </div>
@@ -256,13 +266,78 @@ function AssetCarouselCard({
   );
 }
 
+/* ── Scrollable carousel row ── */
+function CarouselRow({ groups }: { groups: { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] }[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  };
+
+  const scroll = (dir: 'left' | 'right') => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === 'left' ? -340 : 340, behavior: 'smooth' });
+  };
+
+  // Check on mount + resize
+  useEffect(() => {
+    checkScroll();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    const ro = new ResizeObserver(checkScroll);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', checkScroll); ro.disconnect(); };
+  });
+
+  const showArrows = groups.length > 3;
+
+  return (
+    <div className="relative">
+      {/* Left scroll arrow */}
+      {showArrows && canScrollLeft && (
+        <button onClick={() => scroll('left')}
+          className="carousel-scroll-btn absolute -left-1 top-1/2 -translate-y-1/2 z-10">
+          <ChevronLeft size={16} />
+        </button>
+      )}
+
+      <div ref={scrollRef}
+        className="flex gap-4 overflow-x-auto pb-2 carousel-scroll"
+        style={{ scrollSnapType: 'x mandatory' }}>
+        {groups.map(group => (
+          <div key={group.asset_id || group.asset_name}
+            className="flex-shrink-0"
+            style={{ width: groups.length <= 3 ? `calc(${100 / Math.min(groups.length, 3)}% - ${((Math.min(groups.length, 3) - 1) * 16) / Math.min(groups.length, 3)}px)` : 340, scrollSnapAlign: 'start' }}>
+            <AssetCarouselCard group={group} />
+          </div>
+        ))}
+      </div>
+
+      {/* Right scroll arrow */}
+      {showArrows && canScrollRight && (
+        <button onClick={() => scroll('right')}
+          className="carousel-scroll-btn absolute -right-1 top-1/2 -translate-y-1/2 z-10">
+          <ChevronRight size={16} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ── All detections table ── */
 function DetectionsTable({ images }: { images: DashboardAnalyzedImage[] }) {
   const allWithDetections = images.filter(i => i.detection_count > 0);
   if (allWithDetections.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
+    <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #EDF6F0' }}>
         <div className="flex items-center gap-2">
           <AlertTriangle size={13} style={{ color: '#EF4444' }} />
@@ -288,7 +363,7 @@ function DetectionsTable({ images }: { images: DashboardAnalyzedImage[] }) {
           </thead>
           <tbody>
             {allWithDetections.map((img) => (
-              <tr key={img.id} className="hover:bg-[#F7FCF9] transition-colors"
+              <tr key={img.id} className="interactive-row"
                 style={{ borderBottom: '1px solid #EDF6F0' }}>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2 min-w-0">
@@ -329,33 +404,55 @@ export default function DashboardPage() {
   });
 
   const images = data?.recent_analyzed_images || [];
+  const assetHealth = data?.asset_health || [];
 
-  const imagesByAsset = useMemo(() => {
-    const groups: Record<string, { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] }> = {};
+  // Build carousel groups: include ALL assets from asset_health,
+  // merge with images grouped by asset. Sort images high→low severity, limit 10.
+  const carouselGroups = useMemo(() => {
+    const imgGroups: Record<string, DashboardAnalyzedImage[]> = {};
     for (const img of images) {
       const key = img.asset_id || img.asset_name;
-      if (!groups[key]) groups[key] = { asset_id: img.asset_id, asset_name: img.asset_name, images: [] };
-      groups[key].images.push(img);
+      if (!imgGroups[key]) imgGroups[key] = [];
+      imgGroups[key].push(img);
     }
+
     const sevRank: Record<string, number> = { S3: 0, S2: 1, S1: 2, S0: 3 };
-    return Object.values(groups)
-      .map(g => ({
-        ...g,
-        images: [...g.images].sort((a, b) =>
-          (sevRank[a.max_severity || ''] ?? 4) - (sevRank[b.max_severity || ''] ?? 4) ||
-          b.detection_count - a.detection_count
-        ),
-      }))
-      .sort((a, b) => {
-        const worstA = sevRank[a.images[0]?.max_severity || ''] ?? 4;
-        const worstB = sevRank[b.images[0]?.max_severity || ''] ?? 4;
-        return worstA - worstB;
-      });
-  }, [images]);
+
+    // Build from assetHealth so ALL assets appear
+    const groups = assetHealth.map(a => {
+      const assetImages = (imgGroups[a.id] || [])
+        .sort((x, y) =>
+          (sevRank[x.max_severity || ''] ?? 4) - (sevRank[y.max_severity || ''] ?? 4) ||
+          y.detection_count - x.detection_count
+        )
+        .slice(0, 10);
+      return { asset_id: a.id, asset_name: a.name, images: assetImages };
+    });
+
+    // Also add any image groups for assets not in assetHealth
+    const healthIds = new Set(assetHealth.map(a => a.id));
+    for (const [key, imgs] of Object.entries(imgGroups)) {
+      if (!healthIds.has(key)) {
+        const sorted = [...imgs]
+          .sort((x, y) =>
+            (sevRank[x.max_severity || ''] ?? 4) - (sevRank[y.max_severity || ''] ?? 4) ||
+            y.detection_count - x.detection_count
+          )
+          .slice(0, 10);
+        groups.push({ asset_id: key, asset_name: sorted[0]?.asset_name || key, images: sorted });
+      }
+    }
+
+    // Sort groups: most critical first
+    return groups.sort((a, b) => {
+      const wa = sevRank[a.images[0]?.max_severity || ''] ?? 4;
+      const wb = sevRank[b.images[0]?.max_severity || ''] ?? 4;
+      return wa - wb;
+    });
+  }, [images, assetHealth]);
 
   if (isLoading) return <DashboardSkeleton />;
 
-  const assetHealth  = data?.asset_health || [];
   const sevBreakdown = data?.severity_breakdown || {};
 
   const sevDonut = Object.entries(sevBreakdown).map(([k, v]) => ({
@@ -368,10 +465,8 @@ export default function DashboardPage() {
     itemStyle: { color: TEAL },
   };
 
-  const carouselAssets = imagesByAsset.slice(0, 3);
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -380,12 +475,12 @@ export default function DashboardPage() {
           <p className="text-[11px] mt-0.5" style={{ color: '#6B9A87' }}>Platform overview and recent activity</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full"
+          <div className="interactive-chip flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full"
             style={{ background: MINT, color: '#6B9A87', border: '1px solid #C8E6D4' }}>
             <Activity size={11} style={{ color: BRAND }} />
             <span>{data?.total_inspections ?? 0} inspections</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full"
+          <div className="interactive-chip flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full"
             style={{ background: MINT, color: '#6B9A87', border: '1px solid #C8E6D4' }}>
             <TrendingUp size={11} style={{ color: '#10B981' }} />
             <span>{data?.fleet_health_pct ?? 0}% fleet health</span>
@@ -405,11 +500,10 @@ export default function DashboardPage() {
 
       {/* Two-column: Asset Health + Severity Donut */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Asset Health - 2/3 width */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
+        <div className="lg:col-span-2 interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
           <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid #EDF6F0' }}>
             <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Asset Health</h2>
-            <Link href="/assets" className="text-[10px] font-bold flex items-center gap-1 transition-colors hover:opacity-80"
+            <Link href="/assets" className="interactive-link text-[10px] font-bold flex items-center gap-1"
               style={{ color: BRAND }}>
               View all <ArrowRight size={10} />
             </Link>
@@ -421,20 +515,19 @@ export default function DashboardPage() {
               <Link href="/assets" className="text-[10px] font-bold" style={{ color: BRAND }}>Create one →</Link>
             </div>
           ) : (
-            <div className="divide-y overflow-y-auto" style={{ borderColor: '#EDF6F0', maxHeight: 280 }}>
+            <div className="divide-y overflow-y-auto" style={{ borderColor: '#EDF6F0', maxHeight: 260 }}>
               {assetHealth.map(a => <AssetRow key={a.id} asset={a} />)}
             </div>
           )}
         </div>
 
-        {/* Severity Donut - 1/3 width */}
         {sevDonut.length > 0 ? (
-          <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
+          <div className="interactive-card bg-white rounded-2xl p-4 shadow-sm flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
             <h2 className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: '#6B9A87' }}>Severity Mix</h2>
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
-              <ResponsiveContainer width="100%" height={130}>
+              <ResponsiveContainer width="100%" height={120}>
                 <PieChart>
-                  <Pie data={sevDonut} cx="50%" cy="50%" innerRadius={32} outerRadius={55}
+                  <Pie data={sevDonut} cx="50%" cy="50%" innerRadius={30} outerRadius={50}
                     dataKey="value" paddingAngle={3}>
                     {sevDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
@@ -455,15 +548,15 @@ export default function DashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center" style={{ border: '1px solid #C8E6D4' }}>
+          <div className="interactive-card bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center" style={{ border: '1px solid #C8E6D4' }}>
             <Activity size={24} style={{ color: '#C8E6D4' }} />
             <p className="text-[11px] mt-2" style={{ color: '#6B9A87' }}>No severity data</p>
           </div>
         )}
       </div>
 
-      {/* 3 Asset image carousels */}
-      {carouselAssets.length > 0 ? (
+      {/* Asset image carousels - ALL assets */}
+      {carouselGroups.length > 0 ? (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>
@@ -471,17 +564,13 @@ export default function DashboardPage() {
             </h2>
             <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
               style={{ background: '#EDF6F0', color: '#6B9A87' }}>
-              Top {carouselAssets.length} asset{carouselAssets.length !== 1 ? 's' : ''} by severity
+              {carouselGroups.length} asset{carouselGroups.length !== 1 ? 's' : ''} · up to 10 images each
             </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {carouselAssets.map(group => (
-              <AssetCarouselCard key={group.asset_id || group.asset_name} group={group} />
-            ))}
-          </div>
+          <CarouselRow groups={carouselGroups} />
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm p-8 flex flex-col items-center gap-3"
+        <div className="interactive-card bg-white rounded-2xl shadow-sm p-8 flex flex-col items-center gap-3"
           style={{ border: '1px solid #C8E6D4' }}>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: MINT }}>
             <ImageIcon size={20} style={{ color: '#6B9A87' }} />
@@ -494,6 +583,8 @@ export default function DashboardPage() {
       {/* All Detections Table */}
       <DetectionsTable images={images} />
 
+      {/* Bottom spacer */}
+      <div className="h-4" />
     </div>
   );
 }

@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router      = useRouter();
   const queryClient = useQueryClient();
   const [checked, setChecked] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarW, setSidebarW] = useState(240);
 
   useIsomorphicLayoutEffect(() => {
     if (isAuthenticated()) {
@@ -27,14 +27,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, []);
 
-  // Listen for sidebar collapse changes by observing its width
+  // Track sidebar width via ResizeObserver
   useEffect(() => {
     if (!checked) return;
     const sidebar = document.querySelector('aside');
     if (!sidebar) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setSidebarCollapsed(entry.contentRect.width < 100);
+        setSidebarW(entry.contentRect.width);
       }
     });
     observer.observe(sidebar);
@@ -56,44 +56,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const sidebarWidth = sidebarCollapsed ? 64 : 240;
-
   return (
     <ToastProvider>
       <div className="min-h-screen bg-mira-bg">
         <Sidebar />
 
-        {/* Main area - offset by sidebar width */}
+        {/* Main area - flush against sidebar */}
         <div
-          className="flex flex-col min-h-screen"
+          className="min-h-screen flex flex-col"
           style={{
-            marginLeft: sidebarWidth,
+            marginLeft: sidebarW,
             transition: 'margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
-          {/* Top bar */}
-          <header
-            className="sticky top-0 z-20 page-header-bar flex items-center justify-between flex-shrink-0"
-            style={{ height: 48, padding: '0 24px' }}
-          >
+          {/* Top bar - compact, themed, sticky */}
+          <header className="sticky top-0 z-20 flex-shrink-0 flex items-center justify-between page-header-bar"
+            style={{ height: 44, padding: '0 20px' }}>
             <Breadcrumbs />
             <button
               onClick={() => {
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
               }}
-              className="flex items-center gap-2 text-[12px] text-slate-400 hover:text-slate-300 bg-card-dark/60 border border-card-border hover:border-card-border-hover px-3 py-1.5 rounded-lg transition-all group"
+              className="search-btn flex items-center gap-2 text-[11px] px-3 py-1 rounded-lg"
             >
-              <Search size={13} className="text-slate-300 group-hover:text-slate-100" />
+              <Search size={12} />
               <span>Search...</span>
               <span className="ml-1 flex items-center gap-0.5">
-                <kbd className="bg-slate-700 text-slate-400 text-[10px] px-1.5 py-0.5 rounded font-mono">⌘</kbd>
-                <kbd className="bg-slate-700 text-slate-400 text-[10px] px-1.5 py-0.5 rounded font-mono">K</kbd>
+                <kbd className="search-kbd">⌘</kbd>
+                <kbd className="search-kbd">K</kbd>
               </span>
             </button>
           </header>
 
-          {/* Page content - takes remaining height, scrolls internally */}
-          <main className="flex-1 overflow-y-auto" style={{ padding: '20px 24px 24px' }}>
+          {/* Page content - scrolls naturally with body */}
+          <main className="flex-1" style={{ padding: '16px 20px 40px' }}>
             <div className="max-w-[1400px] mx-auto w-full">
               {children}
             </div>

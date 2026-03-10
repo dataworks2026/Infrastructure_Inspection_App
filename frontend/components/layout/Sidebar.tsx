@@ -1,11 +1,11 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText,
   LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
-  Settings, PanelLeftClose, PanelLeft,
+  Settings,
 } from 'lucide-react';
 import { clearAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/app/providers';
@@ -50,7 +50,7 @@ const NavLink = memo(function NavLink({
     <Link
       href={href}
       title={collapsed ? label : undefined}
-      className="flex items-center gap-3 rounded-xl transition-all group relative"
+      className="sidebar-nav-link flex items-center gap-3 rounded-xl group relative"
       style={{
         padding: collapsed ? '10px 0' : '10px 12px',
         justifyContent: collapsed ? 'center' : 'flex-start',
@@ -79,14 +79,13 @@ export default memo(function Sidebar() {
   const router = useRouter();
   const user = useCurrentUser();
   const [collapsed, setCollapsed] = useState(false);
-  const sidebarRef = useRef<HTMLElement>(null);
+  const [hoverToggle, setHoverToggle] = useState(false);
 
   const handleLogout = useCallback(() => {
     clearAuth();
     router.replace('/login');
   }, [router]);
 
-  // Keyboard shortcut: [ to toggle sidebar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -106,106 +105,84 @@ export default memo(function Sidebar() {
   const w = collapsed ? 64 : 240;
 
   return (
-    <aside
-      ref={sidebarRef}
-      className="fixed top-0 left-0 bottom-0 z-30 flex flex-col flex-shrink-0 overflow-hidden"
-      style={{
-        width: w,
-        background: TEAL,
-        borderRight: '1px solid rgba(255,255,255,0.06)',
-        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}
-    >
-      {/* Logo row */}
-      <div className="flex items-center gap-3 flex-shrink-0"
+    <>
+      <aside
+        className="fixed top-0 left-0 bottom-0 z-30 flex flex-col flex-shrink-0 overflow-hidden"
         style={{
-          padding: collapsed ? '16px 15px' : '16px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-        }}>
-        <LogoMark size={34} />
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-black tracking-wide truncate" style={{ color: '#F0FDF4', letterSpacing: '0.04em' }}>
-              MIRA INTEL
-            </p>
-            <p className="text-[9px] font-medium truncate" style={{ color: '#6B9A87', letterSpacing: '0.06em' }}>
-              INSPECTION PLATFORM
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Navigation - scrollable */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4"
-        style={{ padding: collapsed ? '16px 8px' : '16px 10px' }}>
-
-        {!collapsed && (
-          <p className="px-3 mb-2 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
-            Menu
-          </p>
-        )}
-        <div className="space-y-0.5">
-          {NAV_ITEMS.map(({ href, label, icon }) => (
-            <NavLink key={href} href={href} label={label} icon={icon} collapsed={collapsed}
-              active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))} />
-          ))}
+          width: w,
+          background: TEAL,
+          transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        {/* Logo row */}
+        <div className="flex items-center gap-3 flex-shrink-0"
+          style={{
+            padding: collapsed ? '16px 15px' : '16px 16px',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+          }}>
+          <LogoMark size={34} />
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-black tracking-wide truncate" style={{ color: '#F0FDF4', letterSpacing: '0.04em' }}>
+                MIRA INTEL
+              </p>
+              <p className="text-[9px] font-medium truncate" style={{ color: '#6B9A87', letterSpacing: '0.06em' }}>
+                INSPECTION PLATFORM
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Digital Twin section */}
-        <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          {!collapsed ? (
-            <div className="px-3 mb-2 flex items-center gap-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
-                Digital Twin
-              </p>
-              <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide"
-                style={{ background: 'rgba(147,197,253,0.12)', color: '#93C5FD' }}>
-                Soon
-              </span>
-            </div>
-          ) : (
-            <div className="mx-auto mb-2" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden"
+          style={{ padding: collapsed ? '16px 8px' : '16px 10px' }}>
+
+          {!collapsed && (
+            <p className="px-3 mb-2 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+              Menu
+            </p>
           )}
           <div className="space-y-0.5">
-            {TWIN_ITEMS.map(({ label, icon: Icon }) => (
-              <div key={label} title={collapsed ? `${label} (coming soon)` : undefined}
-                className="flex items-center gap-3 rounded-xl cursor-not-allowed select-none opacity-40"
-                style={{
-                  padding: collapsed ? '10px 0' : '10px 12px',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                }}>
-                <Icon size={15} style={{ flexShrink: 0, color: '#5B8A78' }} />
-                {!collapsed && (
-                  <span className="text-[12px] font-semibold truncate" style={{ color: '#5B8A78' }}>{label}</span>
-                )}
-              </div>
+            {NAV_ITEMS.map(({ href, label, icon }) => (
+              <NavLink key={href} href={href} label={label} icon={icon} collapsed={collapsed}
+                active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))} />
             ))}
           </div>
-        </div>
-      </nav>
 
-      {/* Bottom: collapse toggle + user + actions */}
-      <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          className="w-full flex items-center gap-3 transition-colors hover:bg-white/5"
-          style={{
-            padding: collapsed ? '10px 0' : '10px 16px',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            color: '#6B9A87',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-          }}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
-          {!collapsed && (
-            <span className="text-[11px] font-semibold">Collapse</span>
-          )}
-        </button>
+          <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            {!collapsed ? (
+              <div className="px-3 mb-2 flex items-center gap-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+                  Digital Twin
+                </p>
+                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                  style={{ background: 'rgba(147,197,253,0.12)', color: '#93C5FD' }}>
+                  Soon
+                </span>
+              </div>
+            ) : (
+              <div className="mx-auto mb-2" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+            )}
+            <div className="space-y-0.5">
+              {TWIN_ITEMS.map(({ label, icon: Icon }) => (
+                <div key={label} title={collapsed ? `${label} (coming soon)` : undefined}
+                  className="flex items-center gap-3 rounded-xl cursor-not-allowed select-none opacity-40"
+                  style={{
+                    padding: collapsed ? '10px 0' : '10px 12px',
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                  }}>
+                  <Icon size={15} style={{ flexShrink: 0, color: '#5B8A78' }} />
+                  {!collapsed && (
+                    <span className="text-[12px] font-semibold truncate" style={{ color: '#5B8A78' }}>{label}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </nav>
 
-        {/* User info + actions */}
-        <div style={{ padding: collapsed ? '12px 8px' : '12px 10px' }}>
+        {/* Bottom: user + actions */}
+        <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: collapsed ? '12px 8px' : '12px 10px' }}>
           {!collapsed ? (
             <>
               <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
@@ -223,13 +200,13 @@ export default memo(function Sidebar() {
                 </div>
               </div>
               <Link href="/settings"
-                className="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group"
+                className="sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-xl group"
                 style={{ color: '#6B9A87' }}>
                 <Settings size={15} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
                 <span className="text-[12px] font-semibold transition-colors group-hover:text-[#93C5FD]">Settings</span>
               </Link>
               <button onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all group"
+                className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
                 style={{ color: '#6B9A87' }}>
                 <LogOut size={15} className="flex-shrink-0 transition-colors group-hover:text-red-400" />
                 <span className="text-[12px] font-semibold transition-colors group-hover:text-red-400">Sign out</span>
@@ -255,7 +232,36 @@ export default memo(function Sidebar() {
             </div>
           )}
         </div>
-      </div>
-    </aside>
+      </aside>
+
+      {/* Floating collapse/expand toggle on sidebar edge */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        onMouseEnter={() => setHoverToggle(true)}
+        onMouseLeave={() => setHoverToggle(false)}
+        className="sidebar-toggle-btn fixed z-40 flex items-center justify-center"
+        style={{
+          left: w - 12,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 24,
+          height: 48,
+          borderRadius: '0 8px 8px 0',
+          background: hoverToggle ? '#0891B2' : TEAL,
+          border: `1px solid ${hoverToggle ? '#0891B2' : 'rgba(255,255,255,0.15)'}`,
+          borderLeft: 'none',
+          color: hoverToggle ? 'white' : '#6B9A87',
+          cursor: 'pointer',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: hoverToggle ? '2px 0 12px rgba(8,145,178,0.3)' : '2px 0 8px rgba(0,0,0,0.15)',
+        }}
+        title={collapsed ? 'Expand sidebar (press [)' : 'Collapse sidebar (press [)'}
+      >
+        {collapsed
+          ? <ChevronRight size={14} style={{ transition: 'transform 0.2s', transform: hoverToggle ? 'translateX(1px)' : 'none' }} />
+          : <ChevronLeft size={14} style={{ transition: 'transform 0.2s', transform: hoverToggle ? 'translateX(-1px)' : 'none' }} />
+        }
+      </button>
+    </>
   );
 });
