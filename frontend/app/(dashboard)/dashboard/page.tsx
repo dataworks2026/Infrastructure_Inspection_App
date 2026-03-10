@@ -163,13 +163,9 @@ export default function DashboardPage() {
     refetchInterval: 120_000,
   });
 
-  if (isLoading) return <DashboardSkeleton />;
+  const images = data?.recent_analyzed_images || [];
 
-  const images       = data?.recent_analyzed_images || [];
-  const assetHealth  = data?.asset_health || [];
-  const sevBreakdown = data?.severity_breakdown || {};
-
-  // Group images by asset (most severe already sorted by backend)
+  // Group images by asset (must be before any early return — hooks rules)
   const imagesByAsset = useMemo(() => {
     const groups: Record<string, { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] }> = {};
     for (const img of images) {
@@ -186,6 +182,11 @@ export default function DashboardPage() {
       ),
     }));
   }, [images]);
+
+  if (isLoading) return <DashboardSkeleton />;
+
+  const assetHealth  = data?.asset_health || [];
+  const sevBreakdown = data?.severity_breakdown || {};
 
   // Severity donut
   const sevDonut = Object.entries(sevBreakdown).map(([k, v]) => ({
