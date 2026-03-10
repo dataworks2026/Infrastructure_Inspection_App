@@ -1,7 +1,7 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText,
   LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
@@ -13,6 +13,7 @@ import { useCurrentUser } from '@/app/providers';
 const TEAL  = '#082E29';
 const BLUE  = '#93C5FD';
 const BRAND = '#0891B2';
+const TRANSITION = 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 
 const NAV_ITEMS = [
   { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
@@ -32,8 +33,11 @@ const TWIN_ITEMS = [
 
 function LogoMark({ size = 34 }: { size?: number }) {
   return (
-    <div className="flex items-center justify-center rounded-xl flex-shrink-0 bg-white"
-      style={{ width: size, height: size, padding: Math.round(size * 0.1) }}>
+    <div className="flex items-center justify-center flex-shrink-0"
+      style={{
+        width: size, height: size,
+        filter: 'drop-shadow(0 0 6px rgba(8,145,178,0.5)) drop-shadow(0 0 14px rgba(147,197,253,0.3))',
+      }}>
       <img src="/logo.png" alt="Mira Intel"
         style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
@@ -75,28 +79,34 @@ const NavLink = memo(function NavLink({
   );
 });
 
-export default memo(function Sidebar({ onStartTour }: { onStartTour?: () => void }) {
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+  onStartTour?: () => void;
+}
+
+export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const user = useCurrentUser();
-  const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = useCallback(() => {
     clearAuth();
     router.replace('/login');
   }, [router]);
 
+  // Keyboard shortcut: press [ to toggle
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-        setCollapsed(c => !c);
+        onToggle();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [onToggle]);
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -108,11 +118,7 @@ export default memo(function Sidebar({ onStartTour }: { onStartTour?: () => void
     <>
       <aside
         className="fixed top-0 left-0 bottom-0 z-30 flex flex-col flex-shrink-0 overflow-hidden"
-        style={{
-          width: w,
-          background: TEAL,
-          transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
+        style={{ width: w, background: TEAL, transition: TRANSITION }}
       >
         {/* Logo row */}
         <div className="flex items-center gap-3 flex-shrink-0"
@@ -282,12 +288,12 @@ export default memo(function Sidebar({ onStartTour }: { onStartTour?: () => void
 
       {/* Floating circle toggle on sidebar edge */}
       <button
-        onClick={() => setCollapsed(c => !c)}
+        onClick={onToggle}
         className="sidebar-toggle-circle fixed z-40"
         style={{
           left: w - 14,
           top: '50%',
-          transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
         title={collapsed ? 'Expand sidebar (press [)' : 'Collapse sidebar (press [)'}
       >

@@ -96,7 +96,7 @@ export default function MapPage() {
   const selected = assets.find((a: Asset) => a.id === selectedAsset);
 
   return (
-    <div className="h-[calc(100vh-24px)] flex flex-col -mx-5 -mb-10 relative">
+    <div className="h-[calc(100vh-16px)] flex flex-col -mx-5 -mb-10 relative">
 
       {/* Floating top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">

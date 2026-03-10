@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAuthenticated } from '@/lib/auth';
@@ -12,12 +12,18 @@ import AppTour, { useAppTour } from '@/components/ui/AppTour';
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
+const SIDEBAR_EXPANDED = 240;
+const SIDEBAR_COLLAPSED = 64;
+const TRANSITION = 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router      = useRouter();
   const queryClient = useQueryClient();
-  const [checked, setChecked] = useState(false);
-  const [sidebarW, setSidebarW] = useState(240);
+  const [checked, setChecked]     = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const tour = useAppTour();
+
+  const toggleSidebar = useCallback(() => setCollapsed(c => !c), []);
 
   useIsomorphicLayoutEffect(() => {
     if (isAuthenticated()) {
@@ -26,20 +32,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace('/login');
     }
   }, []);
-
-  // Track sidebar width via ResizeObserver
-  useEffect(() => {
-    if (!checked) return;
-    const sidebar = document.querySelector('aside');
-    if (!sidebar) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setSidebarW(entry.contentRect.width);
-      }
-    });
-    observer.observe(sidebar);
-    return () => observer.disconnect();
-  }, [checked]);
 
   useEffect(() => {
     if (!checked) return;
@@ -56,21 +48,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  const sidebarW = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+
   return (
     <ToastProvider>
       <div className="min-h-screen bg-mira-bg">
-        <Sidebar onStartTour={tour.start} />
+        <Sidebar collapsed={collapsed} onToggle={toggleSidebar} onStartTour={tour.start} />
 
         {/* Main area - flush against sidebar */}
         <div
           className="min-h-screen flex flex-col"
-          style={{
-            marginLeft: sidebarW,
-            transition: 'margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
+          style={{ marginLeft: sidebarW, transition: TRANSITION }}
         >
-          {/* Page content - scrolls naturally with body */}
-          <main className="flex-1" style={{ padding: '24px 20px 40px' }}>
+          <main className="flex-1" style={{ padding: '16px 20px 40px' }}>
             <div className="max-w-[1400px] mx-auto w-full">
               {children}
             </div>
