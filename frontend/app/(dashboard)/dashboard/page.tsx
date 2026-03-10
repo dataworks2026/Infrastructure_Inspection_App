@@ -1,11 +1,11 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, AlertTriangle, ImageIcon, ArrowRight,
-  Wind, Waves, Train, Anchor, Shield, ChevronRight,
+  Wind, Waves, Train, Anchor, Shield, ChevronRight, ChevronLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -115,41 +115,144 @@ function AssetRow({ asset }: { asset: DashboardAssetHealth }) {
   );
 }
 
-// ── Small image thumbnail card ─────────────────────────────────────────────────
-function ThumbCard({ img }: { img: DashboardAnalyzedImage }) {
+// ── Per-asset carousel card ────────────────────────────────────────────────────
+function AssetCarouselCard({
+  group,
+}: {
+  group: { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] };
+}) {
+  const [idx, setIdx] = useState(0);
+  const imgs = group.images;
+  const img = imgs[idx];
+  if (!img) return null;
+
   const sev = img.max_severity ? SEV[img.max_severity] : null;
+  const totalDetections = imgs.reduce((sum, i) => sum + i.detection_count, 0);
+  const worstSev = imgs.find(i => i.max_severity)?.max_severity ?? null;
+  const borderAccent = worstSev === 'S3' ? '#EF4444' : worstSev === 'S2' ? '#F59E0B' : worstSev === 'S1' ? '#EAB308' : '#C8E6D4';
+
+  const prev = () => setIdx(i => Math.max(0, i - 1));
+  const next = () => setIdx(i => Math.min(imgs.length - 1, i + 1));
+
   return (
-    <Link href={`/inspections/${img.inspection_id}`}
-      className="flex-shrink-0 w-40 rounded-xl overflow-hidden shadow-sm group transition-all hover:-translate-y-0.5 hover:shadow-md"
-      style={{ border: '1px solid #C8E6D4' }}>
-      <div className="relative h-28 bg-slate-100 overflow-hidden">
-        <img src={img.url} alt={img.filename}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col"
+      style={{ border: `1px solid ${borderAccent}` }}>
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-4 py-2.5"
+        style={{ background: MINT, borderBottom: '1px solid #C8E6D4' }}>
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-black truncate" style={{ color: TEAL }}>{group.asset_name}</p>
+          <p className="text-[10px] mt-0.5" style={{ color: '#6B9A87' }}>
+            {imgs.length} image{imgs.length !== 1 ? 's' : ''}&nbsp;·&nbsp;
+            <span style={{ color: totalDetections > 0 ? '#EF4444' : '#10B981', fontWeight: 700 }}>
+              {totalDetections} detection{totalDetections !== 1 ? 's' : ''}
+            </span>
+          </p>
+        </div>
+        {group.asset_id && (
+          <Link href={`/assets/${group.asset_id}`}
+            className="flex items-center gap-0.5 text-[10px] font-bold ml-2 flex-shrink-0 transition-opacity hover:opacity-70"
+            style={{ color: BRAND }}>
+            View <ChevronRight size={10} />
+          </Link>
+        )}
+      </div>
+
+      {/* ── Image carousel ── */}
+      <div className="relative bg-slate-100 overflow-hidden" style={{ aspectRatio: '4/3' }}>
+        <img
+          src={img.url}
+          alt={img.filename}
+          className="w-full h-full object-cover transition-opacity duration-200"
           onError={e => {
             (e.target as HTMLImageElement).src =
               'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
           }}
         />
+
+        {/* Detection badge */}
         {img.detection_count > 0 ? (
-          <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm"
-            style={{ background: sev?.color || '#6B9A87' }}>
-            <AlertTriangle size={8} /> {img.detection_count}
+          <div className="absolute top-2 right-2 flex items-center gap-1 text-white text-[11px] font-black px-2 py-1 rounded-full shadow-md"
+            style={{ background: sev?.color || '#EF4444' }}>
+            <AlertTriangle size={10} /> {img.detection_count}
           </div>
         ) : (
-          <div className="absolute top-1.5 right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full"
+          <div className="absolute top-2 right-2 text-[11px] font-black px-2 py-1 rounded-full shadow-md"
             style={{ background: '#10B981', color: 'white' }}>
-            ✓
+            ✓ Clean
           </div>
         )}
-      </div>
-      <div className="px-2 py-1.5" style={{ background: 'white' }}>
-        <SevBadge sev={img.max_severity} />
-        {!img.max_severity && (
-          <span className="text-[10px] font-semibold" style={{ color: '#10B981' }}>No issues</span>
+
+        {/* Carousel controls */}
+        {imgs.length > 1 && (
+          <>
+            <button
+              onClick={prev}
+              disabled={idx === 0}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all"
+              style={{
+                background: 'rgba(255,255,255,0.92)',
+                opacity: idx === 0 ? 0.35 : 1,
+                cursor: idx === 0 ? 'default' : 'pointer',
+              }}>
+              <ChevronLeft size={14} style={{ color: TEAL }} />
+            </button>
+            <button
+              onClick={next}
+              disabled={idx === imgs.length - 1}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all"
+              style={{
+                background: 'rgba(255,255,255,0.92)',
+                opacity: idx === imgs.length - 1 ? 0.35 : 1,
+                cursor: idx === imgs.length - 1 ? 'default' : 'pointer',
+              }}>
+              <ChevronRight size={14} style={{ color: TEAL }} />
+            </button>
+          </>
         )}
-        <p className="text-[10px] truncate mt-0.5" style={{ color: '#6B9A87' }}>{img.inspection_name}</p>
+
+        {/* Dot indicators (show up to 9 dots) */}
+        {imgs.length > 1 && imgs.length <= 9 && (
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 pointer-events-none">
+            {imgs.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setIdx(i)}
+                className="w-1.5 h-1.5 rounded-full transition-all pointer-events-auto"
+                style={{ background: i === idx ? 'white' : 'rgba(255,255,255,0.45)' }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Counter badge (always shown for many images, or overlaid with dots) */}
+        <div className="absolute bottom-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded"
+          style={{ background: 'rgba(8,46,41,0.65)', color: 'white' }}>
+          {idx + 1}/{imgs.length}
+        </div>
       </div>
-    </Link>
+
+      {/* ── Image info ── */}
+      <div className="px-4 py-3 flex flex-col gap-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SevBadge sev={img.max_severity} />
+          {!img.max_severity && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
+              <Shield size={9} /> Clean
+            </span>
+          )}
+          {img.detection_count > 0 && (
+            <span className="text-[10px] font-semibold" style={{ color: '#6B9A87' }}>
+              {img.detection_count} det.
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] font-medium truncate" style={{ color: '#6B9A87' }}>{img.inspection_name}</p>
+        <p className="text-[10px] truncate font-mono" style={{ color: '#9AB8AD' }}>{img.filename}</p>
+      </div>
+    </div>
   );
 }
 
@@ -163,7 +266,7 @@ export default function DashboardPage() {
 
   const images = data?.recent_analyzed_images || [];
 
-  // Group images by asset — must be before any early return (hooks rules)
+  // Group images by asset, sort each group most-critical-first
   const imagesByAsset = useMemo(() => {
     const groups: Record<string, { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] }> = {};
     for (const img of images) {
@@ -172,12 +275,21 @@ export default function DashboardPage() {
       groups[key].images.push(img);
     }
     const sevRank: Record<string, number> = { S3: 0, S2: 1, S1: 2, S0: 3 };
-    return Object.values(groups).map(g => ({
-      ...g,
-      images: [...g.images].sort((a, b) =>
-        (sevRank[a.max_severity || ''] ?? 4) - (sevRank[b.max_severity || ''] ?? 4)
-      ),
-    }));
+    return Object.values(groups)
+      .map(g => ({
+        ...g,
+        images: [...g.images].sort((a, b) =>
+          // primary: severity, secondary: detection count desc
+          (sevRank[a.max_severity || ''] ?? 4) - (sevRank[b.max_severity || ''] ?? 4) ||
+          b.detection_count - a.detection_count
+        ),
+      }))
+      // Sort asset groups: most critical first
+      .sort((a, b) => {
+        const worstA = sevRank[a.images[0]?.max_severity || ''] ?? 4;
+        const worstB = sevRank[b.images[0]?.max_severity || ''] ?? 4;
+        return worstA - worstB;
+      });
   }, [images]);
 
   if (isLoading) return <DashboardSkeleton />;
@@ -195,8 +307,15 @@ export default function DashboardPage() {
     itemStyle: { color: TEAL },
   };
 
+  // Up to 3 asset carousel cards
+  const carouselAssets = imagesByAsset.slice(0, 3);
+  const gridCols =
+    carouselAssets.length === 1 ? 'grid-cols-1 max-w-sm' :
+    carouselAssets.length === 2 ? 'grid-cols-2' :
+    'grid-cols-3';
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
 
       {/* ── Header ── */}
       <div>
@@ -236,38 +355,27 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── Per-asset image carousels ── */}
-      {imagesByAsset.length > 0 ? (
-        <div className="space-y-3">
-          {imagesByAsset.map(group => (
-            <div key={group.asset_id || group.asset_name} className="bg-white rounded-2xl shadow-sm overflow-hidden"
-              style={{ border: '1px solid #C8E6D4' }}>
-              <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #EDF6F0', background: MINT }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-black" style={{ color: TEAL }}>{group.asset_name}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                    style={{ background: '#C8E6D4', color: TEAL }}>
-                    {group.images.length} image{group.images.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                {group.asset_id && (
-                  <Link href={`/assets/${group.asset_id}`}
-                    className="flex items-center gap-1 text-[11px] font-bold transition-colors hover:opacity-80"
-                    style={{ color: BRAND }}>
-                    View asset <ChevronRight size={12} />
-                  </Link>
-                )}
-              </div>
-              {/* Horizontal scroll — no visible scrollbar */}
-              <div className="flex gap-3 px-4 py-3 overflow-x-auto"
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
-                {group.images.map(img => <ThumbCard key={img.id} img={img} />)}
-              </div>
-            </div>
-          ))}
+      {/* ── Asset image carousels (3-column grid) ── */}
+      {carouselAssets.length > 0 ? (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>
+              Most Affected Images
+            </h2>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: '#EDF6F0', color: '#6B9A87' }}>
+              Top {carouselAssets.length} asset{carouselAssets.length !== 1 ? 's' : ''} by severity
+            </span>
+          </div>
+          <div className={`grid gap-4 ${gridCols}`}>
+            {carouselAssets.map(group => (
+              <AssetCarouselCard key={group.asset_id || group.asset_name} group={group} />
+            ))}
+          </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm p-10 flex flex-col items-center gap-3" style={{ border: '1px solid #C8E6D4' }}>
+        <div className="bg-white rounded-2xl shadow-sm p-10 flex flex-col items-center gap-3"
+          style={{ border: '1px solid #C8E6D4' }}>
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: MINT }}>
             <ImageIcon size={24} style={{ color: '#6B9A87' }} />
           </div>

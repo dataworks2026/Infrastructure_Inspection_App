@@ -31,10 +31,10 @@ const TWIN_ITEMS = [
 
 function LogoMark({ size = 34 }: { size?: number }) {
   return (
-    <div className="flex items-center justify-center rounded-xl flex-shrink-0 bg-white overflow-hidden"
-      style={{ width: size, height: size }}>
-      <img src="/logo.png" alt="Mira Intel" width={size} height={size}
-        style={{ objectFit: 'contain' }} />
+    <div className="flex items-center justify-center rounded-xl flex-shrink-0 bg-white"
+      style={{ width: size, height: size, padding: Math.round(size * 0.1) }}>
+      <img src="/logo.png" alt="Mira Intel"
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
   );
 }

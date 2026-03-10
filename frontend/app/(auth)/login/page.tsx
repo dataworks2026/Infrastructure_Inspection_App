@@ -35,13 +35,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-sky-50 to-blue-50 p-5">
       <div className="w-full max-w-[420px]">
-        {/* Brand card */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white shadow-lg shadow-blue-500/20 mb-4 overflow-hidden">
+        {/* Brand header — logo left of title */}
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-white shadow-lg shadow-blue-500/20 flex items-center justify-center p-1.5">
             <img src="/logo.png" alt="Mira Intel" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">MIRA INTEL</h1>
-          <p className="text-sm text-slate-500 mt-1">Infrastructure Inspection Platform</p>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">MIRA INTEL</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Infrastructure Inspection Platform</p>
+          </div>
         </div>
 
         {/* Form card */}
