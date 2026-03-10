@@ -69,7 +69,7 @@ export default function MapPage() {
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [visibleTypes, setVisibleTypes]   = useState<Set<string>>(new Set(Object.keys(INFRA_CONFIG)));
   const [showFilters, setShowFilters]     = useState(false);
-  const [showImages, setShowImages]       = useState(true);
+  const [showImages, setShowImages]       = useState(false);
 
   const handleSelectAsset = useCallback((id: string) => setSelectedAsset(id), []);
 
