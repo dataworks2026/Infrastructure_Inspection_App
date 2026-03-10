@@ -10,33 +10,37 @@ import CommandPalette from '@/components/ui/CommandPalette';
 import { ToastProvider } from '@/components/ui/Toast';
 import { Search } from 'lucide-react';
 
-// On the server useLayoutEffect doesn't exist — fall back to useEffect there.
-// On the CLIENT, useLayoutEffect fires synchronously before the browser paints,
-// so the user never sees the "spinner" state even for a single frame.
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router      = useRouter();
   const queryClient = useQueryClient();
-
-  // Start false — matches server HTML so hydration succeeds.
-  // useIsomorphicLayoutEffect immediately flips it to true (before first paint)
-  // if the user is authenticated, so no spinner flash ever occurs.
   const [checked, setChecked] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-
-  // ── Runs synchronously before first browser paint ───────────────────────
   useIsomorphicLayoutEffect(() => {
     if (isAuthenticated()) {
       setChecked(true);
     } else {
       router.replace('/login');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── Prefetch all key data the moment auth is confirmed ──────────────────
-  // Primes the React Query cache so any page navigated to is instant.
+  // Listen for sidebar collapse changes by observing its width
+  useEffect(() => {
+    if (!checked) return;
+    const sidebar = document.querySelector('aside');
+    if (!sidebar) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setSidebarCollapsed(entry.contentRect.width < 100);
+      }
+    });
+    observer.observe(sidebar);
+    return () => observer.disconnect();
+  }, [checked]);
+
   useEffect(() => {
     if (!checked) return;
     queryClient.prefetchQuery({ queryKey: ['assets'],      queryFn: () => assetsApi.list() });
@@ -44,7 +48,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     queryClient.prefetchQuery({ queryKey: ['dashboard'],   queryFn: () => dashboardApi.overview() });
   }, [checked, queryClient]);
 
-  // Spinner shown only while genuinely unauthenticated (redirecting to /login)
   if (!checked) {
     return (
       <div className="flex min-h-screen bg-mira-bg items-center justify-center">
@@ -53,18 +56,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  const sidebarWidth = sidebarCollapsed ? 64 : 240;
+
   return (
     <ToastProvider>
-      <div className="flex min-h-screen bg-mira-bg">
+      <div className="min-h-screen bg-mira-bg">
         <Sidebar />
 
-        {/* Main area */}
-        <div className="flex-1 flex flex-col min-h-screen transition-all duration-300">
+        {/* Main area - offset by sidebar width */}
+        <div
+          className="flex flex-col min-h-screen"
+          style={{
+            marginLeft: sidebarWidth,
+            transition: 'margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
           {/* Top bar */}
-          <header className="sticky top-0 z-20 page-header-bar h-12 flex items-center justify-between px-8">
+          <header
+            className="sticky top-0 z-20 page-header-bar flex items-center justify-between flex-shrink-0"
+            style={{ height: 48, padding: '0 24px' }}
+          >
             <Breadcrumbs />
-
-            {/* Search shortcut hint */}
             <button
               onClick={() => {
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
@@ -80,16 +92,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           </header>
 
-          {/* Page content */}
-          <main className="flex-1 p-8 overflow-y-auto">
-            <div className="max-w-7xl mx-auto">
+          {/* Page content - takes remaining height, scrolls internally */}
+          <main className="flex-1 overflow-y-auto" style={{ padding: '20px 24px 24px' }}>
+            <div className="max-w-[1400px] mx-auto w-full">
               {children}
             </div>
           </main>
         </div>
       </div>
 
-      {/* Global overlays */}
       <CommandPalette />
     </ToastProvider>
   );
