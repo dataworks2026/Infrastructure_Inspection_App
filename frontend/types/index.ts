@@ -8,7 +8,10 @@ export interface User {
   id: string;
   email: string;
   full_name?: string;
+  username?: string;
   role: UserRole;
+  organization_id?: string;
+  organization_name?: string;
 }
 
 export interface Asset {
@@ -87,4 +90,6 @@ export interface AuthToken {
   email: string;
   full_name?: string;
   role: UserRole;
+  organization_id?: string;
+  organization_name?: string;
 }

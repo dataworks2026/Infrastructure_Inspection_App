@@ -7,6 +7,11 @@ class RegisterRequest(BaseModel):
     full_name: Optional[str] = None
     organization_name: str
 
+class UpdateMeRequest(BaseModel):
+    full_name: Optional[str] = None
+    username: Optional[str] = None
+    organization_name: Optional[str] = None
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -18,6 +23,8 @@ class TokenResponse(BaseModel):
     email: str
     full_name: Optional[str]
     role: str
+    organization_id: Optional[str] = None
+    organization_name: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: str
@@ -25,3 +32,5 @@ class UserResponse(BaseModel):
     full_name: Optional[str]
     role: str
     is_active: bool
+    organization_id: Optional[str] = None
+    organization_name: Optional[str] = None

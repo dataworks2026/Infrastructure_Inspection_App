@@ -28,6 +28,8 @@ export const authApi = {
   register: (email: string, password: string, full_name?: string, organization_name?: string) =>
     api.post<AuthToken>('/auth/register', { email, password, full_name, organization_name }).then(r => r.data),
   me: () => api.get('/auth/me').then(r => r.data),
+  updateMe: (data: { full_name?: string; username?: string; organization_name?: string }) =>
+    api.patch('/auth/me', data).then(r => r.data),
 };
 
 // Dashboard

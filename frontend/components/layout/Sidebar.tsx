@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { memo, useCallback } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText,
-  LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
+  LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight, Settings,
 } from 'lucide-react';
 import { clearAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/app/providers';
@@ -182,11 +182,17 @@ function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 <div className="text-[13px] font-semibold text-slate-200 truncate">
                   {user?.full_name || user?.email || '\u00A0'}
                 </div>
-                <div className="text-[11px] text-slate-500 capitalize">
-                  {user?.role || '\u00A0'}
+                <div className="text-[11px] text-slate-500 truncate">
+                  {user?.organization_name || user?.role || '\u00A0'}
                 </div>
               </div>
             </div>
+            <Link
+              href="/settings"
+              className="w-full flex items-center gap-2 text-[12px] text-slate-500 hover:text-slate-200 transition-colors py-1.5 px-2 rounded-md hover:bg-white/5 mb-1"
+            >
+              <Settings size={14} /> Profile Settings
+            </Link>
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 text-[12px] text-slate-500 hover:text-red-400 transition-colors py-1.5 px-2 rounded-md hover:bg-white/5"
@@ -195,7 +201,7 @@ function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </button>
           </>
         ) : (
-          /* Collapsed: just avatar + logout stacked */
+          /* Collapsed: avatar + settings + logout stacked */
           <div className="flex flex-col items-center gap-2">
             <div
               title={user?.full_name || user?.email || 'User'}
@@ -203,6 +209,13 @@ function Sidebar({ collapsed, onToggle }: SidebarProps) {
             >
               {user?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
             </div>
+            <Link
+              href="/settings"
+              title="Profile Settings"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-colors"
+            >
+              <Settings size={15} />
+            </Link>
             <button
               onClick={handleLogout}
               title="Sign out"
