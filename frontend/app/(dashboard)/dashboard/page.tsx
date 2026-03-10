@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
@@ -294,7 +294,7 @@ function CarouselRow({ groups }: { groups: { asset_id: string; asset_name: strin
     const ro = new ResizeObserver(checkScroll);
     ro.observe(el);
     return () => { el.removeEventListener('scroll', checkScroll); ro.disconnect(); };
-  });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showArrows = groups.length > 3;
 
