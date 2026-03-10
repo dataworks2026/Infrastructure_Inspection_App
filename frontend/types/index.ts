@@ -89,6 +89,7 @@ export interface AuthToken {
   user_id: string;
   email: string;
   full_name?: string;
+  username?: string;
   role: UserRole;
   organization_id?: string;
   organization_name?: string;

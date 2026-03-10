@@ -1,35 +1,46 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api';
-import { useCurrentUser, useRefreshUser } from '@/app/providers';
+import { useRefreshUser } from '@/app/providers';
+import { useToast } from '@/components/ui/Toast';
 import { User, Building2, CheckCircle2, AlertCircle } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
-  const user         = useCurrentUser();
+  const queryClient = useQueryClient();
   const refreshUser  = useRefreshUser();
+  const toast        = useToast();
 
-  const [fullName,  setFullName]  = useState('');
-  const [username,  setUsername]  = useState('');
-  const [orgName,   setOrgName]   = useState('');
+  // Always fetch fresh data from server when this page loads
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn:  () => authApi.me(),
+    staleTime: 0, // re-fetch every time the page is visited
+  });
 
-  // Pre-fill form when user loads
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [orgName,  setOrgName]  = useState('');
+
+  // Pre-fill form whenever fresh user data arrives
   useEffect(() => {
     if (user) {
-      setFullName(user.full_name  ?? '');
-      setUsername(user.username   ?? '');
+      setFullName(user.full_name        ?? '');
+      setUsername(user.username         ?? '');
       setOrgName(user.organization_name ?? '');
     }
   }, [user]);
 
   const mutation = useMutation({
     mutationFn: () => authApi.updateMe({
-      full_name:         fullName   || undefined,
-      username:          username   || undefined,
-      organization_name: orgName    || undefined,
+      full_name:         fullName || undefined,
+      username:          username || undefined,
+      organization_name: orgName  || undefined,
     }),
     onSuccess: (updated) => {
+      // Update React Query cache immediately — no re-fetch needed
+      queryClient.setQueryData(['me'], updated);
+      // Also sync global context + localStorage
       refreshUser(updated);
       toast.success('Profile updated successfully');
     },
@@ -42,6 +53,23 @@ export default function SettingsPage() {
     e.preventDefault();
     mutation.mutate();
   };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-xl mx-auto py-10 px-4">
+        <div className="h-8 w-48 bg-slate-200 rounded animate-pulse mb-2" />
+        <div className="h-4 w-72 bg-slate-100 rounded animate-pulse mb-8" />
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i}>
+              <div className="h-3 w-24 bg-slate-200 rounded animate-pulse mb-2" />
+              <div className="h-10 bg-slate-100 rounded-lg animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto py-10 px-4">

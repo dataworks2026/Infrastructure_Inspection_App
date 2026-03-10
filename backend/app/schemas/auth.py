@@ -22,6 +22,7 @@ class TokenResponse(BaseModel):
     user_id: str
     email: str
     full_name: Optional[str]
+    username: Optional[str] = None
     role: str
     organization_id: Optional[str] = None
     organization_name: Optional[str] = None
@@ -30,6 +31,7 @@ class UserResponse(BaseModel):
     id: str
     email: str
     full_name: Optional[str]
+    username: Optional[str] = None
     role: str
     is_active: bool
     organization_id: Optional[str] = None

@@ -8,7 +8,8 @@ export function saveAuth(token: AuthToken) {
   localStorage.setItem(TOKEN_KEY, token.access_token);
   localStorage.setItem(USER_KEY, JSON.stringify({
     id: token.user_id, email: token.email,
-    full_name: token.full_name, role: token.role,
+    full_name: token.full_name, username: token.username,
+    role: token.role,
     organization_id: token.organization_id,
     organization_name: token.organization_name,
   }));

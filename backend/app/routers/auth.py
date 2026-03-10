@@ -47,7 +47,8 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     token = create_access_token({"sub": user.id})
     return TokenResponse(
         access_token=token, user_id=user.id,
-        email=user.email, full_name=user.full_name, role=user.role,
+        email=user.email, full_name=user.full_name,
+        username=user.username, role=user.role,
         organization_id=org.organization_id,
         organization_name=org.name,
     )
@@ -61,7 +62,8 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token({"sub": user.id})
     return TokenResponse(
         access_token=token, user_id=user.id,
-        email=user.email, full_name=user.full_name, role=user.role,
+        email=user.email, full_name=user.full_name,
+        username=user.username, role=user.role,
         organization_id=user.organization_id,
         organization_name=org.name if org else None,
     )
@@ -71,8 +73,8 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
     org = db.query(Organization).filter(Organization.organization_id == current_user.organization_id).first() if current_user.organization_id else None
     return UserResponse(
         id=current_user.id, email=current_user.email,
-        full_name=current_user.full_name, role=current_user.role,
-        is_active=current_user.is_active,
+        full_name=current_user.full_name, username=current_user.username,
+        role=current_user.role, is_active=current_user.is_active,
         organization_id=current_user.organization_id,
         organization_name=org.name if org else None,
     )
@@ -105,8 +107,8 @@ def update_me(data: UpdateMeRequest, current_user: User = Depends(get_current_us
 
     return UserResponse(
         id=current_user.id, email=current_user.email,
-        full_name=current_user.full_name, role=current_user.role,
-        is_active=current_user.is_active,
+        full_name=current_user.full_name, username=current_user.username,
+        role=current_user.role, is_active=current_user.is_active,
         organization_id=current_user.organization_id,
         organization_name=org.name if org else None,
     )

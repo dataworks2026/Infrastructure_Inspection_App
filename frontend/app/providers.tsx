@@ -2,7 +2,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, createContext, useContext, useEffect, useCallback } from 'react';
 import { User } from '@/types';
-import { getUser, saveUser } from '@/lib/auth';
+import { getUser, saveUser, getToken } from '@/lib/auth';
+import { authApi } from '@/lib/api';
 
 /* ── Shared user context ── */
 interface UserCtxType {
@@ -27,7 +28,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }));
 
   const [user, setUser] = useState<User | null>(null);
-  useEffect(() => { setUser(getUser()); }, []);
+
+  useEffect(() => {
+    // Immediately hydrate from localStorage so UI doesn't flash empty
+    const cached = getUser();
+    if (cached) setUser(cached);
+
+    // Then sync fresh data from server (fixes stale tokens / missing fields)
+    if (getToken()) {
+      authApi.me().then((fresh: User) => {
+        setUser(fresh);
+        saveUser(fresh);
+      }).catch(() => {
+        // Token invalid or server down — leave cached user in place
+      });
+    }
+  }, []);
 
   // Called after a successful PATCH /auth/me to sync context + localStorage
   const refreshUser = useCallback((updated: User) => {
