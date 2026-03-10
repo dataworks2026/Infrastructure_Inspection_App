@@ -1,11 +1,11 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, AlertTriangle, ImageIcon, ArrowRight,
-  Wind, Waves, Train, Anchor, Shield, ChevronRight,
+  Wind, Waves, Train, Anchor, Shield, ChevronRight, ChevronLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -35,6 +35,8 @@ const INFRA_LABEL: Record<string, string> = {
 const INFRA_COLOR: Record<string, string> = {
   wind_turbine: '#0EA5E9', coastal: '#06B6D4', pier: '#3B82F6', railway: '#6366F1',
 };
+
+const PAGE_SIZE = 6;
 
 function SevBadge({ sev }: { sev: string | null }) {
   if (!sev) return null;
@@ -115,17 +117,16 @@ function AssetRow({ asset }: { asset: DashboardAssetHealth }) {
   );
 }
 
-// ── Small image thumbnail card ─────────────────────────────────────────────────
+// ── Thumbnail card ─────────────────────────────────────────────────────────────
 function ThumbCard({ img }: { img: DashboardAnalyzedImage }) {
   const sev = img.max_severity ? SEV[img.max_severity] : null;
   return (
     <Link href={`/inspections/${img.inspection_id}`}
-      className="flex-shrink-0 w-36 rounded-xl overflow-hidden shadow-sm group transition-all hover:-translate-y-0.5 hover:shadow-md"
-      style={{ border: '1px solid #C8E6D4' }}>
-      {/* Thumbnail */}
-      <div className="relative h-24 bg-slate-100 overflow-hidden">
+      className="flex-shrink-0 rounded-xl overflow-hidden shadow-sm group transition-all hover:-translate-y-0.5 hover:shadow-md"
+      style={{ border: '1px solid #C8E6D4', width: 'calc((100% - 40px) / 6)' }}>
+      <div className="relative overflow-hidden bg-slate-100" style={{ paddingTop: '66%', position: 'relative' }}>
         <img src={img.url} alt={img.filename}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           onError={e => {
             (e.target as HTMLImageElement).src =
               'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
@@ -143,7 +144,6 @@ function ThumbCard({ img }: { img: DashboardAnalyzedImage }) {
           </div>
         )}
       </div>
-      {/* Label */}
       <div className="px-2 py-1.5" style={{ background: 'white' }}>
         <SevBadge sev={img.max_severity} />
         {!img.max_severity && (
@@ -152,6 +152,110 @@ function ThumbCard({ img }: { img: DashboardAnalyzedImage }) {
         <p className="text-[10px] truncate mt-0.5" style={{ color: '#6B9A87' }}>{img.inspection_name}</p>
       </div>
     </Link>
+  );
+}
+
+// ── Asset carousel with arrow navigation ───────────────────────────────────────
+function AssetCarousel({ group }: {
+  group: { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] };
+}) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(group.images.length / PAGE_SIZE);
+  const visible = group.images.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const canPrev = page > 0;
+  const canNext = page < totalPages - 1;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #EDF6F0', background: MINT }}>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-black" style={{ color: TEAL }}>{group.asset_name}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            style={{ background: '#C8E6D4', color: TEAL }}>
+            {group.images.length} image{group.images.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Page arrows — only shown when more than PAGE_SIZE images */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => p - 1)}
+                disabled={!canPrev}
+                className="w-6 h-6 rounded-lg flex items-center justify-center transition-all"
+                style={{
+                  background: canPrev ? TEAL : '#EDF6F0',
+                  color: canPrev ? 'white' : '#C8E6D4',
+                  border: '1px solid #C8E6D4',
+                  cursor: canPrev ? 'pointer' : 'default',
+                }}>
+                <ChevronLeft size={13} />
+              </button>
+              <span className="text-[10px] font-semibold px-1" style={{ color: '#6B9A87' }}>
+                {page + 1}/{totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={!canNext}
+                className="w-6 h-6 rounded-lg flex items-center justify-center transition-all"
+                style={{
+                  background: canNext ? TEAL : '#EDF6F0',
+                  color: canNext ? 'white' : '#C8E6D4',
+                  border: '1px solid #C8E6D4',
+                  cursor: canNext ? 'pointer' : 'default',
+                }}>
+                <ChevronRight size={13} />
+              </button>
+            </div>
+          )}
+          {group.asset_id && (
+            <Link href={`/assets/${group.asset_id}`}
+              className="flex items-center gap-1 text-[11px] font-bold transition-colors hover:opacity-80"
+              style={{ color: BRAND }}>
+              View asset <ChevronRight size={12} />
+            </Link>
+          )}
+        </div>
+      </div>
+      {/* Grid of thumbnails — always fills the row */}
+      <div className="grid gap-3 px-5 py-4" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, 1fr)` }}>
+        {visible.map(img => (
+          <Link key={img.id} href={`/inspections/${img.inspection_id}`}
+            className="rounded-xl overflow-hidden shadow-sm group transition-all hover:-translate-y-0.5 hover:shadow-md"
+            style={{ border: '1px solid #C8E6D4' }}>
+            <div className="relative overflow-hidden bg-slate-100" style={{ paddingTop: '66%' }}>
+              <img src={img.url} alt={img.filename}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                onError={e => {
+                  (e.target as HTMLImageElement).src =
+                    'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
+                }}
+              />
+              {img.detection_count > 0 ? (
+                <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm"
+                  style={{ background: SEV[img.max_severity || '']?.color || '#6B9A87' }}>
+                  <AlertTriangle size={8} /> {img.detection_count}
+                </div>
+              ) : (
+                <div className="absolute top-1.5 right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{ background: '#10B981', color: 'white' }}>✓</div>
+              )}
+            </div>
+            <div className="px-2 py-1.5 bg-white">
+              {img.max_severity
+                ? <SevBadge sev={img.max_severity} />
+                : <span className="text-[10px] font-semibold" style={{ color: '#10B981' }}>No issues</span>}
+              <p className="text-[10px] truncate mt-0.5" style={{ color: '#6B9A87' }}>{img.inspection_name}</p>
+            </div>
+          </Link>
+        ))}
+        {/* Fill empty slots so grid stays uniform */}
+        {Array.from({ length: PAGE_SIZE - visible.length }).map((_, i) => (
+          <div key={`empty-${i}`} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -165,7 +269,7 @@ export default function DashboardPage() {
 
   const images = data?.recent_analyzed_images || [];
 
-  // Group images by asset (must be before any early return — hooks rules)
+  // Group images by asset — must be before any early return (hooks rules)
   const imagesByAsset = useMemo(() => {
     const groups: Record<string, { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] }> = {};
     for (const img of images) {
@@ -173,7 +277,6 @@ export default function DashboardPage() {
       if (!groups[key]) groups[key] = { asset_id: img.asset_id, asset_name: img.asset_name, images: [] };
       groups[key].images.push(img);
     }
-    // Sort each group: S3 first
     const sevRank: Record<string, number> = { S3: 0, S2: 1, S1: 2, S0: 3 };
     return Object.values(groups).map(g => ({
       ...g,
@@ -188,7 +291,6 @@ export default function DashboardPage() {
   const assetHealth  = data?.asset_health || [];
   const sevBreakdown = data?.severity_breakdown || {};
 
-  // Severity donut
   const sevDonut = Object.entries(sevBreakdown).map(([k, v]) => ({
     name: `${k} ${SEV[k]?.label || k}`, value: v as number, color: SEV[k]?.color || '#64748B',
   }));
@@ -200,7 +302,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
       {/* ── Header ── */}
       <div>
@@ -208,34 +310,19 @@ export default function DashboardPage() {
         <p className="text-xs mt-0.5" style={{ color: '#6B9A87' }}>Platform overview and recent activity</p>
       </div>
 
-      {/* ── KPI Row (3 cards, no Fleet Health) ── */}
+      {/* ── KPI Row ── */}
       <div className="grid grid-cols-3 gap-4">
-        <KPICard
-          label="Active Assets"
-          value={data?.active_assets ?? 0}
-          sub={`${data?.total_assets ?? 0} total`}
-          icon={<Building2 size={16} />}
-          accentColor={BRAND}
-        />
-        <KPICard
-          label="Total Detections"
-          value={data?.total_detections ?? 0}
-          sub={`across ${data?.total_inspections ?? 0} inspections`}
-          icon={<AlertTriangle size={16} />}
-          accentColor="#EF4444"
-        />
-        <KPICard
-          label="Images Analyzed"
-          value={data?.total_images ?? 0}
-          sub={`${data?.pending_inspections ?? 0} pending`}
-          icon={<ImageIcon size={16} />}
-          accentColor={BLUE}
-        />
+        <KPICard label="Active Assets" value={data?.active_assets ?? 0}
+          sub={`${data?.total_assets ?? 0} total`} icon={<Building2 size={16} />} accentColor={BRAND} />
+        <KPICard label="Total Detections" value={data?.total_detections ?? 0}
+          sub={`across ${data?.total_inspections ?? 0} inspections`} icon={<AlertTriangle size={16} />} accentColor="#EF4444" />
+        <KPICard label="Images Analyzed" value={data?.total_images ?? 0}
+          sub={`${data?.pending_inspections ?? 0} pending`} icon={<ImageIcon size={16} />} accentColor={BLUE} />
       </div>
 
-      {/* ── Asset Health Table (moved up) ── */}
+      {/* ── Asset Health ── */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #EDF6F0' }}>
+        <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid #EDF6F0' }}>
           <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Asset Health</h2>
           <Link href="/assets" className="text-xs font-bold flex items-center gap-1 transition-colors hover:opacity-80"
             style={{ color: BRAND }}>
@@ -243,7 +330,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         {assetHealth.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
+          <div className="flex flex-col items-center justify-center py-10 gap-2">
             <Building2 size={28} style={{ color: '#C8E6D4' }} />
             <p className="text-sm" style={{ color: '#6B9A87' }}>No assets yet</p>
             <Link href="/assets" className="text-xs font-bold" style={{ color: BRAND }}>Create one →</Link>
@@ -255,34 +342,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── Per-asset image carousels (below Asset Health) ── */}
+      {/* ── Per-asset carousels ── */}
       {imagesByAsset.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {imagesByAsset.map(group => (
-            <div key={group.asset_id || group.asset_name} className="bg-white rounded-2xl shadow-sm overflow-hidden"
-              style={{ border: '1px solid #C8E6D4' }}>
-              {/* Asset header */}
-              <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid #EDF6F0', background: MINT }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-black" style={{ color: TEAL }}>{group.asset_name}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                    style={{ background: '#C8E6D4', color: TEAL }}>
-                    {group.images.length} image{group.images.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                {group.asset_id && (
-                  <Link href={`/assets/${group.asset_id}`}
-                    className="flex items-center gap-1 text-[11px] font-bold transition-colors hover:opacity-80"
-                    style={{ color: BRAND }}>
-                    View asset <ChevronRight size={12} />
-                  </Link>
-                )}
-              </div>
-              {/* Horizontal scroll */}
-              <div className="flex gap-3 px-5 py-4 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-                {group.images.map(img => <ThumbCard key={img.id} img={img} />)}
-              </div>
-            </div>
+            <AssetCarousel key={group.asset_id || group.asset_name} group={group} />
           ))}
         </div>
       ) : (
@@ -295,7 +359,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Severity Donut (bottom) ── */}
+      {/* ── Severity Donut ── */}
       {sevDonut.length > 0 && (
         <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #C8E6D4' }}>
           <div className="flex items-center gap-6">
