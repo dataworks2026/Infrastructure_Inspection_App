@@ -125,18 +125,29 @@ export default memo(function Sidebar() {
             active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))} />
         ))}
 
-        {/* Digital Twin section */}
+        {/* Digital Twin section — coming soon, non-clickable */}
         <div className="pt-4">
           {!collapsed ? (
-            <p className="px-3 mb-2 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
-              Digital Twin
-            </p>
+            <div className="px-3 mb-2 flex items-center gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+                Digital Twin
+              </p>
+              <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                style={{ background: 'rgba(147,197,253,0.12)', color: '#93C5FD' }}>
+                Soon
+              </span>
+            </div>
           ) : (
             <div className="mx-auto mb-2" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
           )}
-          {TWIN_ITEMS.map(({ href, label, icon }) => (
-            <NavLink key={href} href={href} label={label} icon={icon} collapsed={collapsed}
-              active={pathname === href} small />
+          {TWIN_ITEMS.map(({ label, icon: Icon }) => (
+            <div key={label} title={collapsed ? `${label} (coming soon)` : undefined}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-not-allowed select-none opacity-40">
+              <Icon size={15} style={{ flexShrink: 0, color: '#5B8A78' }} />
+              {!collapsed && (
+                <span className="text-[12px] font-semibold truncate" style={{ color: '#5B8A78' }}>{label}</span>
+              )}
+            </div>
           ))}
         </div>
       </nav>

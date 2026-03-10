@@ -1,16 +1,15 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
-  Building2, ClipboardList, AlertTriangle, ImageIcon, ArrowRight,
-  ChevronLeft, ChevronRight, Wind, Waves, Train, Anchor, Shield,
+  Building2, AlertTriangle, ImageIcon, ArrowRight,
+  Wind, Waves, Train, Anchor, Shield, ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
   PieChart, Pie, Cell, Tooltip as RechartTooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import type { DashboardAnalyzedImage, DashboardAssetHealth } from '@/types';
 
@@ -28,25 +27,15 @@ const SEV: Record<string, { color: string; bg: string; border: string; label: st
 };
 
 const INFRA_ICON: Record<string, React.ElementType> = {
-  wind_turbine: Wind,
-  coastal: Waves,
-  pier: Anchor,
-  railway: Train,
+  wind_turbine: Wind, coastal: Waves, pier: Anchor, railway: Train,
 };
 const INFRA_LABEL: Record<string, string> = {
-  wind_turbine: 'Wind Turbine',
-  coastal: 'Coastal',
-  pier: 'Pier & Dock',
-  railway: 'Railway',
+  wind_turbine: 'Wind Turbine', coastal: 'Coastal', pier: 'Pier & Dock', railway: 'Railway',
 };
 const INFRA_COLOR: Record<string, string> = {
-  wind_turbine: '#0EA5E9',
-  coastal: '#06B6D4',
-  pier: '#3B82F6',
-  railway: '#6366F1',
+  wind_turbine: '#0EA5E9', coastal: '#06B6D4', pier: '#3B82F6', railway: '#6366F1',
 };
 
-// ── Severity badge ─────────────────────────────────────────────────────────────
 function SevBadge({ sev }: { sev: string | null }) {
   if (!sev) return null;
   const s = SEV[sev];
@@ -59,38 +48,20 @@ function SevBadge({ sev }: { sev: string | null }) {
   );
 }
 
-// ── KPI card (Exergy3 light) ───────────────────────────────────────────────────
-function KPICard({
-  label, value, sub, icon, accentColor, ringPct,
-}: {
+// ── KPI card ───────────────────────────────────────────────────────────────────
+function KPICard({ label, value, sub, icon, accentColor }: {
   label: string; value: number | string; sub?: string;
-  icon: React.ReactNode; accentColor: string; ringPct?: number;
+  icon: React.ReactNode; accentColor: string;
 }) {
-  const r = 20; const circ = 2 * Math.PI * r;
-  const dash = ringPct != null ? circ * (1 - ringPct / 100) : circ;
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm flex flex-col gap-3"
-      style={{ border: `1px solid #C8E6D4` }}>
+      style={{ border: '1px solid #C8E6D4' }}>
       <div className="flex items-start justify-between">
         <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#6B9A87' }}>{label}</p>
-        {ringPct != null ? (
-          <div className="relative w-11 h-11 flex-shrink-0">
-            <svg width="44" height="44" viewBox="0 0 44 44">
-              <circle cx="22" cy="22" r={r} fill="none" stroke="#C8E6D4" strokeWidth="3.5" />
-              <circle cx="22" cy="22" r={r} fill="none" stroke={accentColor} strokeWidth="3.5"
-                strokeDasharray={circ} strokeDashoffset={dash}
-                strokeLinecap="round" transform="rotate(-90 22 22)"
-                style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black"
-              style={{ color: TEAL }}>{ringPct}%</span>
-          </div>
-        ) : (
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: accentColor + '18', color: accentColor }}>
-            {icon}
-          </span>
-        )}
+        <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: accentColor + '18', color: accentColor }}>
+          {icon}
+        </span>
       </div>
       <div className="text-[32px] font-black leading-none tracking-tight" style={{ color: TEAL }}>
         {value}
@@ -98,48 +69,6 @@ function KPICard({
       {sub && <p className="text-[11px]" style={{ color: '#6B9A87' }}>{sub}</p>}
       <div className="h-0.5 rounded-full mt-auto" style={{ background: `linear-gradient(90deg, ${accentColor}, ${accentColor}44)` }} />
     </div>
-  );
-}
-
-// ── Inspection image card ──────────────────────────────────────────────────────
-function ImageCard({ img }: { img: DashboardAnalyzedImage }) {
-  const sev = img.max_severity ? SEV[img.max_severity] : null;
-  return (
-    <Link href={`/inspections/${img.inspection_id}`}
-      className="bg-white rounded-2xl overflow-hidden shadow-sm flex flex-col group transition-all hover:-translate-y-0.5 hover:shadow-md"
-      style={{ border: '1px solid #C8E6D4' }}>
-      {/* Image */}
-      <div className="relative h-40 bg-slate-100 overflow-hidden">
-        <img src={img.url} alt={img.filename}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          onError={e => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="30" fill="%236B9A87">📷</text></svg>'; }} />
-        {/* Detection count badge */}
-        {img.detection_count > 0 ? (
-          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 text-white text-[11px] font-black px-2 py-1 rounded-full shadow-sm"
-            style={{ background: sev?.color || '#6B9A87' }}>
-            <AlertTriangle size={10} /> {img.detection_count}
-          </div>
-        ) : (
-          <div className="absolute top-2.5 right-2.5 text-[11px] font-black px-2 py-1 rounded-full shadow-sm"
-            style={{ background: '#10B981', color: 'white' }}>
-            ✓ Clean
-          </div>
-        )}
-      </div>
-      {/* Info */}
-      <div className="p-3.5 flex flex-col gap-1.5 flex-1">
-        <p className="text-[12px] font-bold truncate" style={{ color: TEAL }}>{img.inspection_name}</p>
-        <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>{img.asset_name}</p>
-        <div className="flex items-center justify-between mt-auto pt-1">
-          <SevBadge sev={img.max_severity} />
-          {!img.max_severity && (
-            <span className="text-[10px] font-semibold" style={{ color: '#10B981' }}>No issues</span>
-          )}
-          <ArrowRight size={12} style={{ color: '#6B9A87' }}
-            className="group-hover:translate-x-0.5 transition-transform" />
-        </div>
-      </div>
-    </Link>
   );
 }
 
@@ -158,8 +87,9 @@ function AssetRow({ asset }: { asset: DashboardAssetHealth }) {
         <Icon size={14} style={{ color: typeColor }} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors"
-          style={{ color: TEAL }}>{asset.name}</p>
+        <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
+          {asset.name}
+        </p>
         <p className="text-[11px]" style={{ color: '#6B9A87' }}>
           {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
           {' · '}{asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
@@ -185,6 +115,46 @@ function AssetRow({ asset }: { asset: DashboardAssetHealth }) {
   );
 }
 
+// ── Small image thumbnail card ─────────────────────────────────────────────────
+function ThumbCard({ img }: { img: DashboardAnalyzedImage }) {
+  const sev = img.max_severity ? SEV[img.max_severity] : null;
+  return (
+    <Link href={`/inspections/${img.inspection_id}`}
+      className="flex-shrink-0 w-36 rounded-xl overflow-hidden shadow-sm group transition-all hover:-translate-y-0.5 hover:shadow-md"
+      style={{ border: '1px solid #C8E6D4' }}>
+      {/* Thumbnail */}
+      <div className="relative h-24 bg-slate-100 overflow-hidden">
+        <img src={img.url} alt={img.filename}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={e => {
+            (e.target as HTMLImageElement).src =
+              'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
+          }}
+        />
+        {img.detection_count > 0 ? (
+          <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm"
+            style={{ background: sev?.color || '#6B9A87' }}>
+            <AlertTriangle size={8} /> {img.detection_count}
+          </div>
+        ) : (
+          <div className="absolute top-1.5 right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full"
+            style={{ background: '#10B981', color: 'white' }}>
+            ✓
+          </div>
+        )}
+      </div>
+      {/* Label */}
+      <div className="px-2 py-1.5" style={{ background: 'white' }}>
+        <SevBadge sev={img.max_severity} />
+        {!img.max_severity && (
+          <span className="text-[10px] font-semibold" style={{ color: '#10B981' }}>No issues</span>
+        )}
+        <p className="text-[10px] truncate mt-0.5" style={{ color: '#6B9A87' }}>{img.inspection_name}</p>
+      </div>
+    </Link>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { data, isLoading } = useQuery({
@@ -193,36 +163,37 @@ export default function DashboardPage() {
     refetchInterval: 120_000,
   });
 
-  const [imgPage, setImgPage] = useState(0);
-  const PER_PAGE = 3;
-
   if (isLoading) return <DashboardSkeleton />;
 
-  const images = data?.recent_analyzed_images || [];
-  const assetHealth = data?.asset_health || [];
+  const images       = data?.recent_analyzed_images || [];
+  const assetHealth  = data?.asset_health || [];
   const sevBreakdown = data?.severity_breakdown || {};
-  const totalPages = Math.max(1, Math.ceil(images.length / PER_PAGE));
-  const visibleImages = images.slice(imgPage * PER_PAGE, imgPage * PER_PAGE + PER_PAGE);
 
-  // Severity donut data
+  // Group images by asset (most severe already sorted by backend)
+  const imagesByAsset = useMemo(() => {
+    const groups: Record<string, { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] }> = {};
+    for (const img of images) {
+      const key = img.asset_id || img.asset_name;
+      if (!groups[key]) groups[key] = { asset_id: img.asset_id, asset_name: img.asset_name, images: [] };
+      groups[key].images.push(img);
+    }
+    // Sort each group: S3 first
+    const sevRank: Record<string, number> = { S3: 0, S2: 1, S1: 2, S0: 3 };
+    return Object.values(groups).map(g => ({
+      ...g,
+      images: [...g.images].sort((a, b) =>
+        (sevRank[a.max_severity || ''] ?? 4) - (sevRank[b.max_severity || ''] ?? 4)
+      ),
+    }));
+  }, [images]);
+
+  // Severity donut
   const sevDonut = Object.entries(sevBreakdown).map(([k, v]) => ({
-    name: `${k} ${SEV[k]?.label || k}`, value: v, color: SEV[k]?.color || '#64748B',
+    name: `${k} ${SEV[k]?.label || k}`, value: v as number, color: SEV[k]?.color || '#64748B',
   }));
 
-  // Inspections by status bar — always show all 3 statuses so chart never has a single floating bar
-  const statusCounts = (data?.recent_inspections || []).reduce<Record<string, number>>((acc, i) => {
-    acc[i.status] = (acc[i.status] || 0) + 1;
-    return acc;
-  }, {});
-  const barData = [
-    { status: 'completed',  count: statusCounts.completed  || 0 },
-    { status: 'pending',    count: statusCounts.pending    || 0 },
-    { status: 'processing', count: statusCounts.processing || 0 },
-  ];
-  const barColors: Record<string, string> = { completed: '#10B981', pending: '#F59E0B', processing: BRAND };
-
   const tooltipStyle = {
-    contentStyle: { background: '#FFFFFF', border: '1px solid #C8E6D4', borderRadius: 10, fontSize: 12, boxShadow: '0 4px 20px rgba(8,46,41,0.08)' },
+    contentStyle: { background: '#FFFFFF', border: '1px solid #C8E6D4', borderRadius: 10, fontSize: 12 },
     labelStyle: { color: TEAL, fontWeight: 700 },
     itemStyle: { color: TEAL },
   };
@@ -236,16 +207,8 @@ export default function DashboardPage() {
         <p className="text-xs mt-0.5" style={{ color: '#6B9A87' }}>Platform overview and recent activity</p>
       </div>
 
-      {/* ── KPI Row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          label="Fleet Health"
-          value={`${data?.fleet_health_pct ?? 0}%`}
-          sub={`${data?.active_assets ?? 0} of ${data?.total_assets ?? 0} assets active`}
-          icon={<Building2 size={16} />}
-          accentColor={TEAL}
-          ringPct={data?.fleet_health_pct ?? 0}
-        />
+      {/* ── KPI Row (3 cards, no Fleet Health) ── */}
+      <div className="grid grid-cols-3 gap-4">
         <KPICard
           label="Active Assets"
           value={data?.active_assets ?? 0}
@@ -269,90 +232,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* ── Image Carousel + Severity Donut ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* Image carousel — 2 cols */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #C8E6D4' }}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>
-                Recent Inspections
-              </h2>
-              <p className="text-[11px] mt-0.5" style={{ color: '#A5D4BB' }}>
-                {images.length} analyzed image{images.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            {images.length > PER_PAGE && (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setImgPage(p => Math.max(0, p - 1))} disabled={imgPage === 0}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                  style={{ background: MINT, color: TEAL }}>
-                  <ChevronLeft size={14} />
-                </button>
-                <span className="text-[11px] font-bold" style={{ color: '#6B9A87' }}>{imgPage + 1}/{totalPages}</span>
-                <button onClick={() => setImgPage(p => Math.min(totalPages - 1, p + 1))} disabled={imgPage === totalPages - 1}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                  style={{ background: MINT, color: TEAL }}>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {images.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: MINT }}>
-                <ImageIcon size={24} style={{ color: '#6B9A87' }} />
-              </div>
-              <p className="text-sm font-semibold" style={{ color: '#6B9A87' }}>No analyzed images yet</p>
-              <Link href="/upload" className="text-xs font-bold" style={{ color: BRAND }}>Upload your first inspection →</Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {visibleImages.map(img => <ImageCard key={img.id} img={img} />)}
-            </div>
-          )}
-        </div>
-
-        {/* Severity donut */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #C8E6D4' }}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Severity Mix</h2>
-          </div>
-          {sevDonut.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={130}>
-                <PieChart>
-                  <Pie data={sevDonut} cx="50%" cy="50%" innerRadius={35} outerRadius={55}
-                    dataKey="value" paddingAngle={3}>
-                    {sevDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <RechartTooltip {...tooltipStyle} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1.5 mt-2">
-                {sevDonut.map((d, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-[11px]" style={{ color: '#6B9A87' }}>
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                      {d.name}
-                    </span>
-                    <span className="text-[12px] font-black font-mono" style={{ color: TEAL }}>{d.value}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <Shield size={28} style={{ color: '#10B981' }} />
-              <p className="text-xs font-semibold" style={{ color: '#10B981' }}>No defects detected</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Asset Health Table ── */}
+      {/* ── Asset Health Table (moved up) ── */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #EDF6F0' }}>
           <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Asset Health</h2>
@@ -374,23 +254,74 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── Inspections by Status ── */}
-      {barData.length > 0 && (
+      {/* ── Per-asset image carousels (below Asset Health) ── */}
+      {imagesByAsset.length > 0 ? (
+        <div className="space-y-4">
+          {imagesByAsset.map(group => (
+            <div key={group.asset_id || group.asset_name} className="bg-white rounded-2xl shadow-sm overflow-hidden"
+              style={{ border: '1px solid #C8E6D4' }}>
+              {/* Asset header */}
+              <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid #EDF6F0', background: MINT }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-black" style={{ color: TEAL }}>{group.asset_name}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: '#C8E6D4', color: TEAL }}>
+                    {group.images.length} image{group.images.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {group.asset_id && (
+                  <Link href={`/assets/${group.asset_id}`}
+                    className="flex items-center gap-1 text-[11px] font-bold transition-colors hover:opacity-80"
+                    style={{ color: BRAND }}>
+                    View asset <ChevronRight size={12} />
+                  </Link>
+                )}
+              </div>
+              {/* Horizontal scroll */}
+              <div className="flex gap-3 px-5 py-4 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+                {group.images.map(img => <ThumbCard key={img.id} img={img} />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm p-10 flex flex-col items-center gap-3" style={{ border: '1px solid #C8E6D4' }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: MINT }}>
+            <ImageIcon size={24} style={{ color: '#6B9A87' }} />
+          </div>
+          <p className="text-sm font-semibold" style={{ color: '#6B9A87' }}>No analyzed images yet</p>
+          <Link href="/upload" className="text-xs font-bold" style={{ color: BRAND }}>Upload your first inspection →</Link>
+        </div>
+      )}
+
+      {/* ── Severity Donut (bottom) ── */}
+      {sevDonut.length > 0 && (
         <div className="bg-white rounded-2xl p-5 shadow-sm" style={{ border: '1px solid #C8E6D4' }}>
-          <h2 className="text-[11px] font-black uppercase tracking-wider mb-4" style={{ color: '#6B9A87' }}>
-            Inspections by Status
-          </h2>
-          <ResponsiveContainer width="100%" height={110}>
-            <BarChart data={barData} barCategoryGap="40%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#EDF6F0" vertical={false} />
-              <XAxis dataKey="status" tick={{ fill: '#6B9A87', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#A5D4BB', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <RechartTooltip {...tooltipStyle} cursor={{ fill: 'rgba(8,46,41,0.04)' }} />
-              <Bar dataKey="count" radius={[5, 5, 0, 0]}>
-                {barData.map((e, i) => <Cell key={i} fill={barColors[e.status] || '#C8E6D4'} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="flex items-center gap-6">
+            <div className="flex-shrink-0">
+              <h2 className="text-[11px] font-black uppercase tracking-wider mb-3" style={{ color: '#6B9A87' }}>Severity Mix</h2>
+              <ResponsiveContainer width={120} height={120}>
+                <PieChart>
+                  <Pie data={sevDonut} cx="50%" cy="50%" innerRadius={30} outerRadius={50}
+                    dataKey="value" paddingAngle={3}>
+                    {sevDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <RechartTooltip {...tooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 grid grid-cols-2 gap-x-8 gap-y-2">
+              {sevDonut.map((d, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-[12px]" style={{ color: '#6B9A87' }}>
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                    {d.name}
+                  </span>
+                  <span className="text-[13px] font-black font-mono ml-4" style={{ color: TEAL }}>{d.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

@@ -72,6 +72,7 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             Image.stored_path,
             Inspection.id.label("inspection_id"),
             Inspection.name.label("inspection_name"),
+            Asset.id.label("asset_id"),
             Asset.name.label("asset_name"),
             func.count(Detection.id).label("detection_count"),
             func.max(Detection.severity).label("max_severity"),
@@ -86,10 +87,10 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         )
         .group_by(
             Image.id, Image.filename, Image.stored_path,
-            Inspection.id, Inspection.name, Asset.name,
+            Inspection.id, Inspection.name, Asset.id, Asset.name,
         )
-        .order_by(Image.created_at.desc())
-        .limit(9)
+        .order_by(func.max(Detection.severity).desc().nullslast(), Image.created_at.desc())
+        .limit(30)
         .all()
     )
     recent_analyzed_images = [
@@ -99,6 +100,7 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             "url": f"/storage/{row.stored_path}" if row.stored_path else "",
             "inspection_id": row.inspection_id,
             "inspection_name": row.inspection_name,
+            "asset_id": row.asset_id,
             "asset_name": row.asset_name,
             "detection_count": row.detection_count,
             "max_severity": row.max_severity,

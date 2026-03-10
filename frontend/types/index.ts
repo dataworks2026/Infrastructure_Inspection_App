@@ -78,6 +78,7 @@ export interface DashboardAnalyzedImage {
   url: string;
   inspection_id: string;
   inspection_name: string;
+  asset_id: string;
   asset_name: string;
   detection_count: number;
   max_severity: string | null;

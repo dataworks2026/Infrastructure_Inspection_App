@@ -4,7 +4,7 @@ import { inspectionsApi, imagesApi, assetsApi, analysisApi } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2 } from 'lucide-react';
+import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 
@@ -140,6 +140,8 @@ export default function InspectionDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editName, setEditName] = useState('');
 
   const deleteMutation = useMutation({
     mutationFn: () => inspectionsApi.delete(inspectionId),
@@ -150,6 +152,17 @@ export default function InspectionDetailPage() {
       router.push('/inspections');
     },
     onError: () => toast.error('Failed to delete inspection'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { name: string }) => inspectionsApi.update(inspectionId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      toast.success('Inspection updated');
+      setEditingName(false);
+    },
+    onError: () => toast.error('Failed to update inspection'),
   });
 
   const { data: inspection, isLoading } = useQuery({
@@ -263,28 +276,64 @@ export default function InspectionDetailPage() {
       </Link>
 
       {/* Header */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card mb-6">
+      <div className="bg-white border border-[#C8E6D4] rounded-xl p-6 shadow-sm mb-6">
         <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">{inspection.name}</h1>
-            <div className="flex items-center gap-3 mt-2 flex-wrap">
-              {asset && <span className="text-xs px-2.5 py-1 rounded-md font-medium bg-sky-100 text-sky-700">{asset.name}</span>}
+          <div className="flex-1 min-w-0">
+            {/* Editable name */}
+            {editingName ? (
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') updateMutation.mutate({ name: editName });
+                    if (e.key === 'Escape') setEditingName(false);
+                  }}
+                  className="text-xl font-bold rounded-lg px-3 py-1.5 outline-none flex-1"
+                  style={{ color: '#082E29', border: '2px solid #0891B2', background: '#EDF6F0' }}
+                  autoFocus
+                />
+                <button onClick={() => updateMutation.mutate({ name: editName })}
+                  disabled={updateMutation.isPending}
+                  className="p-2 rounded-lg transition-colors hover:bg-emerald-50"
+                  style={{ color: '#10B981' }}>
+                  <Check size={16} />
+                </button>
+                <button onClick={() => setEditingName(false)}
+                  className="p-2 rounded-lg transition-colors hover:bg-red-50 text-red-400">
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mb-2">
+                <h1 className="text-xl font-bold text-slate-800">{inspection.name}</h1>
+                <button onClick={() => { setEditName(inspection.name); setEditingName(true); }}
+                  className="p-1.5 rounded-lg transition-colors hover:bg-[#EDF6F0] opacity-60 hover:opacity-100"
+                  style={{ color: '#082E29' }} title="Edit name">
+                  <Pencil size={13} />
+                </button>
+              </div>
+            )}
+            <div className="flex items-center gap-3 flex-wrap">
+              {asset && <span className="text-xs px-2.5 py-1 rounded-md font-medium bg-sky-50 text-sky-700 border border-sky-100">{asset.name}</span>}
               <span className={`text-xs px-2.5 py-1 rounded-md font-medium ${
                 inspection.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
                 inspection.status === 'pending' ? 'bg-amber-50 text-amber-700' :
                 'bg-slate-100 text-slate-500'
               }`}>{inspection.status}</span>
-              {inspection.weather_conditions && <span className="text-xs text-mira-faint">Weather: {inspection.weather_conditions}</span>}
-              {inspection.inspector_name && <span className="text-xs text-mira-faint">Inspector: {inspection.inspector_name}</span>}
+              <span className="text-xs text-slate-400">
+                {new Date(inspection.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              {inspection.weather_conditions && <span className="text-xs text-slate-400">Weather: {inspection.weather_conditions}</span>}
+              {inspection.inspector_name && <span className="text-xs text-slate-400">Inspector: {inspection.inspector_name}</span>}
             </div>
           </div>
           {/* Delete button */}
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all ml-4 flex-shrink-0"
           >
-            <Trash2 size={13} />
-            Delete
+            <Trash2 size={13} /> Delete
           </button>
         </div>
       </div>
