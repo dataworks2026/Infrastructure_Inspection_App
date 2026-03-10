@@ -64,8 +64,9 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         for i in recent_inspections
     ]
 
-    # ── Query 6: recent analyzed images (dashboard carousel) ──────────────────
-    recent_img_rows = (
+    # ── Query 6: analyzed images per asset (up to 10 each, severity-ranked) ────
+    # Fetch all completed images with their detection info, then group per-asset
+    all_img_rows = (
         db.query(
             Image.id,
             Image.filename,
@@ -90,9 +91,16 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             Inspection.id, Inspection.name, Asset.id, Asset.name,
         )
         .order_by(func.max(Detection.severity).desc().nullslast(), Image.created_at.desc())
-        .limit(30)
         .all()
     )
+    # Group by asset and take top 10 per asset
+    _per_asset: dict = {}
+    for row in all_img_rows:
+        aid = row.asset_id
+        if aid not in _per_asset:
+            _per_asset[aid] = []
+        if len(_per_asset[aid]) < 10:
+            _per_asset[aid].append(row)
     recent_analyzed_images = [
         {
             "id": row.id,
@@ -105,7 +113,8 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             "detection_count": row.detection_count,
             "max_severity": row.max_severity,
         }
-        for row in recent_img_rows
+        for imgs in _per_asset.values()
+        for row in imgs
     ]
 
     # ── Query 7: asset health table (ranked critical-first) ───────────────────

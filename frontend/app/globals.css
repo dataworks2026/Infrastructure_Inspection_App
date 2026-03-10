@@ -119,21 +119,40 @@ input:focus, select:focus, textarea:focus {
   background: rgba(255,255,255,0.06);
 }
 
-/* ── Sidebar toggle button ── */
-.sidebar-toggle-btn {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+/* ── Sidebar toggle circle ── */
+.sidebar-toggle-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  background: #082E29;
+  border: 2px solid rgba(200, 230, 212, 0.3);
+  color: #6B9A87;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.sidebar-toggle-btn:active {
-  transform: translateY(-50%) scale(0.92);
+.sidebar-toggle-circle:hover {
+  background: #0891B2;
+  border-color: #0891B2;
+  color: white;
+  box-shadow: 0 2px 16px rgba(8,145,178,0.4);
+  transform: translateY(-50%) scale(1.15);
+}
+.sidebar-toggle-circle:active {
+  transform: translateY(-50%) scale(0.9);
 }
 
 /* ── Interactive cards ── */
 .interactive-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .interactive-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(8, 46, 41, 0.08), 0 1px 4px rgba(8, 46, 41, 0.04);
+  box-shadow: 0 4px 20px rgba(8, 46, 41, 0.1), 0 1px 6px rgba(8, 46, 41, 0.06);
+  border-color: #0891B2 !important;
 }
 
 /* ── Interactive rows (table, list) ── */

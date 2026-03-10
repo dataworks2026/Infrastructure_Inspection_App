@@ -79,7 +79,6 @@ export default memo(function Sidebar() {
   const router = useRouter();
   const user = useCurrentUser();
   const [collapsed, setCollapsed] = useState(false);
-  const [hoverToggle, setHoverToggle] = useState(false);
 
   const handleLogout = useCallback(() => {
     clearAuth();
@@ -234,33 +233,18 @@ export default memo(function Sidebar() {
         </div>
       </aside>
 
-      {/* Floating collapse/expand toggle on sidebar edge */}
+      {/* Floating circle toggle on sidebar edge */}
       <button
         onClick={() => setCollapsed(c => !c)}
-        onMouseEnter={() => setHoverToggle(true)}
-        onMouseLeave={() => setHoverToggle(false)}
-        className="sidebar-toggle-btn fixed z-40 flex items-center justify-center"
+        className="sidebar-toggle-circle fixed z-40"
         style={{
-          left: w - 12,
+          left: w - 14,
           top: '50%',
-          transform: 'translateY(-50%)',
-          width: 24,
-          height: 48,
-          borderRadius: '0 8px 8px 0',
-          background: hoverToggle ? '#0891B2' : TEAL,
-          border: `1px solid ${hoverToggle ? '#0891B2' : 'rgba(255,255,255,0.15)'}`,
-          borderLeft: 'none',
-          color: hoverToggle ? 'white' : '#6B9A87',
-          cursor: 'pointer',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          boxShadow: hoverToggle ? '2px 0 12px rgba(8,145,178,0.3)' : '2px 0 8px rgba(0,0,0,0.15)',
+          transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
         title={collapsed ? 'Expand sidebar (press [)' : 'Collapse sidebar (press [)'}
       >
-        {collapsed
-          ? <ChevronRight size={14} style={{ transition: 'transform 0.2s', transform: hoverToggle ? 'translateX(1px)' : 'none' }} />
-          : <ChevronLeft size={14} style={{ transition: 'transform 0.2s', transform: hoverToggle ? 'translateX(-1px)' : 'none' }} />
-        }
+        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
     </>
   );

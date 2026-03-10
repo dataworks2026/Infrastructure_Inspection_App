@@ -331,70 +331,6 @@ function CarouselRow({ groups }: { groups: { asset_id: string; asset_name: strin
   );
 }
 
-/* ── All detections table ── */
-function DetectionsTable({ images }: { images: DashboardAnalyzedImage[] }) {
-  const allWithDetections = images.filter(i => i.detection_count > 0);
-  if (allWithDetections.length === 0) return null;
-
-  return (
-    <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #EDF6F0' }}>
-        <div className="flex items-center gap-2">
-          <AlertTriangle size={13} style={{ color: '#EF4444' }} />
-          <h2 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>
-            All Detections
-          </h2>
-        </div>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-          style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
-          {allWithDetections.reduce((s, i) => s + i.detection_count, 0)} total
-        </span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[11px]" style={{ color: TEAL }}>
-          <thead>
-            <tr style={{ background: MINT, borderBottom: '1px solid #C8E6D4' }}>
-              <th className="text-left px-4 py-2 font-bold text-[9px] uppercase tracking-wider" style={{ color: '#6B9A87' }}>Image</th>
-              <th className="text-left px-4 py-2 font-bold text-[9px] uppercase tracking-wider" style={{ color: '#6B9A87' }}>Asset</th>
-              <th className="text-left px-4 py-2 font-bold text-[9px] uppercase tracking-wider" style={{ color: '#6B9A87' }}>Inspection</th>
-              <th className="text-center px-4 py-2 font-bold text-[9px] uppercase tracking-wider" style={{ color: '#6B9A87' }}>Severity</th>
-              <th className="text-center px-4 py-2 font-bold text-[9px] uppercase tracking-wider" style={{ color: '#6B9A87' }}>Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            {allWithDetections.map((img) => (
-              <tr key={img.id} className="interactive-row"
-                style={{ borderBottom: '1px solid #EDF6F0' }}>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100">
-                      <img src={img.url} alt="" className="w-full h-full object-cover"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </div>
-                    <span className="truncate font-mono text-[10px]" style={{ color: '#6B9A87' }}>{img.filename}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="font-semibold truncate">{img.asset_name}</span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="truncate" style={{ color: '#6B9A87' }}>{img.inspection_name}</span>
-                </td>
-                <td className="px-4 py-2.5 text-center">
-                  <SevBadge sev={img.max_severity} />
-                </td>
-                <td className="px-4 py-2.5 text-center">
-                  <span className="font-black text-[12px]" style={{ color: '#EF4444' }}>{img.detection_count}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 /* ── Main page ── */
 export default function DashboardPage() {
   const { data, isLoading } = useQuery({
@@ -579,9 +515,6 @@ export default function DashboardPage() {
           <Link href="/upload" className="text-[10px] font-bold" style={{ color: BRAND }}>Upload your first inspection →</Link>
         </div>
       )}
-
-      {/* All Detections Table */}
-      <DetectionsTable images={images} />
 
       {/* Bottom spacer */}
       <div className="h-4" />
