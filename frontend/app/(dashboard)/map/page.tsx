@@ -96,7 +96,12 @@ export default function MapPage() {
   const selected = assets.find((a: Asset) => a.id === selectedAsset);
 
   return (
-    <div className="h-[calc(100vh-6px)] flex flex-col -mx-5 -mb-10 relative">
+    <div>
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: '#082E29' }}>Map</h1>
+        <p className="text-sm text-slate-500 mt-1">Asset locations and inspection imagery</p>
+      </div>
+      <div className="h-[calc(100vh-120px)] flex flex-col -mx-6 -mb-10 relative rounded-xl overflow-hidden">
 
       {/* Floating top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
@@ -355,6 +360,7 @@ export default function MapPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
