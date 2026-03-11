@@ -235,9 +235,6 @@ export default function InspectionDetailPage() {
   const inspectionId = params.id as string;
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<Record<string, any>>({});
-  const [loadingDetections, setLoadingDetections] = useState(true);
-  const [loadedCount, setLoadedCount] = useState(0);
-  const [totalToLoad, setTotalToLoad] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -291,42 +288,17 @@ export default function InspectionDetailPage() {
     }
   }, [imagesLoaded, images, selectedImage]);
 
-  // Incrementally fetch detections — update state per image so stats & thumbnails update live
+  // Fetch all detections for the inspection in a single batch query
+  const { data: batchDetections, isLoading: loadingDetections } = useQuery({
+    queryKey: ['all-detections', inspectionId],
+    queryFn: () => analysisApi.getAllDetections(inspectionId),
+    enabled: imagesLoaded && images.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   useEffect(() => {
-    if (!imagesLoaded || images.length === 0) {
-      setLoadingDetections(false);
-      return;
-    }
-
-    const completedImages = images.filter((img: any) => img.analysis_status === 'completed');
-    if (completedImages.length === 0) {
-      setLoadingDetections(false);
-      return;
-    }
-
-    let cancelled = false;
-    setTotalToLoad(completedImages.length);
-    setLoadedCount(0);
-
-    async function fetchAllDetections() {
-      for (const img of completedImages) {
-        if (cancelled) break;
-        try {
-          const detections = await analysisApi.getDetections(img.id);
-          if (!cancelled) {
-            setAnalysisResults(prev => ({ ...prev, [img.id]: detections }));
-            setLoadedCount(c => c + 1);
-          }
-        } catch {
-          if (!cancelled) setLoadedCount(c => c + 1);
-        }
-      }
-      if (!cancelled) setLoadingDetections(false);
-    }
-
-    fetchAllDetections();
-    return () => { cancelled = true; };
-  }, [imagesLoaded, images]);
+    if (batchDetections) setAnalysisResults(batchDetections);
+  }, [batchDetections]);
 
   async function handleAnalyze(imageId: string) {
     setAnalyzing(imageId);
@@ -334,6 +306,7 @@ export default function InspectionDetailPage() {
       const result = await analysisApi.analyze(imageId);
       setAnalysisResults(prev => ({ ...prev, [imageId]: result }));
       queryClient.invalidateQueries({ queryKey: ['images', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
       queryClient.invalidateQueries({ queryKey: ['inspections'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err: any) {
@@ -362,8 +335,6 @@ export default function InspectionDetailPage() {
   const currentImg = images.find((img: any) => img.id === selectedImage);
   const currentResult = currentImg ? analysisResults[currentImg.id] : null;
   const currentImgLoading = loadingDetections && currentImg?.analysis_status === 'completed' && !currentResult;
-
-  const progressPct = totalToLoad > 0 ? Math.round((loadedCount / totalToLoad) * 100) : 0;
 
   return (
     <div>
@@ -489,35 +460,11 @@ export default function InspectionDetailPage() {
         onCancel={() => setShowDeleteConfirm(false)}
       />
 
-      {/* ── Detection loading progress banner ── */}
-      {loadingDetections && totalToLoad > 0 && (
-        <div className="bg-white border border-[#C8E6D4] rounded-xl px-5 py-4 mb-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-2.5">
-              <div className="relative w-5 h-5 flex-shrink-0">
-                <Loader size={18} className="animate-spin text-mira-blue" />
-              </div>
-              <span className="text-base font-semibold text-slate-700">Loading AI detection results</span>
-              <span className="text-sm text-slate-400 hidden sm:inline">— updating as each image loads</span>
-            </div>
-            <span className="text-sm font-mono font-semibold text-mira-blue">{loadedCount}/{totalToLoad}</span>
-          </div>
-          {/* Progress bar */}
-          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500 ease-out"
-              style={{
-                width: `${progressPct}%`,
-                background: 'linear-gradient(90deg, #0891B2 0%, #06B6D4 50%, #34D399 100%)',
-              }}
-            />
-          </div>
-          <p className="text-sm text-slate-400 mt-1.5">
-            {totalToLoad - loadedCount > 0
-              ? `${totalToLoad - loadedCount} image${totalToLoad - loadedCount !== 1 ? 's' : ''} remaining — stats update in real time`
-              : 'Finalising…'
-            }
-          </p>
+      {/* ── Detection loading indicator ── */}
+      {loadingDetections && (
+        <div className="bg-white border border-[#C8E6D4] rounded-xl px-5 py-3 mb-5 shadow-sm flex items-center gap-2.5">
+          <Loader size={18} className="animate-spin text-mira-blue" />
+          <span className="text-base font-semibold text-slate-700">Loading detection results…</span>
         </div>
       )}
 
@@ -536,7 +483,7 @@ export default function InspectionDetailPage() {
               <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center"><AlertTriangle size={16} className="text-amber-600" /></div>
               <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Detections</p>
             </div>
-            {loadingDetections && loadedCount === 0 ? (
+            {loadingDetections ? (
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="w-16 h-6 bg-slate-100 rounded animate-pulse" />
               </div>
@@ -549,7 +496,7 @@ export default function InspectionDetailPage() {
               <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center"><CheckCircle size={16} className="text-emerald-600" /></div>
               <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Clean Images</p>
             </div>
-            {loadingDetections && loadedCount === 0 ? (
+            {loadingDetections ? (
               <div className="w-10 h-6 bg-slate-100 rounded animate-pulse mt-1" />
             ) : (
               <p className="text-3xl font-bold text-slate-800 font-mono transition-all duration-300">{cleanCount}</p>
@@ -560,7 +507,7 @@ export default function InspectionDetailPage() {
               <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><BarChart3 size={16} className="text-red-600" /></div>
               <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Worst Severity</p>
             </div>
-            {loadingDetections && loadedCount === 0 ? (
+            {loadingDetections ? (
               <div className="w-20 h-6 bg-slate-100 rounded animate-pulse mt-1" />
             ) : worstSeverity ? (
               <SeverityBadge severity={worstSeverity} size="lg" />

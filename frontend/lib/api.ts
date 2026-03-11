@@ -80,6 +80,8 @@ export const analysisApi = {
     api.post<AnalysisResult>(`/images/${imageId}/analyze`).then(r => r.data),
   getDetections: (imageId: string) =>
     api.get(`/images/${imageId}/detections`).then(r => r.data),
+  getAllDetections: (inspectionId: string) =>
+    api.get<Record<string, any>>(`/inspections/${inspectionId}/all-detections`).then(r => r.data),
 };
 
 export default api;

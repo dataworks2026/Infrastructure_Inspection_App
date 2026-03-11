@@ -90,6 +90,41 @@ def analyze_image(
         db.commit()
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
+@router.get("/inspections/{inspection_id}/all-detections")
+def get_all_detections(inspection_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Return all detections for every image in an inspection in a single query."""
+    inspection = db.query(Inspection).filter(
+        Inspection.id == inspection_id,
+        Inspection.organization_id == current_user.organization_id
+    ).first()
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    images = db.query(Image).filter(Image.inspection_id == inspection_id).all()
+    image_ids = [img.id for img in images]
+
+    dets = db.query(Detection).filter(Detection.image_id.in_(image_ids)).all() if image_ids else []
+
+    # Group detections by image_id
+    by_image: dict = {}
+    for d in dets:
+        by_image.setdefault(d.image_id, []).append(d)
+
+    result = {}
+    for img in images:
+        img_dets = by_image.get(img.id, [])
+        result[img.id] = {
+            "image_id": img.id,
+            "analysis_status": img.analysis_status,
+            "total_detections": len(img_dets),
+            "detections": [{"id": d.id, "damage_type": d.damage_type, "confidence": d.confidence,
+                            "bbox": {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2},
+                            "severity": d.severity} for d in img_dets],
+            "annotated_image_url": f"/storage/{img_dets[0].annotated_image_path}" if img_dets and img_dets[0].annotated_image_path else None
+        }
+    return result
+
+
 @router.get("/images/{image_id}/detections")
 def get_detections(image_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     img = db.query(Image).filter(Image.id == image_id, Image.organization_id == current_user.organization_id).first()
