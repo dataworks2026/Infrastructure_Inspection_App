@@ -186,13 +186,18 @@ function AssetCarouselCard({
       {/* Image carousel */}
       <div className="relative bg-slate-100 overflow-hidden flex-shrink-0" style={{ aspectRatio: '4/3' }}>
         <img
-          src={img.url}
+          src={img.annotated_url || img.url}
           alt={img.filename}
           className="w-full h-full object-cover"
           style={{ transition: 'opacity 0.2s ease' }}
           onError={e => {
-            (e.target as HTMLImageElement).src =
-              'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
+            const el = e.target as HTMLImageElement;
+            // If annotated image fails, fall back to original
+            if (img.annotated_url && el.src.includes(img.annotated_url)) {
+              el.src = img.url;
+            } else {
+              el.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
+            }
           }}
         />
 

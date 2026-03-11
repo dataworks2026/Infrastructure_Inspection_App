@@ -102,9 +102,10 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         if len(_per_asset[aid]) < 10:
             _per_asset[aid].append(row)
 
-    # Collect image IDs that will be returned, then fetch damage-type breakdown
+    # Collect image IDs that will be returned, then fetch damage-type breakdown + annotated paths
     _selected_image_ids = [row.id for imgs in _per_asset.values() for row in imgs]
     _damage_map: dict = {}  # image_id -> [{"damage_type": str, "count": int}, ...]
+    _annotated_map: dict = {}  # image_id -> annotated_image_path
     if _selected_image_ids:
         _dt_rows = (
             db.query(
@@ -121,12 +122,26 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             _damage_map.setdefault(r.image_id, []).append(
                 {"damage_type": r.damage_type, "count": r.cnt}
             )
+        # Fetch annotated image path (first non-null per image)
+        _ann_rows = (
+            db.query(Detection.image_id, Detection.annotated_image_path)
+            .filter(
+                Detection.image_id.in_(_selected_image_ids),
+                Detection.annotated_image_path.isnot(None),
+            )
+            .distinct(Detection.image_id)
+            .all()
+        )
+        for r in _ann_rows:
+            if r.image_id not in _annotated_map:
+                _annotated_map[r.image_id] = r.annotated_image_path
 
     recent_analyzed_images = [
         {
             "id": row.id,
             "filename": row.filename,
             "url": f"/storage/{row.stored_path}" if row.stored_path else "",
+            "annotated_url": f"/storage/{_annotated_map[row.id]}" if row.id in _annotated_map else None,
             "inspection_id": row.inspection_id,
             "inspection_name": row.inspection_name,
             "asset_id": row.asset_id,

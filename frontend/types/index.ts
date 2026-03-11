@@ -76,6 +76,7 @@ export interface DashboardAnalyzedImage {
   id: string;
   filename: string;
   url: string;
+  annotated_url: string | null;
   inspection_id: string;
   inspection_name: string;
   asset_id: string;
