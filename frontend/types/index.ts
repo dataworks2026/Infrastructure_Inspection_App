@@ -82,6 +82,7 @@ export interface DashboardAnalyzedImage {
   asset_name: string;
   detection_count: number;
   max_severity: string | null;
+  damage_types: { damage_type: string; count: number }[];
 }
 
 export interface DashboardAssetHealth {

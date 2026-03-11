@@ -101,6 +101,27 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             _per_asset[aid] = []
         if len(_per_asset[aid]) < 10:
             _per_asset[aid].append(row)
+
+    # Collect image IDs that will be returned, then fetch damage-type breakdown
+    _selected_image_ids = [row.id for imgs in _per_asset.values() for row in imgs]
+    _damage_map: dict = {}  # image_id -> [{"damage_type": str, "count": int}, ...]
+    if _selected_image_ids:
+        _dt_rows = (
+            db.query(
+                Detection.image_id,
+                Detection.damage_type,
+                func.count(Detection.id).label("cnt"),
+            )
+            .filter(Detection.image_id.in_(_selected_image_ids))
+            .group_by(Detection.image_id, Detection.damage_type)
+            .order_by(func.count(Detection.id).desc())
+            .all()
+        )
+        for r in _dt_rows:
+            _damage_map.setdefault(r.image_id, []).append(
+                {"damage_type": r.damage_type, "count": r.cnt}
+            )
+
     recent_analyzed_images = [
         {
             "id": row.id,
@@ -112,6 +133,7 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             "asset_name": row.asset_name,
             "detection_count": row.detection_count,
             "max_severity": row.max_severity,
+            "damage_types": _damage_map.get(row.id, []),
         }
         for imgs in _per_asset.values()
         for row in imgs

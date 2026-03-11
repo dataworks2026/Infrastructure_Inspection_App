@@ -259,6 +259,18 @@ function AssetCarouselCard({
             </span>
           )}
         </div>
+        {/* Damage type breakdown */}
+        {img.damage_types && img.damage_types.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {img.damage_types.map((dt) => (
+              <span key={dt.damage_type}
+                className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full"
+                style={{ background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA' }}>
+                {dt.damage_type} ({dt.count})
+              </span>
+            ))}
+          </div>
+        )}
         <p className="text-[10px] font-medium truncate" style={{ color: '#6B9A87' }}>{img.inspection_name}</p>
         <p className="text-[9px] truncate font-mono" style={{ color: '#9AB8AD' }}>{img.filename}</p>
       </div>
