@@ -519,7 +519,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <KPICard label="Active Assets" value={data?.active_assets ?? 0}
           sub={`${data?.total_assets ?? 0} total`} icon={<Building2 size={15} />} accentColor={BRAND} />
         <KPICard label="Total Detections" value={data?.total_detections ?? 0}

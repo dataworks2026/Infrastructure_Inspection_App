@@ -220,7 +220,7 @@ export default function AssetsPage() {
 
       {/* Asset grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {[0,1,2,3,4,5].map(i => <CardSkeleton key={i} />)}
         </div>
       ) : assets.length === 0 ? (
@@ -237,7 +237,7 @@ export default function AssetsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {(assets as Asset[]).map((asset, i) => {
             const typeInfo = typeMap[asset.infrastructure_type];
             const Icon = typeInfo?.Icon || Building2;

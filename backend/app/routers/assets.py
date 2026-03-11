@@ -6,6 +6,7 @@ from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.asset import Asset
 from app.models.inspection import Inspection
+from app.models.image import Image
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 
 router = APIRouter()
@@ -38,6 +39,16 @@ def _enrich_assets(assets: List[Asset], db: Session) -> List[AssetResponse]:
     )
     last_dates = {row.asset_id: row.last for row in last_rows}
 
+    # ── Query 3: count of images per asset (via inspections) ─────────────────
+    img_rows = (
+        db.query(Inspection.asset_id, func.count(Image.id).label("cnt"))
+        .join(Image, Image.inspection_id == Inspection.id)
+        .filter(Inspection.asset_id.in_(asset_ids))
+        .group_by(Inspection.asset_id)
+        .all()
+    )
+    img_counts = {row.asset_id: row.cnt for row in img_rows}
+
     result = []
     for a in assets:
         result.append(AssetResponse(
@@ -50,6 +61,7 @@ def _enrich_assets(assets: List[Asset], db: Session) -> List[AssetResponse]:
             status=a.status,
             created_at=a.created_at,
             inspection_count=counts.get(a.id, 0),
+            image_count=img_counts.get(a.id, 0),
             last_inspection_at=last_dates.get(a.id),
         ))
     return result
@@ -78,7 +90,7 @@ def create_asset(data: AssetCreate, db: Session = Depends(get_db), current_user:
     db.add(asset)
     db.commit()
     db.refresh(asset)
-    return AssetResponse(**{**asset.__dict__, "inspection_count": 0, "last_inspection_at": None})
+    return AssetResponse(**{**asset.__dict__, "inspection_count": 0, "image_count": 0, "last_inspection_at": None})
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)

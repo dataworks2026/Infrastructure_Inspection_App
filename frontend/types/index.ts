@@ -24,6 +24,7 @@ export interface Asset {
   status: AssetStatus;
   created_at: string;
   inspection_count: number;
+  image_count: number;
   last_inspection_at?: string;
 }
 

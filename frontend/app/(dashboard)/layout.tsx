@@ -61,9 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           style={{ marginLeft: sidebarW, transition: TRANSITION }}
         >
           <main className="flex-1" style={{ padding: '20px 24px 40px' }}>
-            <div className="max-w-[1400px] w-full">
-              {children}
-            </div>
+            {children}
           </main>
         </div>
       </div>

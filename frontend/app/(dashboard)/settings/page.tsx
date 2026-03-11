@@ -56,7 +56,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-xl mx-auto py-10 px-4">
+      <div className="max-w-2xl">
         <div className="h-8 w-48 bg-slate-200 rounded animate-pulse mb-2" />
         <div className="h-4 w-72 bg-slate-100 rounded animate-pulse mb-8" />
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
@@ -72,8 +72,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto py-10 px-4">
-      <h1 className="text-2xl font-bold text-slate-800 mb-1">Profile Settings</h1>
+    <div className="max-w-2xl">
+      <h1 className="text-2xl font-bold tracking-tight mb-1" style={{ color: '#082E29' }}>Profile Settings</h1>
       <p className="text-sm text-slate-500 mb-8">Update your name, username, and organization details.</p>
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo, memo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import { Asset } from '@/types';
 
@@ -237,14 +237,23 @@ function FitBounds({ assets, imagePoints }: { assets: Asset[]; imagePoints: Imag
 
 // ── Markers ───────────────────────────────────────────────────────────────────
 const AssetMarker = memo(function AssetMarker({
-  asset, isSelected, onSelect, markerColor, configLabel, infraType,
+  asset, isSelected, onSelect, markerColor, configLabel, infraType, imageCount,
 }: {
   asset: Asset; isSelected: boolean; onSelect: () => void;
-  markerColor: string; configLabel: string; infraType: string;
+  markerColor: string; configLabel: string; infraType: string; imageCount: number;
 }) {
   const icon = getAssetIcon(markerColor, isSelected, infraType);
   return (
     <Marker position={[asset.latitude!, asset.longitude!]} icon={icon} eventHandlers={{ click: onSelect }}>
+      <Tooltip permanent direction="right" offset={[18, -20]} className="asset-label-tooltip">
+        <div className="at-inner">
+          <div className="at-name">{asset.name}</div>
+          <div className="at-coords">{asset.latitude?.toFixed(4)}°, {asset.longitude?.toFixed(4)}°</div>
+          <div className="at-stats">
+            {asset.inspection_count} insp. · {imageCount} img
+          </div>
+        </div>
+      </Tooltip>
       <Popup>
         <div className="asset-popup">
           <div className="ap-name">{asset.name}</div>
@@ -271,6 +280,7 @@ const AssetMarker = memo(function AssetMarker({
           </div>
           <div className="ap-coords">
             {asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
+            {' · '}{imageCount} image{imageCount !== 1 ? 's' : ''}
             {' · '}{asset.latitude?.toFixed(5)}°, {asset.longitude?.toFixed(5)}°
           </div>
           <div className="ap-divider"/>
@@ -395,6 +405,22 @@ const MAP_STYLES = `
     transition: all .15s; text-decoration: none;
   }
   .ap-link:hover { background: rgba(56,189,248,.14); color: #7dd3fc; }
+
+  /* Permanent asset label tooltips */
+  .asset-label-tooltip {
+    background: rgba(8, 46, 41, 0.92) !important;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(8, 145, 178, 0.3) !important;
+    border-radius: 10px !important;
+    padding: 0 !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4) !important;
+    white-space: nowrap;
+  }
+  .asset-label-tooltip::before { border-right-color: rgba(8, 46, 41, 0.92) !important; }
+  .at-inner  { padding: 8px 12px; }
+  .at-name   { font-size: 12px; font-weight: 700; color: #E0F2FE; letter-spacing: -0.01em; }
+  .at-coords { font-size: 9px; color: #6B9A87; font-family: ui-monospace, monospace; margin-top: 2px; }
+  .at-stats  { font-size: 10px; color: #38BDF8; font-weight: 600; margin-top: 3px; }
 `;
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -466,6 +492,7 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
               markerColor={cfg?.markerColor ?? '#64748B'}
               configLabel={cfg?.label ?? asset.infrastructure_type}
               infraType={asset.infrastructure_type}
+              imageCount={asset.image_count ?? 0}
             />
           );
         })}

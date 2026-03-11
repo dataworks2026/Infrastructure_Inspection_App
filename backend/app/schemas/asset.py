@@ -27,6 +27,7 @@ class AssetResponse(BaseModel):
     status: str
     created_at: datetime
     inspection_count: int = 0
+    image_count: int = 0
     last_inspection_at: Optional[datetime] = None
 
     class Config:
