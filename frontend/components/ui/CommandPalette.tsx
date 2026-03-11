@@ -106,7 +106,7 @@ export default function CommandPalette() {
             className="flex-1 bg-transparent text-[14px] text-slate-100 placeholder:text-slate-500 outline-none"
           />
           <button onClick={() => setOpen(false)} className="text-slate-600 hover:text-slate-400 transition-colors">
-            <X size={15} />
+            <X size={17} />
           </button>
         </div>
 
@@ -115,7 +115,7 @@ export default function CommandPalette() {
           {Object.entries(grouped).map(([cat, items]) => (
             <div key={cat}>
               <div className="px-4 py-2">
-                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.12em]">{cat}</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-[0.12em]">{cat}</span>
               </div>
               {items.map(r => {
                 const gIdx = results.indexOf(r);
@@ -129,16 +129,16 @@ export default function CommandPalette() {
                       isSelected ? 'bg-sky-500/15' : 'hover:bg-white/5'
                     }`}
                   >
-                    <r.Icon size={15} className={isSelected ? 'text-sky-400' : 'text-slate-500'} />
+                    <r.Icon size={17} className={isSelected ? 'text-sky-400' : 'text-slate-500'} />
                     <div className="flex-1 min-w-0">
                       <p className={`text-[13px] font-medium truncate ${isSelected ? 'text-sky-300' : 'text-slate-200'}`}>
                         {r.label}
                       </p>
                       {r.sub && (
-                        <p className="text-[11px] text-slate-500 capitalize truncate">{r.sub}</p>
+                        <p className="text-[12px] text-slate-500 capitalize truncate">{r.sub}</p>
                       )}
                     </div>
-                    {isSelected && <ArrowRight size={13} className="text-sky-400 flex-shrink-0" />}
+                    {isSelected && <ArrowRight size={15} className="text-sky-400 flex-shrink-0" />}
                   </button>
                 );
               })}
@@ -153,10 +153,10 @@ export default function CommandPalette() {
 
         {/* Footer hint */}
         <div className="border-t border-card-border px-4 py-2 flex items-center gap-4">
-          <span className="text-[10px] text-slate-600 font-mono">↑↓&nbsp;navigate</span>
-          <span className="text-[10px] text-slate-600 font-mono">↵&nbsp;open</span>
-          <span className="text-[10px] text-slate-600 font-mono">esc&nbsp;close</span>
-          <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-600 font-mono">
+          <span className="text-[11px] text-slate-600 font-mono">↑↓&nbsp;navigate</span>
+          <span className="text-[11px] text-slate-600 font-mono">↵&nbsp;open</span>
+          <span className="text-[11px] text-slate-600 font-mono">esc&nbsp;close</span>
+          <span className="ml-auto flex items-center gap-1 text-[11px] text-slate-600 font-mono">
             <kbd className="bg-slate-700 px-1.5 py-0.5 rounded text-slate-400">⌘</kbd>
             <kbd className="bg-slate-700 px-1.5 py-0.5 rounded text-slate-400">K</kbd>
           </span>

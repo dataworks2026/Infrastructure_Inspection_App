@@ -21,7 +21,7 @@ function SeverityBadge({ severity, size = 'sm' }: { severity: string; size?: 'sm
   const config = severityConfig[severity] || severityConfig.S1;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold ${config.bg} ${config.color} ${
-      size === 'lg' ? 'text-sm px-3 py-1' : 'text-xs'
+      size === 'lg' ? 'text-base px-3 py-1' : 'text-sm'
     }`}>
       {severity} <span className="font-normal opacity-75">{config.label}</span>
     </span>
@@ -160,10 +160,10 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col" onClick={onClose}>
       <div className="flex items-center justify-between px-6 py-4 bg-black/40" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-4">
-          <span className="text-white/60 text-sm font-mono">{index + 1} / {images.length}</span>
-          <span className="text-white text-sm font-medium truncate max-w-md">{img.filename}</span>
+          <span className="text-white/60 text-base font-mono">{index + 1} / {images.length}</span>
+          <span className="text-white text-base font-medium truncate max-w-md">{img.filename}</span>
           {result && result.total_detections > 0 && (
-            <span className="text-amber-400 text-xs font-medium bg-amber-400/10 px-2 py-1 rounded-md">
+            <span className="text-amber-400 text-sm font-medium bg-amber-400/10 px-2 py-1 rounded-md">
               {result.total_detections} detection{result.total_detections !== 1 ? 's' : ''}
             </span>
           )}
@@ -171,15 +171,15 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
         <div className="flex items-center gap-3">
           {hasAnnotation && (
             <button onClick={() => setShowAnnotated(s => !s)}
-              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-all ${
+              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md transition-all ${
                 showAnnotated ? 'bg-sky-500 text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'
               }`}>
-              <Eye size={14} /> {showAnnotated ? 'AI Analysis' : 'Original'}
-              <span className="text-[10px] opacity-60 ml-1">[A]</span>
+              <Eye size={16} /> {showAnnotated ? 'AI Analysis' : 'Original'}
+              <span className="text-[11px] opacity-60 ml-1">[A]</span>
             </button>
           )}
           <button onClick={onClose} className="text-white/60 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all">
-            <X size={20} />
+            <X size={22} />
           </button>
         </div>
       </div>
@@ -188,10 +188,10 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
         {images.length > 1 && (
           <>
             <button onClick={goPrev} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all">
-              <ChevronLeft size={20} />
+              <ChevronLeft size={22} />
             </button>
             <button onClick={goNext} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all">
-              <ChevronRight size={20} />
+              <ChevronRight size={22} />
             </button>
           </>
         )}
@@ -213,8 +213,8 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
                 <div key={i} className="flex items-center gap-2 rounded-lg px-3 py-2 flex-shrink-0"
                   style={{ background: cfg.stroke + '22', border: `1px solid ${cfg.stroke}55` }}>
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cfg.stroke }} />
-                  <span className="text-white text-xs font-semibold">{d.damage_type}</span>
-                  <span className="text-white/50 text-xs">{(d.confidence * 100).toFixed(0)}%</span>
+                  <span className="text-white text-sm font-semibold">{d.damage_type}</span>
+                  <span className="text-white/50 text-sm">{(d.confidence * 100).toFixed(0)}%</span>
                   {d.severity && <SeverityBadge severity={d.severity} />}
                 </div>
               );
@@ -376,8 +376,8 @@ export default function InspectionDetailPage() {
         />
       )}
 
-      <Link href="/inspections" className="inline-flex items-center gap-2 text-sm text-mira-muted hover:text-mira-blue mb-6 font-medium">
-        <ArrowLeft size={16} /> Back to Inspections
+      <Link href="/inspections" className="inline-flex items-center gap-2 text-base text-mira-muted hover:text-mira-blue mb-6 font-medium">
+        <ArrowLeft size={18} /> Back to Inspections
       </Link>
 
       {/* Header */}
@@ -393,7 +393,7 @@ export default function InspectionDetailPage() {
                     if (e.key === 'Enter') updateMutation.mutate({ name: editName });
                     if (e.key === 'Escape') setEditingName(false);
                   }}
-                  className="text-xl font-bold rounded-lg px-3 py-1.5 outline-none flex-1"
+                  className="text-2xl font-bold rounded-lg px-3 py-1.5 outline-none flex-1"
                   style={{ color: '#082E29', border: '2px solid #0891B2', background: '#EDF6F0' }}
                   autoFocus
                 />
@@ -401,26 +401,26 @@ export default function InspectionDetailPage() {
                   disabled={updateMutation.isPending}
                   className="p-2 rounded-lg transition-colors hover:bg-emerald-50"
                   style={{ color: '#10B981' }}>
-                  <Check size={16} />
+                  <Check size={18} />
                 </button>
                 <button onClick={() => setEditingName(false)}
                   className="p-2 rounded-lg transition-colors hover:bg-red-50 text-red-400">
-                  <X size={16} />
+                  <X size={18} />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2 mb-2">
-                <h1 className="text-xl font-bold text-slate-800">{inspection.name}</h1>
+                <h1 className="text-2xl font-bold text-slate-800">{inspection.name}</h1>
                 <button onClick={() => { setEditName(inspection.name); setEditingName(true); }}
                   className="p-1.5 rounded-lg transition-colors hover:bg-[#EDF6F0] opacity-60 hover:opacity-100"
                   style={{ color: '#082E29' }} title="Edit name">
-                  <Pencil size={13} />
+                  <Pencil size={15} />
                 </button>
               </div>
             )}
             <div className="flex items-center gap-3 flex-wrap">
-              {asset && <span className="text-xs px-2.5 py-1 rounded-md font-medium bg-sky-50 text-sky-700 border border-sky-100">{asset.name}</span>}
-              <span className={`text-xs px-2.5 py-1 rounded-md font-medium ${
+              {asset && <span className="text-sm px-2.5 py-1 rounded-md font-medium bg-sky-50 text-sky-700 border border-sky-100">{asset.name}</span>}
+              <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
                 inspection.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
                 inspection.status === 'pending' ? 'bg-amber-50 text-amber-700' :
                 'bg-slate-100 text-slate-500'
@@ -435,7 +435,7 @@ export default function InspectionDetailPage() {
                       if (e.key === 'Enter' && editDate) updateMutation.mutate({ inspected_at: new Date(editDate).toISOString() });
                       if (e.key === 'Escape') setEditingDate(false);
                     }}
-                    className="text-xs rounded-md px-2 py-1 outline-none"
+                    className="text-sm rounded-md px-2 py-1 outline-none"
                     style={{ border: '2px solid #0891B2', background: '#EDF6F0', color: '#082E29' }}
                     autoFocus
                   />
@@ -443,16 +443,16 @@ export default function InspectionDetailPage() {
                     disabled={updateMutation.isPending || !editDate}
                     className="p-1 rounded-md transition-colors hover:bg-emerald-50"
                     style={{ color: '#10B981' }}>
-                    <Check size={13} />
+                    <Check size={15} />
                   </button>
                   <button onClick={() => setEditingDate(false)}
                     className="p-1 rounded-md transition-colors hover:bg-red-50 text-red-400">
-                    <X size={13} />
+                    <X size={15} />
                   </button>
                 </div>
               ) : (
                 <span className="inline-flex items-center gap-1 group/date">
-                  <span className="text-xs text-slate-400">
+                  <span className="text-sm text-slate-400">
                     {new Date(inspection.inspected_at || inspection.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
                   <button onClick={() => {
@@ -462,19 +462,19 @@ export default function InspectionDetailPage() {
                   }}
                     className="p-1 rounded-md transition-colors hover:bg-[#EDF6F0] opacity-0 group-hover/date:opacity-100"
                     style={{ color: '#082E29' }} title="Edit date">
-                    <Pencil size={11} />
+                    <Pencil size={13} />
                   </button>
                 </span>
               )}
-              {inspection.weather_conditions && <span className="text-xs text-slate-400">Weather: {inspection.weather_conditions}</span>}
-              {inspection.inspector_name && <span className="text-xs text-slate-400">Inspector: {inspection.inspector_name}</span>}
+              {inspection.weather_conditions && <span className="text-sm text-slate-400">Weather: {inspection.weather_conditions}</span>}
+              {inspection.inspector_name && <span className="text-sm text-slate-400">Inspector: {inspection.inspector_name}</span>}
             </div>
           </div>
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all ml-4 flex-shrink-0"
+            className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all ml-4 flex-shrink-0"
           >
-            <Trash2 size={13} /> Delete
+            <Trash2 size={15} /> Delete
           </button>
         </div>
       </div>
@@ -497,10 +497,10 @@ export default function InspectionDetailPage() {
               <div className="relative w-5 h-5 flex-shrink-0">
                 <Loader size={18} className="animate-spin text-mira-blue" />
               </div>
-              <span className="text-sm font-semibold text-slate-700">Loading AI detection results</span>
-              <span className="text-xs text-slate-400 hidden sm:inline">— updating as each image loads</span>
+              <span className="text-base font-semibold text-slate-700">Loading AI detection results</span>
+              <span className="text-sm text-slate-400 hidden sm:inline">— updating as each image loads</span>
             </div>
-            <span className="text-xs font-mono font-semibold text-mira-blue">{loadedCount}/{totalToLoad}</span>
+            <span className="text-sm font-mono font-semibold text-mira-blue">{loadedCount}/{totalToLoad}</span>
           </div>
           {/* Progress bar */}
           <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -512,7 +512,7 @@ export default function InspectionDetailPage() {
               }}
             />
           </div>
-          <p className="text-xs text-slate-400 mt-1.5">
+          <p className="text-sm text-slate-400 mt-1.5">
             {totalToLoad - loadedCount > 0
               ? `${totalToLoad - loadedCount} image${totalToLoad - loadedCount !== 1 ? 's' : ''} remaining — stats update in real time`
               : 'Finalising…'
@@ -526,46 +526,46 @@ export default function InspectionDetailPage() {
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center"><ImageIcon size={14} className="text-sky-600" /></div>
-              <p className="text-xs font-semibold text-mira-muted uppercase tracking-wider">Analysed</p>
+              <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center"><ImageIcon size={16} className="text-sky-600" /></div>
+              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Analysed</p>
             </div>
-            <p className="text-2xl font-bold text-slate-800 font-mono">{completedCount}<span className="text-sm text-mira-faint font-normal ml-0.5">/{images.length}</span></p>
+            <p className="text-3xl font-bold text-slate-800 font-mono">{completedCount}<span className="text-base text-mira-faint font-normal ml-0.5">/{images.length}</span></p>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center"><AlertTriangle size={14} className="text-amber-600" /></div>
-              <p className="text-xs font-semibold text-mira-muted uppercase tracking-wider">Detections</p>
+              <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center"><AlertTriangle size={16} className="text-amber-600" /></div>
+              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Detections</p>
             </div>
             {loadingDetections && loadedCount === 0 ? (
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="w-16 h-6 bg-slate-100 rounded animate-pulse" />
               </div>
             ) : (
-              <p className="text-2xl font-bold text-slate-800 font-mono transition-all duration-300">{totalDetections}</p>
+              <p className="text-3xl font-bold text-slate-800 font-mono transition-all duration-300">{totalDetections}</p>
             )}
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center"><CheckCircle size={14} className="text-emerald-600" /></div>
-              <p className="text-xs font-semibold text-mira-muted uppercase tracking-wider">Clean Images</p>
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center"><CheckCircle size={16} className="text-emerald-600" /></div>
+              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Clean Images</p>
             </div>
             {loadingDetections && loadedCount === 0 ? (
               <div className="w-10 h-6 bg-slate-100 rounded animate-pulse mt-1" />
             ) : (
-              <p className="text-2xl font-bold text-slate-800 font-mono transition-all duration-300">{cleanCount}</p>
+              <p className="text-3xl font-bold text-slate-800 font-mono transition-all duration-300">{cleanCount}</p>
             )}
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><BarChart3 size={14} className="text-red-600" /></div>
-              <p className="text-xs font-semibold text-mira-muted uppercase tracking-wider">Worst Severity</p>
+              <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><BarChart3 size={16} className="text-red-600" /></div>
+              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Worst Severity</p>
             </div>
             {loadingDetections && loadedCount === 0 ? (
               <div className="w-20 h-6 bg-slate-100 rounded animate-pulse mt-1" />
             ) : worstSeverity ? (
               <SeverityBadge severity={worstSeverity} size="lg" />
             ) : (
-              <span className="text-sm text-emerald-600 font-medium flex items-center gap-1 mt-1"><Shield size={14} /> All Clear</span>
+              <span className="text-base text-emerald-600 font-medium flex items-center gap-1 mt-1"><Shield size={16} /> All Clear</span>
             )}
           </div>
         </div>
@@ -575,7 +575,7 @@ export default function InspectionDetailPage() {
       {images.length === 0 ? (
         <div className="text-center py-16 bg-white border border-slate-200 rounded-2xl shadow-card">
           <ImageIcon size={40} className="mx-auto mb-3 text-slate-300" />
-          <p className="text-base text-mira-muted font-medium">No images uploaded yet.</p>
+          <p className="text-lg text-mira-muted font-medium">No images uploaded yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-12 gap-6">
@@ -583,7 +583,7 @@ export default function InspectionDetailPage() {
           <div className="col-span-3">
             <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100">
-                <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{images.length} Images</h3>
+                <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">{images.length} Images</h3>
               </div>
               <div className="max-h-[calc(100vh-320px)] overflow-y-auto p-2 space-y-1.5">
                 {images.map((img: any) => {
@@ -602,7 +602,7 @@ export default function InspectionDetailPage() {
                           <img src={img.url} alt="" className="w-16 h-12 object-cover rounded-md border border-slate-200" />
                           {hasDetections && (
                             <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center">
-                              <span className="text-[8px] text-white font-bold">{r.total_detections}</span>
+                              <span className="text-[9px] text-white font-bold">{r.total_detections}</span>
                             </div>
                           )}
                           {r && !r.error && r.total_detections === 0 && (
@@ -617,10 +617,10 @@ export default function InspectionDetailPage() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0 py-0.5">
-                          <p className="text-[11px] font-medium text-slate-700 truncate leading-tight">
+                          <p className="text-[12px] font-medium text-slate-700 truncate leading-tight">
                             {img.filename.length > 20 ? img.filename.slice(0, 18) + '…' : img.filename}
                           </p>
-                          <p className="text-[10px] text-mira-faint mt-0.5">
+                          <p className="text-[11px] text-mira-faint mt-0.5">
                             {isPendingLoad ? (
                               <span className="text-sky-500 flex items-center gap-1">
                                 <span className="inline-block w-12 h-2 bg-sky-100 rounded animate-pulse" />
@@ -649,9 +649,9 @@ export default function InspectionDetailPage() {
                 {/* Image header */}
                 <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
                   <div className="flex items-center gap-3">
-                    <ImageIcon size={16} className="text-mira-muted" />
-                    <span className="text-sm font-semibold text-slate-700 truncate">{currentImg.filename}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${
+                    <ImageIcon size={18} className="text-mira-muted" />
+                    <span className="text-base font-semibold text-slate-700 truncate">{currentImg.filename}</span>
+                    <span className={`text-sm px-2 py-0.5 rounded-md font-medium ${
                       currentImg.analysis_status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
                       currentImg.analysis_status === 'queued' ? 'bg-amber-50 text-amber-700' :
                       currentImg.analysis_status === 'processing' ? 'bg-sky-50 text-sky-700' :
@@ -661,18 +661,18 @@ export default function InspectionDetailPage() {
                   <div className="flex items-center gap-2">
                     {currentImg.analysis_status !== 'completed' && !analyzing && (
                       <button onClick={() => handleAnalyze(currentImg.id)}
-                        className="flex items-center gap-1.5 text-xs text-white font-medium bg-mira-blue px-3 py-1.5 rounded-md hover:bg-sky-700 transition-all">
-                        <Scan size={12} /> Run Analysis
+                        className="flex items-center gap-1.5 text-sm text-white font-medium bg-mira-blue px-3 py-1.5 rounded-md hover:bg-sky-700 transition-all">
+                        <Scan size={14} /> Run Analysis
                       </button>
                     )}
                     {analyzing === currentImg.id && (
-                      <span className="flex items-center gap-1.5 text-xs text-mira-blue font-medium">
-                        <Loader size={12} className="animate-spin" /> Analyzing…
+                      <span className="flex items-center gap-1.5 text-sm text-mira-blue font-medium">
+                        <Loader size={14} className="animate-spin" /> Analyzing…
                       </span>
                     )}
                     <button onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
-                      className="flex items-center gap-1.5 text-xs text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all">
-                      <ZoomIn size={12} /> Full Screen
+                      className="flex items-center gap-1.5 text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all">
+                      <ZoomIn size={14} /> Full Screen
                     </button>
                   </div>
                 </div>
@@ -684,16 +684,16 @@ export default function InspectionDetailPage() {
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Original</div>
+                          <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Original</div>
                           <img src={currentImg.url} alt="Original"
                             className="w-full rounded-lg border border-slate-200"
                             onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))} />
                         </div>
                         <div>
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</div>
+                          <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</div>
                           <div className="w-full rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-3 py-16">
                             <div className="w-8 h-8 border-2 border-mira-blue/30 border-t-mira-blue rounded-full animate-spin" />
-                            <p className="text-xs text-slate-400 font-medium">Fetching detection data…</p>
+                            <p className="text-sm text-slate-400 font-medium">Fetching detection data…</p>
                           </div>
                         </div>
                       </div>
@@ -701,13 +701,13 @@ export default function InspectionDetailPage() {
                   ) : currentResult && !currentResult.error && currentResult.detections?.length > 0 ? (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Original</p>
+                        <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Original</p>
                         <img src={currentImg.url} alt="Original"
                           className="w-full rounded-lg border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))} />
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</p>
+                        <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</p>
                         <AnnotatedOverlay
                           imageUrl={currentImg.url}
                           detections={currentResult.detections}
@@ -726,8 +726,8 @@ export default function InspectionDetailPage() {
                 {currentResult && !currentResult.error && (
                   <div className="border-t border-slate-100 px-5 py-4 bg-slate-50/30">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Detection Results</h3>
-                      <span className="text-xs text-mira-muted font-mono">
+                      <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Detection Results</h3>
+                      <span className="text-sm text-mira-muted font-mono">
                         {currentResult.total_detections} finding{currentResult.total_detections !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -742,7 +742,7 @@ export default function InspectionDetailPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <div className={`w-3 h-3 rounded-full flex-shrink-0 ${cfg.tw.dot}`} />
-                                <span className={`text-sm font-semibold ${cfg.tw.text}`}>{d.damage_type}</span>
+                                <span className={`text-base font-semibold ${cfg.tw.text}`}>{d.damage_type}</span>
                               </div>
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
@@ -750,7 +750,7 @@ export default function InspectionDetailPage() {
                                     <div className="h-full rounded-full transition-all duration-500"
                                       style={{ width: `${d.confidence * 100}%`, background: cfg.stroke }} />
                                   </div>
-                                  <span className="text-xs text-mira-muted font-mono w-10 text-right">{(d.confidence * 100).toFixed(0)}%</span>
+                                  <span className="text-sm text-mira-muted font-mono w-10 text-right">{(d.confidence * 100).toFixed(0)}%</span>
                                 </div>
                                 {d.severity && <SeverityBadge severity={d.severity} />}
                               </div>
@@ -762,8 +762,8 @@ export default function InspectionDetailPage() {
                       <div className="flex items-center gap-3 bg-emerald-50 rounded-lg px-4 py-3 border border-emerald-100">
                         <CheckCircle size={18} className="text-emerald-600" />
                         <div>
-                          <p className="text-sm font-semibold text-emerald-800">No Damage Detected</p>
-                          <p className="text-xs text-emerald-600">This image passed AI analysis with no issues found.</p>
+                          <p className="text-base font-semibold text-emerald-800">No Damage Detected</p>
+                          <p className="text-sm text-emerald-600">This image passed AI analysis with no issues found.</p>
                         </div>
                       </div>
                     )}
@@ -775,8 +775,8 @@ export default function InspectionDetailPage() {
                     <div className="flex items-center gap-3 bg-red-50 rounded-lg px-4 py-3 border border-red-100">
                       <AlertCircle size={18} className="text-red-600" />
                       <div>
-                        <p className="text-sm font-semibold text-red-800">Analysis Failed</p>
-                        <p className="text-xs text-red-600">{currentResult.error}</p>
+                        <p className="text-base font-semibold text-red-800">Analysis Failed</p>
+                        <p className="text-sm text-red-600">{currentResult.error}</p>
                       </div>
                     </div>
                   </div>
@@ -785,7 +785,7 @@ export default function InspectionDetailPage() {
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl shadow-card p-12 text-center">
                 <ImageIcon size={40} className="mx-auto mb-3 text-slate-300" />
-                <p className="text-sm text-mira-muted">Select an image from the left panel to view details.</p>
+                <p className="text-base text-mira-muted">Select an image from the left panel to view details.</p>
               </div>
             )}
           </div>

@@ -48,17 +48,17 @@ const emptyForm: AssetForm = {
 
 function StatusBadge({ status }: { status: string }) {
   if (status === 'active') return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-      <CheckCircle size={11} /> Active
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+      <CheckCircle size={13} /> Active
     </span>
   );
   if (status === 'maintenance') return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-      <Clock size={11} /> Maintenance
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      <Clock size={13} /> Maintenance
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200">
       {status}
     </span>
   );
@@ -111,15 +111,15 @@ export default function AssetsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: TEAL }}>Assets</h1>
-          <p className="text-sm text-slate-500 mt-1">Infrastructure assets under inspection</p>
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Assets</h1>
+          <p className="text-base text-slate-500 mt-1">Infrastructure assets under inspection</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-base font-semibold transition-all hover:opacity-90 shadow-sm"
           style={{ background: TEAL, color: BLUE }}
         >
-          <Plus size={16} /> New Asset
+          <Plus size={18} /> New Asset
         </button>
       </div>
 
@@ -129,37 +129,37 @@ export default function AssetsPage() {
           <div className="bg-white border border-[#C8E6D4] rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 rounded-t-2xl" style={{ background: '#EDF6F0', borderBottom: '1px solid #C8E6D4' }}>
-              <h2 className="text-sm font-bold" style={{ color: TEAL }}>Create Asset</h2>
+              <h2 className="text-base font-bold" style={{ color: TEAL }}>Create Asset</h2>
               <button onClick={() => { setShowCreate(false); setForm(emptyForm); }}
                 className="p-1.5 rounded-lg transition-colors hover:bg-[#C8E6D4]/60"
                 style={{ color: '#6B9A87' }}>
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: TEAL }}>Asset Name</label>
+                <label className="text-[12px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: TEAL }}>Asset Name</label>
                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required
-                  className="w-full rounded-lg px-3.5 py-2.5 text-sm text-slate-800 outline-none transition-colors"
+                  className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 outline-none transition-colors"
                   style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}
                   placeholder="e.g. Turbine T-12" />
               </div>
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: TEAL }}>Infrastructure Type</label>
+                <label className="text-[12px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: TEAL }}>Infrastructure Type</label>
                 <select value={form.infrastructure_type} onChange={e => setForm({ ...form, infrastructure_type: e.target.value as InfrastructureType })}
-                  className="w-full rounded-lg px-3.5 py-2.5 text-sm text-slate-800 outline-none"
+                  className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 outline-none"
                   style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
                   {INFRA_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
               <div className="rounded-xl p-4" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: TEAL }}>
-                    <Navigation size={12} /> Location
+                  <label className="text-[12px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: TEAL }}>
+                    <Navigation size={14} /> Location
                   </label>
                   <div className="relative">
                     <button type="button" onClick={() => setShowPresets(!showPresets)}
-                      className="text-[10px] font-semibold px-2.5 py-1 rounded-md flex items-center gap-1 transition-all"
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-md flex items-center gap-1 transition-all"
                       style={{ background: 'white', color: TEAL, border: '1px solid #C8E6D4' }}>
                       Quick Fill <ChevronDown size={10} />
                     </button>
@@ -167,9 +167,9 @@ export default function AssetsPage() {
                       <div className="absolute right-0 top-full mt-1 bg-white border border-[#C8E6D4] rounded-xl shadow-xl z-50 w-64 max-h-56 overflow-y-auto">
                         {PRESET_LOCATIONS.map((p, i) => (
                           <button key={i} type="button" onClick={() => applyPreset(p)}
-                            className="w-full text-left px-3 py-2.5 text-xs transition-colors border-b border-[#C8E6D4] last:border-0 hover:bg-[#EDF6F0]">
+                            className="w-full text-left px-3 py-2.5 text-sm transition-colors border-b border-[#C8E6D4] last:border-0 hover:bg-[#EDF6F0]">
                             <span className="font-semibold text-slate-700">{p.name}</span>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">{p.lat.toFixed(3)}°, {p.lng.toFixed(3)}°</span>
+                            <span className="text-[11px] text-slate-400 block mt-0.5">{p.lat.toFixed(3)}°, {p.lng.toFixed(3)}°</span>
                           </button>
                         ))}
                       </div>
@@ -178,23 +178,23 @@ export default function AssetsPage() {
                 </div>
                 <div className="space-y-3">
                   <input value={form.location_name} onChange={e => setForm({ ...form, location_name: e.target.value })}
-                    className="w-full rounded-lg px-3.5 py-2.5 text-sm text-slate-800 outline-none"
+                    className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 outline-none"
                     style={{ background: 'white', border: '1px solid #C8E6D4' }}
                     placeholder="Location name, e.g. Hornsea Wind Farm" />
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-medium text-slate-500 block mb-1">Latitude</label>
+                      <label className="text-[11px] font-medium text-slate-500 block mb-1">Latitude</label>
                       <input value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })}
                         type="number" step="any" min="-90" max="90"
-                        className="w-full rounded-lg px-3 py-2 text-sm font-mono outline-none"
+                        className="w-full rounded-lg px-3 py-2 text-base font-mono outline-none"
                         style={{ background: 'white', border: '1px solid #C8E6D4', color: '#082E29' }}
                         placeholder="53.885" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-medium text-slate-500 block mb-1">Longitude</label>
+                      <label className="text-[11px] font-medium text-slate-500 block mb-1">Longitude</label>
                       <input value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })}
                         type="number" step="any" min="-180" max="180"
-                        className="w-full rounded-lg px-3 py-2 text-sm font-mono outline-none"
+                        className="w-full rounded-lg px-3 py-2 text-base font-mono outline-none"
                         style={{ background: 'white', border: '1px solid #C8E6D4', color: '#082E29' }}
                         placeholder="1.791" />
                     </div>
@@ -203,12 +203,12 @@ export default function AssetsPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={createMutation.isPending}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50 hover:opacity-90"
+                  className="flex-1 py-2.5 rounded-xl text-base font-bold transition-all disabled:opacity-50 hover:opacity-90"
                   style={{ background: TEAL, color: BLUE }}>
                   {createMutation.isPending ? 'Creating...' : 'Create Asset'}
                 </button>
                 <button type="button" onClick={() => { setShowCreate(false); setForm(emptyForm); }}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-slate-50"
+                  className="flex-1 py-2.5 rounded-xl text-base font-medium transition-all hover:bg-slate-50"
                   style={{ border: '1px solid #C8E6D4', color: '#6B9A87' }}>
                   Cancel
                 </button>
@@ -226,14 +226,14 @@ export default function AssetsPage() {
       ) : assets.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm" style={{ border: '1px solid #C8E6D4' }}>
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
-            <Building2 size={28} style={{ color: TEAL }} />
+            <Building2 size={30} style={{ color: TEAL }} />
           </div>
-          <p className="text-base font-semibold text-slate-700">No assets yet</p>
-          <p className="text-sm text-slate-500 mt-1">Create your first infrastructure asset to get started.</p>
+          <p className="text-lg font-semibold text-slate-700">No assets yet</p>
+          <p className="text-base text-slate-500 mt-1">Create your first infrastructure asset to get started.</p>
           <button onClick={() => setShowCreate(true)}
-            className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 shadow-sm"
+            className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-base font-bold transition-all hover:opacity-90 shadow-sm"
             style={{ background: TEAL, color: BLUE }}>
-            <Plus size={16} /> Create Asset
+            <Plus size={18} /> Create Asset
           </button>
         </div>
       ) : (
@@ -253,9 +253,9 @@ export default function AssetsPage() {
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ background: (typeInfo?.hex || '#64748B') + '18', border: `1px solid ${typeInfo?.hex || '#64748B'}30` }}>
-                      <Icon size={15} style={{ color: typeInfo?.hex || '#64748B' }} />
+                      <Icon size={17} style={{ color: typeInfo?.hex || '#64748B' }} />
                     </div>
-                    <span className="text-[11px] font-bold capitalize"
+                    <span className="text-[12px] font-bold capitalize"
                       style={{ color: typeInfo?.hex || '#64748B' }}>
                       {typeInfo?.label || asset.infrastructure_type}
                     </span>
@@ -270,26 +270,26 @@ export default function AssetsPage() {
 
                 {/* Location */}
                 {asset.location_name && (
-                  <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500">
-                    <MapPin size={11} /> {asset.location_name}
+                  <div className="flex items-center gap-1.5 mt-2 text-sm text-slate-500">
+                    <MapPin size={13} /> {asset.location_name}
                   </div>
                 )}
                 {asset.latitude != null && asset.longitude != null && (
-                  <div className="text-[10px] text-slate-400 font-mono mt-1 ml-4">
+                  <div className="text-[11px] text-slate-400 font-mono mt-1 ml-4">
                     {asset.latitude.toFixed(3)}°, {asset.longitude.toFixed(3)}°
                   </div>
                 )}
 
                 {/* Footer */}
                 <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: '1px solid #C8E6D4' }}>
-                  <span className="text-xs text-slate-500 font-medium">
+                  <span className="text-sm text-slate-500 font-medium">
                     {asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
                   </span>
                   <div className="flex items-center gap-1 text-slate-400 group-hover:text-[#0891B2] transition-colors">
                     {asset.last_inspection_at && (
-                      <span className="text-xs">{new Date(asset.last_inspection_at).toLocaleDateString()}</span>
+                      <span className="text-sm">{new Date(asset.last_inspection_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}</span>
                     )}
-                    <ArrowRight size={12} />
+                    <ArrowRight size={14} />
                   </div>
                 </div>
               </Link>

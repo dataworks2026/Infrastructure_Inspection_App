@@ -51,7 +51,7 @@ export default function KPICard({ label, value, sublabel, color = 'blue', icon, 
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="flex items-center justify-between mb-4">
-        <span className="text-[11px] font-semibold text-card-muted uppercase tracking-wider">{label}</span>
+        <span className="text-[12px] font-semibold text-card-muted uppercase tracking-wider">{label}</span>
         {icon && (
           <span className={clsx('w-10 h-10 rounded-xl flex items-center justify-center', c.icon)}>
             {icon}
@@ -66,7 +66,7 @@ export default function KPICard({ label, value, sublabel, color = 'blue', icon, 
         }
       </div>
 
-      {sublabel && <div className="text-xs text-card-faint mt-1">{sublabel}</div>}
+      {sublabel && <div className="text-sm text-card-faint mt-1">{sublabel}</div>}
 
       {/* Colored accent bar */}
       <div className={clsx('mt-4 h-0.5 rounded-full opacity-60', c.accent)} />

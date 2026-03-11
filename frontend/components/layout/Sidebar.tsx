@@ -64,10 +64,10 @@ const NavLink = memo(function NavLink({
           : { color: small ? '#5B8A78' : '#A5D4BB' }),
       }}
     >
-      <Icon size={small ? 15 : 17} style={{ flexShrink: 0 }}
+      <Icon size={small ? 17 : 19} style={{ flexShrink: 0 }}
         className="transition-colors group-hover:text-[#93C5FD]" />
       {!collapsed && (
-        <span className={`${small ? 'text-[12px]' : 'text-[13px]'} font-semibold truncate transition-colors group-hover:text-[#93C5FD]`}>
+        <span className={`${small ? 'text-[13px]' : 'text-[13px]'} font-semibold truncate transition-colors group-hover:text-[#93C5FD]`}>
           {label}
         </span>
       )}
@@ -132,7 +132,7 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
               <p className="text-[13px] font-black tracking-wide truncate" style={{ color: '#F0FDF4', letterSpacing: '0.04em' }}>
                 MIRA INTEL
               </p>
-              <p className="text-[9px] font-medium truncate" style={{ color: '#6B9A87', letterSpacing: '0.06em' }}>
+              <p className="text-[10px] font-medium truncate" style={{ color: '#6B9A87', letterSpacing: '0.06em' }}>
                 INSPECTION PLATFORM
               </p>
             </div>
@@ -156,13 +156,13 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
             }}
             title={collapsed ? 'Search (⌘K)' : undefined}
           >
-            <Search size={14} style={{ flexShrink: 0 }} />
+            <Search size={16} style={{ flexShrink: 0 }} />
             {!collapsed && (
               <>
-                <span className="text-[11px] font-semibold flex-1 text-left">Search...</span>
+                <span className="text-[12px] font-semibold flex-1 text-left">Search...</span>
                 <span className="flex items-center gap-0.5 ml-auto">
-                  <kbd className="text-[8px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>⌘</kbd>
-                  <kbd className="text-[8px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>K</kbd>
+                  <kbd className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>⌘</kbd>
+                  <kbd className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>K</kbd>
                 </span>
               </>
             )}
@@ -174,7 +174,7 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
           style={{ padding: collapsed ? '16px 8px' : '16px 10px' }}>
 
           {!collapsed && (
-            <p className="px-3 mb-2 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+            <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
               Menu
             </p>
           )}
@@ -189,10 +189,10 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
           <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             {!collapsed ? (
               <div className="px-3 mb-2 flex items-center gap-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+                <p className="text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
                   Digital Twin
                 </p>
-                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide"
                   style={{ background: 'rgba(147,197,253,0.12)', color: '#93C5FD' }}>
                   Soon
                 </span>
@@ -208,9 +208,9 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
                     padding: collapsed ? '10px 0' : '10px 12px',
                     justifyContent: collapsed ? 'center' : 'flex-start',
                   }}>
-                  <Icon size={15} style={{ flexShrink: 0, color: '#5B8A78' }} />
+                  <Icon size={17} style={{ flexShrink: 0, color: '#5B8A78' }} />
                   {!collapsed && (
-                    <span className="text-[12px] font-semibold truncate" style={{ color: '#5B8A78' }}>{label}</span>
+                    <span className="text-[13px] font-semibold truncate" style={{ color: '#5B8A78' }}>{label}</span>
                   )}
                 </div>
               ))}
@@ -223,15 +223,15 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
           {!collapsed ? (
             <>
               <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0"
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black flex-shrink-0"
                   style={{ background: BRAND, color: 'white' }}>
                   {initials}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-semibold truncate" style={{ color: '#F0FDF4' }}>
+                  <p className="text-[13px] font-semibold truncate" style={{ color: '#F0FDF4' }}>
                     {user?.full_name || user?.email || '\u00A0'}
                   </p>
-                  <p className="text-[10px] truncate" style={{ color: '#6B9A87' }}>
+                  <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
                     {user?.organization_name || user?.role || '\u00A0'}
                   </p>
                 </div>
@@ -240,27 +240,27 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
                 <button onClick={onStartTour}
                   className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
                   style={{ color: '#6B9A87' }}>
-                  <HelpCircle size={15} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
-                  <span className="text-[12px] font-semibold transition-colors group-hover:text-[#93C5FD]">Take a Tour</span>
+                  <HelpCircle size={17} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
+                  <span className="text-[13px] font-semibold transition-colors group-hover:text-[#93C5FD]">Take a Tour</span>
                 </button>
               )}
               <Link href="/settings"
                 className="sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-xl group"
                 style={{ color: '#6B9A87' }}>
-                <Settings size={15} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
-                <span className="text-[12px] font-semibold transition-colors group-hover:text-[#93C5FD]">Settings</span>
+                <Settings size={17} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
+                <span className="text-[13px] font-semibold transition-colors group-hover:text-[#93C5FD]">Settings</span>
               </Link>
               <button onClick={handleLogout}
                 className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
                 style={{ color: '#6B9A87' }}>
-                <LogOut size={15} className="flex-shrink-0 transition-colors group-hover:text-red-400" />
-                <span className="text-[12px] font-semibold transition-colors group-hover:text-red-400">Sign out</span>
+                <LogOut size={17} className="flex-shrink-0 transition-colors group-hover:text-red-400" />
+                <span className="text-[13px] font-semibold transition-colors group-hover:text-red-400">Sign out</span>
               </button>
             </>
           ) : (
             <div className="flex flex-col items-center gap-1.5">
               <div title={user?.full_name || user?.email || 'User'}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black"
                 style={{ background: BRAND, color: 'white' }}>
                 {initials}
               </div>
@@ -268,18 +268,18 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
                 <button onClick={onStartTour} title="Take a Tour"
                   className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
                   style={{ color: '#6B9A87' }}>
-                  <HelpCircle size={15} />
+                  <HelpCircle size={17} />
                 </button>
               )}
               <Link href="/settings" title="Settings"
                 className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
                 style={{ color: '#6B9A87' }}>
-                <Settings size={15} />
+                <Settings size={17} />
               </Link>
               <button onClick={handleLogout} title="Sign out"
                 className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-red-500/10"
                 style={{ color: '#6B9A87' }}>
-                <LogOut size={15} />
+                <LogOut size={17} />
               </button>
             </div>
           )}
@@ -297,7 +297,7 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour }: Sideb
         }}
         title={collapsed ? 'Expand sidebar (press [)' : 'Collapse sidebar (press [)'}
       >
-        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
     </>
   );

@@ -331,7 +331,7 @@ export default function AppTour({
           className="tour-close-btn"
           title="Skip tour (Esc)"
         >
-          <X size={14} />
+          <X size={16} />
         </button>
 
         {/* Step indicator dots */}
@@ -346,7 +346,7 @@ export default function AppTour({
 
         {/* Icon */}
         <div className="tour-icon-wrap">
-          <Icon size={current.placement === 'center' ? 28 : 22} />
+          <Icon size={current.placement === 'center' ? 30 : 24} />
         </div>
 
         {/* Content */}
@@ -355,7 +355,7 @@ export default function AppTour({
 
         {current.hint && (
           <div className="tour-hint">
-            <Eye size={12} style={{ flexShrink: 0, opacity: 0.7 }} />
+            <Eye size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
             <span>{current.hint}</span>
           </div>
         )}
@@ -368,7 +368,7 @@ export default function AppTour({
             </button>
           ) : (
             <button onClick={prev} className="tour-btn-back">
-              <ChevronLeft size={14} />
+              <ChevronLeft size={16} />
               Back
             </button>
           )}
@@ -377,12 +377,12 @@ export default function AppTour({
             {isLast ? (
               <>
                 Get Started
-                <Rocket size={14} />
+                <Rocket size={16} />
               </>
             ) : (
               <>
                 Next
-                <ChevronRight size={14} />
+                <ChevronRight size={16} />
               </>
             )}
           </button>

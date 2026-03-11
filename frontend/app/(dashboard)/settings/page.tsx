@@ -73,75 +73,75 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold tracking-tight mb-1" style={{ color: '#082E29' }}>Profile Settings</h1>
-      <p className="text-sm text-slate-500 mb-8">Update your name, username, and organization details.</p>
+      <h1 className="text-3xl font-bold tracking-tight mb-1" style={{ color: '#082E29' }}>Profile Settings</h1>
+      <p className="text-base text-slate-500 mb-8">Update your name, username, and organization details.</p>
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
 
         {/* Full Name */}
         <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+          <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
             Full Name
           </label>
           <div className="relative">
-            <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <User size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={fullName}
               onChange={e => setFullName(e.target.value)}
               placeholder="Your full name"
-              className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white"
+              className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-base text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white"
             />
           </div>
         </div>
 
         {/* Username */}
         <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+          <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
             Username
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">@</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">@</span>
             <input
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="your_username"
-              className="w-full pl-7 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white"
+              className="w-full pl-7 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-base text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white"
             />
           </div>
         </div>
 
         {/* Organization Name */}
         <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+          <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
             Organization Name
           </label>
           <div className="relative">
-            <Building2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Building2 size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={orgName}
               onChange={e => setOrgName(e.target.value)}
               placeholder="Your organization"
-              className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white"
+              className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-base text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white"
             />
           </div>
-          <p className="text-[11px] text-slate-400 mt-1.5">
+          <p className="text-[12px] text-slate-400 mt-1.5">
             Updates the name in both your profile and the organization record.
           </p>
         </div>
 
         {/* Email (read-only) */}
         <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+          <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
             Email <span className="text-slate-400 font-normal normal-case">(cannot be changed)</span>
           </label>
           <input
             type="email"
             value={user?.email ?? ''}
             disabled
-            className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-400 cursor-not-allowed"
+            className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-base text-slate-400 cursor-not-allowed"
           />
         </div>
 
@@ -149,14 +149,14 @@ export default function SettingsPage() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-base font-semibold py-2.5 px-4 rounded-lg transition-colors"
         >
           {mutation.isPending ? (
             <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
           ) : mutation.isSuccess ? (
-            <CheckCircle2 size={16} />
+            <CheckCircle2 size={18} />
           ) : mutation.isError ? (
-            <AlertCircle size={16} />
+            <AlertCircle size={18} />
           ) : null}
           {mutation.isPending ? 'Saving…' : 'Save Changes'}
         </button>

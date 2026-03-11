@@ -35,13 +35,13 @@ export default function Breadcrumbs() {
   });
 
   return (
-    <nav className="flex items-center gap-1 text-[12px]" aria-label="Breadcrumb">
+    <nav className="flex items-center gap-1 text-[13px]" aria-label="Breadcrumb">
       <Link href="/dashboard" className="text-slate-500 hover:text-slate-300 transition-colors flex items-center">
-        <Home size={12} />
+        <Home size={14} />
       </Link>
       {crumbs.map((c, i) => (
         <span key={i} className="flex items-center gap-1">
-          <ChevronRight size={11} className="text-slate-600" />
+          <ChevronRight size={13} className="text-slate-600" />
           {c.isLast
             ? <span className="text-slate-300 font-medium capitalize">{c.label}</span>
             : <Link href={c.href} className="text-slate-500 hover:text-slate-300 transition-colors capitalize">{c.label}</Link>

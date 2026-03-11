@@ -43,11 +43,11 @@ export default function ConfirmDialog({
         {/* Icon + text */}
         <div className="flex items-start gap-4 mb-6">
           <div className="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <AlertTriangle size={20} className="text-red-400" />
+            <AlertTriangle size={22} className="text-red-400" />
           </div>
           <div>
             <h2 className="text-[15px] font-bold text-card-text leading-snug">{title}</h2>
-            <p className="text-sm text-card-muted mt-1 leading-relaxed">{message}</p>
+            <p className="text-base text-card-muted mt-1 leading-relaxed">{message}</p>
           </div>
         </div>
 
@@ -56,14 +56,14 @@ export default function ConfirmDialog({
           <button
             onClick={onCancel}
             disabled={isLoading}
-            className="flex-1 border border-card-border text-card-muted py-2.5 rounded-xl text-sm font-semibold hover:bg-white/5 transition-all disabled:opacity-40"
+            className="flex-1 border border-card-border text-card-muted py-2.5 rounded-xl text-base font-semibold hover:bg-white/5 transition-all disabled:opacity-40"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-red-500/20 hover:shadow-red-500/35 disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white py-2.5 rounded-xl text-base font-bold transition-all shadow-lg shadow-red-500/20 hover:shadow-red-500/35 disabled:opacity-50"
           >
             {isLoading ? (
               <>
@@ -72,7 +72,7 @@ export default function ConfirmDialog({
               </>
             ) : (
               <>
-                <Trash2 size={14} />
+                <Trash2 size={16} />
                 {confirmLabel}
               </>
             )}

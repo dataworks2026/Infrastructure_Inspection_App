@@ -20,32 +20,32 @@ type SortDir      = 'asc' | 'desc';
 
 function StatusChip({ status }: { status: string }) {
   if (status === 'completed')  return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" /> Completed
     </span>
   );
   if (status === 'pending') return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-200">
       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" /> Pending
     </span>
   );
   if (status === 'processing') return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-sky-50 text-sky-700 border border-sky-200">
       <span className="w-1.5 h-1.5 rounded-full bg-sky-400 flex-shrink-0" /> Processing
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200">
       {status}
     </span>
   );
 }
 
 function SortIcon({ col, active, dir, userSorted }: { col: SortKey; active: SortKey; dir: SortDir; userSorted: boolean }) {
-  if (!userSorted || col !== active) return <ChevronsUpDown size={12} className="text-slate-400 opacity-50" />;
+  if (!userSorted || col !== active) return <ChevronsUpDown size={14} className="text-slate-400 opacity-50" />;
   return dir === 'asc'
-    ? <ChevronUp   size={12} style={{ color: TEAL }} />
-    : <ChevronDown size={12} style={{ color: TEAL }} />;
+    ? <ChevronUp   size={14} style={{ color: TEAL }} />
+    : <ChevronDown size={14} style={{ color: TEAL }} />;
 }
 
 const FILTER_LABELS: { key: StatusFilter; label: string }[] = [
@@ -113,18 +113,18 @@ export default function InspectionsPage() {
   }, [inspections]);
 
   const thClass = (key: SortKey) =>
-    `flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${userHasSorted && sortKey === key ? '' : 'text-slate-500 hover:text-slate-700'}`;
+    `flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${userHasSorted && sortKey === key ? '' : 'text-slate-500 hover:text-slate-700'}`;
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: TEAL }}>Inspections</h1>
-          <p className="text-sm text-slate-500 mt-1">All inspection records</p>
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Inspections</h1>
+          <p className="text-base text-slate-500 mt-1">All inspection records</p>
         </div>
         <Link href="/upload"
-          className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 shadow-sm"
+          className="px-4 py-2.5 rounded-xl text-base font-bold transition-all hover:opacity-90 shadow-sm"
           style={{ background: TEAL, color: BLUE }}>
           New Inspection
         </Link>
@@ -136,14 +136,14 @@ export default function InspectionsPage() {
           <button
             key={key}
             onClick={() => setStatusFilter(key)}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[13px] font-semibold transition-all"
             style={statusFilter === key
               ? { background: TEAL, color: BLUE, border: 'none' }
               : { background: 'white', color: '#64748b', border: '1px solid #C8E6D4' }
             }
           >
             {label}
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md"
+            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-md"
               style={statusFilter === key
                 ? { background: 'rgba(147,197,253,0.2)', color: BLUE }
                 : { background: '#EDF6F0', color: '#6B9A87' }
@@ -161,17 +161,17 @@ export default function InspectionsPage() {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm" style={{ border: '1px solid #C8E6D4' }}>
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
-            <ClipboardList size={28} style={{ color: TEAL }} />
+            <ClipboardList size={30} style={{ color: TEAL }} />
           </div>
-          <p className="text-base font-semibold text-slate-700">
+          <p className="text-lg font-semibold text-slate-700">
             {statusFilter === 'all' ? 'No inspections yet' : `No ${statusFilter} inspections`}
           </p>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base text-slate-500 mt-1">
             {statusFilter === 'all' ? 'Upload images to create your first inspection.' : 'Try a different filter.'}
           </p>
           {statusFilter === 'all' && (
             <Link href="/upload"
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 shadow-sm"
+              className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-base font-bold transition-all hover:opacity-90 shadow-sm"
               style={{ background: TEAL, color: BLUE }}>
               Upload Images
             </Link>
@@ -202,31 +202,31 @@ export default function InspectionsPage() {
                   </Link>
                   <Link href={`/inspections/${insp.id}`} className="min-w-0">
                     {asset ? (
-                      <span className="text-[12px] text-slate-500 truncate block">{asset.name}</span>
+                      <span className="text-[13px] text-slate-500 truncate block">{asset.name}</span>
                     ) : (
-                      <span className="text-[12px] text-slate-300">—</span>
+                      <span className="text-[13px] text-slate-300">—</span>
                     )}
                   </Link>
                   <Link href={`/inspections/${insp.id}`} className="flex items-center gap-1.5">
-                    <ImageIcon size={12} className="text-slate-400" />
-                    <span className="text-[12px] text-slate-500 font-mono">{insp.image_count}</span>
+                    <ImageIcon size={14} className="text-slate-400" />
+                    <span className="text-[13px] text-slate-500 font-mono">{insp.image_count}</span>
                   </Link>
                   <Link href={`/inspections/${insp.id}`} className="flex items-center gap-1.5">
-                    <Calendar size={12} className="text-slate-400" />
-                    <span className="text-[12px] text-slate-500">{new Date(insp.inspected_at || insp.created_at).toLocaleDateString()}</span>
+                    <Calendar size={14} className="text-slate-400" />
+                    <span className="text-[13px] text-slate-500">{new Date(insp.inspected_at || insp.created_at).toLocaleDateString()}</span>
                   </Link>
                   <Link href={`/inspections/${insp.id}`}>
                     <StatusChip status={insp.status} />
                   </Link>
                   <Link href={`/inspections/${insp.id}`} className="flex justify-end">
-                    <ArrowRight size={14} className="text-slate-300 group-hover:text-[#0891B2] transition-colors" />
+                    <ArrowRight size={16} className="text-slate-300 group-hover:text-[#0891B2] transition-colors" />
                   </Link>
                   <div className="flex justify-end">
                     <button
                       onClick={() => setDeleteTarget({ id: insp.id, name: insp.name })}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
                       title="Delete inspection">
-                      <Trash2 size={13} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
@@ -236,7 +236,7 @@ export default function InspectionsPage() {
 
           {/* Footer count */}
           <div className="px-5 py-3 border-t border-[#C8E6D4]" style={{ background: '#EDF6F0' }}>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[12px] text-slate-500">
               Showing {filtered.length} of {(inspections as any[]).length} inspections
             </span>
           </div>

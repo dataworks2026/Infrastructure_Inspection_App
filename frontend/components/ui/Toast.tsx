@@ -68,13 +68,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               key={t.id}
               className={`pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl shadow-2xl min-w-[300px] max-w-[380px] toast-enter ${s.wrap}`}
             >
-              <Icon size={16} className={`mt-0.5 flex-shrink-0 ${s.icon}`} />
+              <Icon size={18} className={`mt-0.5 flex-shrink-0 ${s.icon}`} />
               <p className="text-[13px] font-medium flex-1 text-slate-100 leading-snug">{t.message}</p>
               <button
                 onClick={() => remove(t.id)}
                 className="text-slate-500 hover:text-white transition-colors flex-shrink-0 mt-0.5"
               >
-                <X size={13} />
+                <X size={15} />
               </button>
             </div>
           );
