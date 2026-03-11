@@ -40,7 +40,7 @@ export default function LoginPage() {
   ];
 
   return (
-    <div className="min-h-screen relative flex">
+    <div className="h-screen relative flex overflow-hidden">
       {/* Background image + overlay */}
       <div className="absolute inset-0 z-0">
         <img src="/hero-bg.jpg" alt="" className="w-full h-full object-cover" />
@@ -48,10 +48,11 @@ export default function LoginPage() {
       </div>
 
       {/* Left — branding */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-12 lg:px-20 py-12">
+      <div className="relative z-10 w-1/2 h-full flex flex-col items-center justify-center px-16">
         {/* Logo + brand */}
         <div className="flex items-center gap-3 mb-6">
-          <img src="/logo.png" alt="Mira Intel" className="w-12 h-12 object-contain" />
+          <img src="/logo.png" alt="Mira Intel" className="w-12 h-12 object-contain"
+            style={{ filter: 'drop-shadow(0 0 8px rgba(8,145,178,0.5)) drop-shadow(0 0 16px rgba(147,197,253,0.3))' }} />
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">MIRA INTEL</h1>
             <p className="text-xs text-white/60 uppercase tracking-[0.25em]">Infrastructure Intelligence</p>
@@ -92,7 +93,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right — login card */}
-      <div className="relative z-10 flex items-center justify-center w-full max-w-md lg:max-w-lg px-8 py-12">
+      <div className="relative z-10 w-1/2 h-full flex items-center justify-center px-8">
         <div className="w-full max-w-sm bg-white rounded-2xl p-8 shadow-2xl">
           <h2 className="text-xl font-semibold text-slate-800 mb-1">
             {mode === 'login' ? 'Welcome back' : 'Create account'}
