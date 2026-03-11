@@ -32,7 +32,7 @@ def _enrich_assets(assets: List[Asset], db: Session) -> List[AssetResponse]:
 
     # ── Query 2: most-recent inspection date per asset ───────────────────────
     last_rows = (
-        db.query(Inspection.asset_id, func.max(func.coalesce(Inspection.inspection_date, Inspection.created_at)).label("last"))
+        db.query(Inspection.asset_id, func.max(func.coalesce(Inspection.inspected_at, Inspection.inspection_date, Inspection.created_at)).label("last"))
         .filter(Inspection.asset_id.in_(asset_ids))
         .group_by(Inspection.asset_id)
         .all()
