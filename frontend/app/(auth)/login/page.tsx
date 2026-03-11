@@ -48,7 +48,7 @@ export default function LoginPage() {
       </div>
 
       {/* Left — branding */}
-      <div className="relative z-10 flex-1 flex flex-col justify-center px-12 lg:px-20 py-12">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-12 lg:px-20 py-12">
         {/* Logo + brand */}
         <div className="flex items-center gap-3 mb-6">
           <img src="/logo.png" alt="Mira Intel" className="w-12 h-12 object-contain" />
@@ -67,12 +67,12 @@ export default function LoginPage() {
         </div>
 
         {/* Hero text */}
-        <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-6">
+        <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-6 text-center">
           Inspect every<br />asset with<br />
           <span className="text-cyan-400">precision.</span>
         </h2>
 
-        <p className="text-white/60 text-sm leading-relaxed max-w-md mb-10">
+        <p className="text-white/60 text-sm leading-relaxed max-w-md mb-10 text-center">
           Turn drone footage into actionable structural intelligence &mdash; detect defects, monitor fleet health,
           and generate compliance reports automatically.
         </p>
