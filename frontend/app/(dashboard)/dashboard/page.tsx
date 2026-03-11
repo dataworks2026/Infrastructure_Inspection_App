@@ -501,8 +501,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black tracking-tight" style={{ color: TEAL }}>Dashboard</h1>
-          <p className="text-[11px] mt-0.5" style={{ color: '#6B9A87' }}>Platform overview and recent activity</p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: TEAL }}>Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-1">Platform overview and recent activity</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="interactive-chip flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full"
@@ -513,7 +513,7 @@ export default function DashboardPage() {
           <div className="interactive-chip flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full"
             style={{ background: MINT, color: '#6B9A87', border: '1px solid #C8E6D4' }}>
             <TrendingUp size={11} style={{ color: '#10B981' }} />
-            <span>{data?.fleet_health_pct ?? 0}% fleet health</span>
+            <span>{data?.fleet_health_pct ?? 0}% asset health</span>
           </div>
         </div>
       </div>
