@@ -286,7 +286,7 @@ export default function AssetDetailPage() {
                 className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
                 <div>
                   <p className="text-base font-medium text-slate-700">{insp.name}</p>
-                  <p className="text-sm text-mira-faint mt-0.5">{insp.image_count} image{insp.image_count !== 1 ? 's' : ''} &middot; {new Date(insp.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm text-mira-faint mt-0.5">{insp.image_count} image{insp.image_count !== 1 ? 's' : ''} &middot; {new Date(insp.inspected_at || insp.created_at).toLocaleDateString()}</p>
                 </div>
                 <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
                   insp.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
