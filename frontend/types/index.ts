@@ -72,11 +72,17 @@ export interface AnalysisResult {
   message: string;
 }
 
+export interface DashboardDetection {
+  damage_type: string;
+  confidence: number;
+  severity: string | null;
+  bbox: { x1: number; y1: number; x2: number; y2: number };
+}
+
 export interface DashboardAnalyzedImage {
   id: string;
   filename: string;
   url: string;
-  annotated_url: string | null;
   inspection_id: string;
   inspection_name: string;
   asset_id: string;
@@ -84,6 +90,7 @@ export interface DashboardAnalyzedImage {
   detection_count: number;
   max_severity: string | null;
   damage_types: { damage_type: string; count: number }[];
+  detections: DashboardDetection[];
 }
 
 export interface DashboardAssetHealth {

@@ -12,12 +12,28 @@ import Link from 'next/link';
 import {
   PieChart, Pie, Cell, Tooltip as RechartTooltip, ResponsiveContainer,
 } from 'recharts';
-import type { DashboardAnalyzedImage, DashboardAssetHealth } from '@/types';
+import type { DashboardAnalyzedImage, DashboardAssetHealth, DashboardDetection } from '@/types';
 
 const TEAL  = '#082E29';
 const MINT  = '#EDF6F0';
 const BLUE  = '#93C5FD';
 const BRAND = '#0891B2';
+
+/* ── Damage-type color palette (matches inspections page) ── */
+const DAMAGE_PALETTE = [
+  { key: ['biological', 'algae', 'growth'], stroke: '#059669', light: '#D1FAE5' },
+  { key: ['marine'],                         stroke: '#0891B2', light: '#CFFAFE' },
+  { key: ['corrosion', 'rust', 'oxidat'],    stroke: '#EA580C', light: '#FFEDD5' },
+  { key: ['crack', 'fracture', 'split'],     stroke: '#DC2626', light: '#FEE2E2' },
+  { key: ['spall', 'delam', 'peel'],         stroke: '#7C3AED', light: '#EDE9FE' },
+  { key: ['impact', 'dent', 'deform'],       stroke: '#2563EB', light: '#DBEAFE' },
+];
+const DAMAGE_DEFAULT = { stroke: '#64748B', light: '#F1F5F9' };
+
+function getDamageColor(damageType: string) {
+  const k = (damageType || '').toLowerCase();
+  return DAMAGE_PALETTE.find(p => p.key.some(kw => k.includes(kw))) ?? DAMAGE_DEFAULT;
+}
 
 const SEV: Record<string, { color: string; bg: string; border: string; label: string }> = {
   S3: { color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', label: 'Critical' },
@@ -115,6 +131,81 @@ function AssetRow({ asset }: { asset: DashboardAssetHealth }) {
   );
 }
 
+/* ── Image with SVG bounding-box overlay (matches inspections page colors) ── */
+function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const dets = img.detections || [];
+
+  return (
+    <>
+      <img
+        src={img.url}
+        alt={img.filename}
+        className="w-full h-full object-cover"
+        style={{ transition: 'opacity 0.2s ease' }}
+        onLoad={e => {
+          const el = e.currentTarget;
+          setDims({ w: el.naturalWidth, h: el.naturalHeight });
+        }}
+        onError={e => {
+          (e.target as HTMLImageElement).src =
+            'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
+        }}
+      />
+      {dims && dets.length > 0 && (
+        <svg
+          viewBox={`0 0 ${dims.w} ${dims.h}`}
+          preserveAspectRatio="xMidYMid slice"
+          className="absolute inset-0 w-full h-full pointer-events-none"
+        >
+          {dets.map((d, i) => {
+            const cfg = getDamageColor(d.damage_type);
+            const { x1, y1, x2, y2 } = d.bbox;
+            const bw = x2 - x1;
+            const bh = y2 - y1;
+            const scale = dims.w / 700;
+            const strokeW = Math.max(2, 2.5 * scale);
+            const fontSize = Math.round(13 * scale);
+            const labelH = Math.round(22 * scale);
+            const labelPad = Math.round(6 * scale);
+            const shortLabel = `${d.damage_type} ${(d.confidence * 100).toFixed(0)}%`;
+            const charW = fontSize * 0.58;
+            const labelW = shortLabel.length * charW + labelPad * 2;
+            const labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
+            const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
+
+            return (
+              <g key={i}>
+                <rect x={x1} y={y1} width={bw} height={bh}
+                  fill={cfg.stroke} fillOpacity="0.07" rx={2 * scale} />
+                <rect x={x1} y={y1} width={bw} height={bh}
+                  fill="none" stroke={cfg.stroke} strokeWidth={strokeW}
+                  strokeOpacity="0.95" rx={2 * scale} />
+                {/* Corner accents */}
+                <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
+                <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
+                <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
+                <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
+                {/* Label */}
+                <rect x={labelX + 1} y={labelY + 1} width={labelW} height={labelH}
+                  fill="rgba(0,0,0,0.25)" rx={4 * scale} />
+                <rect x={labelX} y={labelY} width={labelW} height={labelH}
+                  fill={cfg.stroke} fillOpacity="0.95" rx={4 * scale} />
+                <text x={labelX + labelPad} y={labelY + labelH * 0.72}
+                  fontSize={fontSize} fill="white"
+                  fontFamily="system-ui,-apple-system,sans-serif"
+                  fontWeight="700" letterSpacing="0.2">
+                  {shortLabel}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
+    </>
+  );
+}
+
 /* ── Per-asset carousel card ── */
 function AssetCarouselCard({
   group,
@@ -185,21 +276,7 @@ function AssetCarouselCard({
 
       {/* Image carousel */}
       <div className="relative bg-slate-100 overflow-hidden flex-shrink-0" style={{ aspectRatio: '4/3' }}>
-        <img
-          src={img.annotated_url || img.url}
-          alt={img.filename}
-          className="w-full h-full object-cover"
-          style={{ transition: 'opacity 0.2s ease' }}
-          onError={e => {
-            const el = e.target as HTMLImageElement;
-            // If annotated image fails, fall back to original
-            if (img.annotated_url && el.src.includes(img.annotated_url)) {
-              el.src = img.url;
-            } else {
-              el.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
-            }
-          }}
-        />
+        <BboxOverlayImage img={img} />
 
         {/* Detection badge */}
         {img.detection_count > 0 ? (
