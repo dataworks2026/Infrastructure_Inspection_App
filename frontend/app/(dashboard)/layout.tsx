@@ -60,7 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           className="min-h-screen flex flex-col"
           style={{ marginLeft: sidebarW, transition: TRANSITION }}
         >
-          <main className="flex-1" style={{ padding: '16px 20px 40px' }}>
+          <main className="flex-1" style={{ padding: '6px 20px 40px' }}>
             <div className="max-w-[1400px] mx-auto w-full">
               {children}
             </div>
