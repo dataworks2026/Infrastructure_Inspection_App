@@ -118,13 +118,13 @@ export default function InspectionsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Inspections</h1>
-          <p className="text-base text-slate-500 mt-1">All inspection records</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Inspections</h1>
+          <p className="text-sm sm:text-base text-slate-500 mt-1">All inspection records</p>
         </div>
         <Link href="/upload"
-          className="px-4 py-2.5 rounded-xl text-base font-bold transition-all hover:opacity-90 shadow-sm"
+          className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-sm sm:text-base font-bold transition-all hover:opacity-90 shadow-sm active:scale-[0.98]"
           style={{ background: TEAL, color: BLUE }}>
           New Inspection
         </Link>
@@ -178,7 +178,8 @@ export default function InspectionsPage() {
           )}
         </div>
       ) : (
-        <div className="bg-white border border-[#C8E6D4] rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-[#C8E6D4] rounded-xl shadow-sm overflow-x-auto">
+          <div className="min-w-[700px]">
           {/* Table header */}
           <div className="grid grid-cols-[2fr_1.5fr_80px_120px_120px_40px_40px] items-center gap-4 px-5 py-3 border-b border-[#C8E6D4]" style={{ background: '#EDF6F0' }}>
             <button className={thClass('name')}   onClick={() => handleSort('name')}   style={userHasSorted && sortKey === 'name'   ? { color: TEAL } : {}}>Name   <SortIcon col="name"   active={sortKey} dir={sortDir} userSorted={userHasSorted} /></button>
@@ -239,6 +240,7 @@ export default function InspectionsPage() {
             <span className="text-[12px] text-slate-500">
               Showing {filtered.length} of {(inspections as any[]).length} inspections
             </span>
+          </div>
           </div>
         </div>
       )}

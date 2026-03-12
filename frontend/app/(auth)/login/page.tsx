@@ -40,15 +40,15 @@ export default function LoginPage() {
   ];
 
   return (
-    <div className="h-screen relative flex overflow-hidden">
+    <div className="min-h-screen relative flex flex-col lg:flex-row overflow-auto lg:overflow-hidden lg:h-screen">
       {/* Background image + overlay */}
       <div className="absolute inset-0 z-0">
         <img src="/hero-bg.jpg" alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-[#082E29]/80" />
       </div>
 
-      {/* Left — branding */}
-      <div className="relative z-10 w-1/2 h-full flex flex-col items-center justify-center px-16">
+      {/* Left — branding (hidden on mobile, visible on lg+) */}
+      <div className="relative z-10 hidden lg:flex lg:w-1/2 h-full flex-col items-center justify-center px-8 xl:px-16">
         {/* Logo + brand */}
         <div className="flex items-center gap-3 mb-6">
           <img src="/logo.png" alt="Mira Intel" className="w-12 h-12 object-contain"
@@ -68,7 +68,7 @@ export default function LoginPage() {
         </div>
 
         {/* Hero text */}
-        <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-6 text-center">
+        <h2 className="text-4xl xl:text-5xl font-bold text-white leading-tight mb-6 text-center">
           Inspect every<br />asset with<br />
           <span className="text-cyan-400">precision.</span>
         </h2>
@@ -92,9 +92,19 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right — login card */}
-      <div className="relative z-10 w-1/2 h-full flex items-center justify-center px-8">
-        <div className="w-full max-w-sm bg-white rounded-2xl p-8 shadow-2xl">
+      {/* Right — login card (full width on mobile, half on lg+) */}
+      <div className="relative z-10 w-full lg:w-1/2 flex-1 lg:flex-none lg:h-full flex items-center justify-center px-4 sm:px-8 py-8 lg:py-0">
+        {/* Mobile logo - shown only on small screens */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-2.5 lg:hidden">
+          <img src="/logo.png" alt="Mira Intel" className="w-9 h-9 object-contain"
+            style={{ filter: 'drop-shadow(0 0 6px rgba(8,145,178,0.5))' }} />
+          <div>
+            <h1 className="text-base font-bold text-white tracking-tight">MIRA INTEL</h1>
+            <p className="text-[9px] text-white/50 uppercase tracking-[0.2em]">Inspection Platform</p>
+          </div>
+        </div>
+
+        <div className="w-full max-w-sm bg-white rounded-2xl p-6 sm:p-8 shadow-2xl mt-16 lg:mt-0">
           <h2 className="text-xl font-semibold text-slate-800 mb-1">
             {mode === 'login' ? 'Welcome back' : 'Create account'}
           </h2>
@@ -108,13 +118,13 @@ export default function LoginPage() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Full Name</label>
                   <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+                    className="w-full px-3.5 py-2.5 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400 transition-shadow"
                     placeholder="Your name" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Organization Name</label>
                   <input type="text" value={organizationName} onChange={e => setOrganizationName(e.target.value)} required
-                    className="w-full px-3.5 py-2.5 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+                    className="w-full px-3.5 py-2.5 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400 transition-shadow"
                     placeholder="e.g. Woodworks Engineering" />
                 </div>
               </>
@@ -122,14 +132,14 @@ export default function LoginPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Email Address</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                className="w-full px-3.5 py-2.5 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+                className="w-full px-3.5 py-2.5 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400 transition-shadow"
                 placeholder="you@company.com" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Password</label>
               <div className="relative">
                 <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
-                  className="w-full px-3.5 py-2.5 pr-10 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-3.5 py-2.5 pr-10 bg-[#EDF6F0] border border-[#C8E6D4] rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-400 transition-shadow"
                   placeholder="Enter your password" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -143,7 +153,7 @@ export default function LoginPage() {
             )}
 
             <button type="submit" disabled={loading}
-              className="w-full bg-[#082E29] text-white py-3 rounded-xl text-sm font-semibold hover:bg-[#0a3d35] shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2">
+              className="w-full bg-[#082E29] text-white py-3 rounded-xl text-sm font-semibold hover:bg-[#0a3d35] shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2 active:scale-[0.98]">
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -165,7 +175,7 @@ export default function LoginPage() {
       </div>
 
       {/* Footer */}
-      <div className="absolute bottom-4 right-6 z-10">
+      <div className="absolute bottom-4 right-6 z-10 hidden sm:block">
         <p className="text-xs text-white/30">Mira Intel v1.0 &middot; AI-Powered Infrastructure Inspection</p>
       </div>
     </div>

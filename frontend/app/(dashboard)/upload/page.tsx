@@ -109,7 +109,7 @@ export default function UploadPage() {
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
             <CheckCircle size={22} style={{ color: TEAL }} />
           </div>
-          <h1 className="text-3xl font-bold" style={{ color: TEAL }}>Analysis Complete</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: TEAL }}>Analysis Complete</h1>
         </div>
         <p className="text-base text-slate-500 mt-1 ml-12">{results.length} image{results.length !== 1 ? 's' : ''} processed successfully</p>
       </div>
@@ -181,7 +181,7 @@ export default function UploadPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Upload Inspection</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Upload Inspection</h1>
         <p className="text-base text-slate-500 mt-1">Upload images for AI-powered damage analysis</p>
       </div>
 

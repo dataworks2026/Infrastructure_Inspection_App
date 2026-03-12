@@ -470,7 +470,7 @@ export default function InspectionDetailPage() {
 
       {/* ── Summary stats — always visible once images loaded, live-update during load ── */}
       {completedCount > 0 && (
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center"><ImageIcon size={16} className="text-sky-600" /></div>

@@ -499,18 +499,18 @@ export default function DashboardPage() {
     <div className="space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Dashboard</h1>
-          <p className="text-base text-slate-500 mt-1">Platform overview and recent activity</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Dashboard</h1>
+          <p className="text-sm sm:text-base text-slate-500 mt-1">Platform overview and recent activity</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="interactive-chip flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
+          <div className="interactive-chip flex items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-1.5 rounded-full"
             style={{ background: MINT, color: '#6B9A87', border: '1px solid #C8E6D4' }}>
             <Activity size={13} style={{ color: BRAND }} />
             <span>{data?.total_inspections ?? 0} inspections</span>
           </div>
-          <div className="interactive-chip flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
+          <div className="interactive-chip hidden sm:flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
             style={{ background: MINT, color: '#6B9A87', border: '1px solid #C8E6D4' }}>
             <TrendingUp size={13} style={{ color: '#10B981' }} />
             <span>{data?.fleet_health_pct ?? 0}% asset health</span>

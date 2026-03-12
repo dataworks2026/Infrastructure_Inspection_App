@@ -109,14 +109,14 @@ export default function AssetsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Assets</h1>
-          <p className="text-base text-slate-500 mt-1">Infrastructure assets under inspection</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Assets</h1>
+          <p className="text-sm sm:text-base text-slate-500 mt-1">Infrastructure assets under inspection</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-base font-semibold transition-all hover:opacity-90 shadow-sm"
+          className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-sm sm:text-base font-semibold transition-all hover:opacity-90 shadow-sm active:scale-[0.98]"
           style={{ background: TEAL, color: BLUE }}
         >
           <Plus size={18} /> New Asset

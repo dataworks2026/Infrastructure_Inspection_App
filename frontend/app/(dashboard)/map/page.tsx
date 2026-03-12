@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { assetsApi, imagesApi } from '@/lib/api';
 import { Asset, InfrastructureType } from '@/types';
 import { useState, useMemo, useCallback } from 'react';
-import { MapPin, Building2, Waves, Anchor, Shield, Filter, ExternalLink, Eye, EyeOff, Globe, Camera } from 'lucide-react';
+import { MapPin, Building2, Waves, Anchor, Shield, Filter, ExternalLink, Eye, EyeOff, Globe, Camera, List, X } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
@@ -70,8 +70,12 @@ export default function MapPage() {
   const [visibleTypes, setVisibleTypes]   = useState<Set<string>>(new Set(Object.keys(INFRA_CONFIG)));
   const [showFilters, setShowFilters]     = useState(false);
   const [showImages, setShowImages]       = useState(false);
+  const [showPanel, setShowPanel]         = useState(false);
 
-  const handleSelectAsset = useCallback((id: string) => setSelectedAsset(id), []);
+  const handleSelectAsset = useCallback((id: string) => {
+    setSelectedAsset(id);
+    setShowPanel(true);
+  }, []);
 
   const mappableAssets = useMemo(
     () => assets.filter((a: Asset) => a.latitude != null && a.longitude != null && visibleTypes.has(a.infrastructure_type)),
@@ -98,64 +102,75 @@ export default function MapPage() {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="text-3xl font-bold tracking-tight" style={{ color: '#082E29' }}>Map</h1>
-        <p className="text-base text-slate-500 mt-1">Asset locations and inspection imagery</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: '#082E29' }}>Map</h1>
+        <p className="text-sm sm:text-base text-slate-500 mt-1">Asset locations and inspection imagery</p>
       </div>
-      <div className="h-[calc(100vh-120px)] flex flex-col -mb-10 relative rounded-xl overflow-hidden">
+      <div className="h-[calc(100vh-160px)] lg:h-[calc(100vh-120px)] flex flex-col -mb-10 relative rounded-xl overflow-hidden">
 
       {/* Floating top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-        <div className="flex items-center justify-between px-5 pt-4 pb-0">
+        <div className="flex items-center justify-between px-3 sm:px-5 pt-3 sm:pt-4 pb-0 gap-2">
 
           {/* Title pill */}
-          <div className="pointer-events-auto">
-            <div className="flex items-center gap-2.5 bg-[#0a1420]/90 backdrop-blur-xl rounded-xl px-4 py-2.5 shadow-xl border border-white/8">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#082E29,#0891B2)' }}>
-                <Globe size={15} className="text-white" />
+          <div className="pointer-events-auto min-w-0 flex-shrink">
+            <div className="flex items-center gap-2 sm:gap-2.5 bg-[#0a1420]/90 backdrop-blur-xl rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 shadow-xl border border-white/8">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg,#082E29,#0891B2)' }}>
+                <Globe size={14} className="text-white" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-[13px] font-bold text-white tracking-tight">Governor's Island</h1>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider" style={{ background: 'rgba(8,145,178,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>LIVE</span>
+                  <h1 className="text-[12px] sm:text-[13px] font-bold text-white tracking-tight truncate">Governor's Island</h1>
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider flex-shrink-0" style={{ background: 'rgba(8,145,178,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>LIVE</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5 leading-none">
+                <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 leading-none truncate">
                   {mappableAssets.length} asset{mappableAssets.length !== 1 ? 's' : ''}
-                  {imagePoints.length > 0 && <span className="text-cyan-400 ml-1.5">· {imagePoints.length} photo{imagePoints.length !== 1 ? 's' : ''}</span>}
-                  {assetsWithoutLocation.length > 0 && <span className="text-amber-400 ml-1.5">· {assetsWithoutLocation.length} unlocated</span>}
+                  {imagePoints.length > 0 && <span className="text-cyan-400 ml-1.5">· {imagePoints.length} photos</span>}
+                  {assetsWithoutLocation.length > 0 && <span className="text-amber-400 ml-1.5 hidden sm:inline">· {assetsWithoutLocation.length} unlocated</span>}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-1.5 pointer-events-auto">
+          <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto flex-shrink-0">
+            {/* Mobile: toggle asset panel */}
+            <button
+              onClick={() => setShowPanel(v => !v)}
+              title="Toggle asset list"
+              className={`flex lg:hidden items-center gap-1.5 text-[12px] font-semibold px-3 py-2 rounded-lg shadow-lg border transition-all ${
+                showPanel
+                  ? 'bg-[#082E29]/90 text-cyan-400 border-cyan-400/25 backdrop-blur-xl'
+                  : 'bg-[#0a1420]/85 text-slate-400 border-white/8 backdrop-blur-xl hover:text-slate-200'
+              }`}>
+              <List size={14} />
+            </button>
             <button
               onClick={() => setShowImages(v => !v)}
               title="Toggle inspection photos"
-              className={`flex items-center gap-1.5 text-[12px] font-semibold px-3.5 py-2 rounded-lg shadow-lg border transition-all ${
+              className={`flex items-center gap-1.5 text-[12px] font-semibold px-3 sm:px-3.5 py-2 rounded-lg shadow-lg border transition-all ${
                 showImages
                   ? 'bg-[#082E29]/90 text-cyan-400 border-cyan-400/25 backdrop-blur-xl'
                   : 'bg-[#0a1420]/85 text-slate-400 border-white/8 backdrop-blur-xl hover:text-slate-200'
               }`}>
               <Camera size={14} />
-              <span>Photos</span>
+              <span className="hidden sm:inline">Photos</span>
             </button>
             <button
               onClick={() => setShowFilters(f => !f)}
-              className={`flex items-center gap-1.5 text-[12px] font-semibold px-3.5 py-2 rounded-lg shadow-lg border transition-all ${
+              className={`flex items-center gap-1.5 text-[12px] font-semibold px-3 sm:px-3.5 py-2 rounded-lg shadow-lg border transition-all ${
                 showFilters
                   ? 'bg-[#082E29]/90 text-cyan-400 border-cyan-400/25 backdrop-blur-xl'
                   : 'bg-[#0a1420]/85 text-slate-400 border-white/8 backdrop-blur-xl hover:text-slate-200'
               }`}>
               <Filter size={14} />
-              <span>Layers</span>
+              <span className="hidden sm:inline">Layers</span>
             </button>
           </div>
         </div>
 
         {/* Filter chips */}
         {showFilters && (
-          <div className="flex items-center gap-1.5 px-5 pt-2 pb-1 pointer-events-auto flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 sm:px-5 pt-2 pb-1 pointer-events-auto flex-wrap">
             {Object.entries(INFRA_CONFIG).map(([key, config]) => {
               const Icon = config.icon;
               const active = visibleTypes.has(key);
@@ -164,7 +179,7 @@ export default function MapPage() {
                 <button
                   key={key}
                   onClick={() => toggleType(key)}
-                  className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg shadow-md border transition-all ${
+                  className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg shadow-md border transition-all ${
                     active
                       ? 'bg-[#0a1420]/90 backdrop-blur-xl text-slate-200 border-white/10'
                       : 'bg-[#0a1420]/60 text-slate-500 border-white/5 backdrop-blur-xl'
@@ -172,7 +187,8 @@ export default function MapPage() {
                   style={active ? { borderColor: config.markerColor + '40' } : {}}>
                   {active ? <Eye size={10} /> : <EyeOff size={10} />}
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: active ? config.markerColor : '#475569' }} />
-                  {config.label}
+                  <span className="hidden sm:inline">{config.label}</span>
+                  <span className="sm:hidden">{config.label.split(' ')[0]}</span>
                   <span className="opacity-40">({count})</span>
                 </button>
               );
@@ -202,20 +218,42 @@ export default function MapPage() {
           )}
         </div>
 
-        {/* Floating right panel */}
-        <div className="absolute top-4 right-4 bottom-4 w-68 z-10 flex flex-col pointer-events-auto" style={{ width: '270px' }}>
+        {/* Floating right panel - desktop always visible, mobile toggle */}
+        <div
+          className={`absolute z-10 flex flex-col pointer-events-auto transition-all duration-300 ease-out
+            bottom-0 left-0 right-0 lg:top-4 lg:right-4 lg:bottom-4 lg:left-auto
+            ${showPanel
+              ? 'translate-y-0 opacity-100'
+              : 'translate-y-full lg:translate-y-0 lg:opacity-100 opacity-0 pointer-events-none lg:pointer-events-auto'
+            }
+          `}
+          style={{ maxHeight: '50vh' }}
+        >
+          {/* Desktop: fixed width panel. Mobile: full-width bottom sheet */}
+          <style>{`
+            @media (min-width: 1024px) {
+              .map-side-panel { width: 270px; max-height: none !important; height: 100%; }
+            }
+          `}</style>
+
+          <div className="map-side-panel w-full h-full">
           {selected ? (
             /* Asset detail card */
-            <div className="bg-[#0a1420]/95 backdrop-blur-xl border rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="bg-[#0a1420]/95 backdrop-blur-xl border rounded-t-2xl lg:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-full" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
               <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(8,46,41,0.4)' }}>
                 <h3 className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">Asset Detail</h3>
-                <button
-                  onClick={() => setSelectedAsset(null)}
-                  className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 transition-colors">
-                  ← All
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedAsset(null)}
+                    className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 transition-colors">
+                    ← All
+                  </button>
+                  <button onClick={() => setShowPanel(false)} className="lg:hidden text-slate-400 hover:text-white transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3 overflow-y-auto">
                 <div>
                   <span className={`text-[11px] px-2.5 py-1 rounded-md font-semibold ${
                     INFRA_CONFIG[selected.infrastructure_type]?.color || 'bg-slate-700 text-slate-300'
@@ -256,7 +294,7 @@ export default function MapPage() {
                 </div>
                 <Link
                   href={`/assets/${selected.id}`}
-                  className="flex items-center justify-center gap-2 text-[12px] font-bold text-white px-4 py-2.5 rounded-xl w-full transition-all hover:opacity-85"
+                  className="flex items-center justify-center gap-2 text-[12px] font-bold text-white px-4 py-2.5 rounded-xl w-full transition-all hover:opacity-85 active:scale-[0.98]"
                   style={{ background: 'linear-gradient(135deg,#082E29,#0891B2)' }}>
                   <ExternalLink size={14} /> View Asset
                 </Link>
@@ -264,11 +302,14 @@ export default function MapPage() {
             </div>
           ) : (
             /* Asset list panel */
-            <div className="bg-[#0a1420]/95 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col flex-1 min-h-0" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(8,46,41,0.3)' }}>
+            <div className="bg-[#0a1420]/95 backdrop-blur-xl rounded-t-2xl lg:rounded-2xl shadow-2xl overflow-hidden flex flex-col flex-1 min-h-0 h-full" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(8,46,41,0.3)' }}>
                 <h3 className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">
                   Infrastructure ({mappableAssets.length})
                 </h3>
+                <button onClick={() => setShowPanel(false)} className="lg:hidden text-slate-400 hover:text-white transition-colors">
+                  <X size={16} />
+                </button>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
                 {mappableAssets.length === 0 ? (
@@ -292,7 +333,7 @@ export default function MapPage() {
                     return (
                       <button
                         key={asset.id}
-                        onClick={() => setSelectedAsset(asset.id)}
+                        onClick={() => { setSelectedAsset(asset.id); }}
                         className={`w-full text-left p-2.5 rounded-xl transition-all group flex items-start gap-2.5 ${
                           isActive ? 'bg-[#082E29]/60' : 'hover:bg-white/4'
                         }`}
@@ -340,7 +381,7 @@ export default function MapPage() {
               )}
 
               {/* Legend */}
-              <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="px-4 py-3 hidden lg:block" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">Legend</p>
                 <div className="space-y-1.5">
                   {Object.entries(INFRA_CONFIG)
@@ -359,6 +400,7 @@ export default function MapPage() {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
       </div>

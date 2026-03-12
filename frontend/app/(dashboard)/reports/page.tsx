@@ -5,7 +5,7 @@ export default function ReportsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight" style={{ color: '#082E29' }}>Reports</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: '#082E29' }}>Reports</h1>
         <p className="text-base text-slate-500 mt-1">PDF inspection reports</p>
       </div>
       <div className="text-center py-20 bg-white border border-slate-200 rounded-2xl shadow-card">
