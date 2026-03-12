@@ -351,31 +351,27 @@ export default function InspectionDetailPage() {
   const worstSeverity = allSeverities.sort().reverse()[0];
   const cleanCount = Object.values(analysisResults).filter((r: any) => r && !r.error && r.total_detections === 0).length;
 
-  const SEV_RANK: Record<string, number> = { S4: 0, S3: 1, S2: 2, S1: 3 };
   const sortedImages = useMemo(() => {
-    const arr = [...images];
-    switch (imageSort) {
-      case 'name':
-        return arr.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true }));
-      case 'detections':
-        return arr.sort((a: any, b: any) => {
-          const da = analysisResults[a.id]?.total_detections ?? -1;
-          const db = analysisResults[b.id]?.total_detections ?? -1;
-          return db - da;
-        });
-      case 'severity': {
-        return arr.sort((a: any, b: any) => {
-          const ra = analysisResults[a.id];
-          const rb = analysisResults[b.id];
-          const worstA = (ra?.detections || []).reduce((w: number, d: any) => Math.min(w, SEV_RANK[d.severity] ?? 99), 99);
-          const worstB = (rb?.detections || []).reduce((w: number, d: any) => Math.min(w, SEV_RANK[d.severity] ?? 99), 99);
-          if (worstA !== worstB) return worstA - worstB;
-          return (rb?.total_detections ?? -1) - (ra?.total_detections ?? -1);
-        });
-      }
-      default: return arr;
+    const sevRank: Record<string, number> = { S4: 0, S3: 1, S2: 2, S1: 3 };
+    const results = analysisResults;
+    const arr = images.slice();
+    if (imageSort === 'name') {
+      arr.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true }));
+    } else if (imageSort === 'detections') {
+      arr.sort((a: any, b: any) => (results[b.id]?.total_detections ?? -1) - (results[a.id]?.total_detections ?? -1));
+    } else if (imageSort === 'severity') {
+      arr.sort((a: any, b: any) => {
+        const ra = results[a.id];
+        const rb = results[b.id];
+        const worstA = (ra?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[d.severity] ?? 99), 99);
+        const worstB = (rb?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[d.severity] ?? 99), 99);
+        if (worstA !== worstB) return worstA - worstB;
+        return (rb?.total_detections ?? -1) - (ra?.total_detections ?? -1);
+      });
     }
-  }, [images, imageSort, analysisResults]);
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images.length, imageSort, Object.keys(analysisResults).length]);
 
   const currentImg = images.find((img: any) => img.id === selectedImage);
   const currentResult = currentImg ? analysisResults[currentImg.id] : null;
