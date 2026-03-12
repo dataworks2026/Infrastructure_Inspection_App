@@ -184,7 +184,7 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         .group_by(Asset.id, Asset.name, Asset.infrastructure_type, Asset.status)
         .all()
     )
-    sev_order = {"S3": 0, "S2": 1, "S1": 2, "S0": 3}
+    sev_order = {"4": 0, "3": 1, "2": 2, "1": 3, "S3": 0, "S2": 1, "S1": 2, "S0": 3}
     asset_health = sorted(
         [
             {

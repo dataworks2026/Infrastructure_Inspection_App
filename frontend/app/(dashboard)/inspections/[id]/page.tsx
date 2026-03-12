@@ -72,84 +72,94 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
           preserveAspectRatio="none"
           className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
         >
-          {detections.map((d, i) => {
-            const cfg = getDamageConfig(d.damage_type);
-            const { x1, y1, x2, y2 } = d.bbox;
-            const bw = x2 - x1;
-            const bh = y2 - y1;
-            const conf = d.confidence;
+          {(() => {
+            const SEV_LABEL: Record<string,string> = { '1':'1-Minor', '2':'2-Moderate', '3':'3-Advanced', '4':'4-Severe', S0:'1-Minor', S1:'1-Minor', S2:'2-Moderate', S3:'3-Advanced', S4:'4-Severe' };
+            const visible = detections.filter((d: any) => d.confidence >= 0.20);
             const scale = dims.w / 700;
             const strokeW = Math.max(2, 2.5 * scale);
-
-            // Confidence-scaled opacity (squared curve — low conf very faint)
-            const c2 = conf * conf;
-            const fillOp = 0.02 + c2 * 0.13;
-            const strokeOp = 0.15 + c2 * 0.8;
-            const cornerOp = 0.15 + c2 * 0.85;
-            const labelBgOp = 0.3 + c2 * 0.65;
-
-            // Label: severity + damage_type (confidence smaller)
-            const sevTag = d.severity ? `${d.severity} ` : '';
-            const mainLabel = `${sevTag}${d.damage_type}`;
-            const confLabel = `${(conf * 100).toFixed(0)}%`;
-            const mainFontSize = Math.round(13 * scale);
-            const confFontSize = Math.round(10 * scale);
             const labelH = Math.round(22 * scale);
             const labelPad = Math.round(6 * scale);
-            const mainCharW = mainFontSize * 0.58;
-            const confCharW = confFontSize * 0.52;
-            const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
-            const labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
-            const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
 
-            return (
-              <g key={i} opacity={conf < 0.15 ? 0.3 : 1}>
-                {/* Box fill tint */}
-                <rect x={x1} y={y1} width={bw} height={bh}
-                  fill={cfg.stroke} fillOpacity={fillOp} rx={2 * scale} />
-                {/* Box stroke */}
-                <rect x={x1} y={y1} width={bw} height={bh}
-                  fill="none" stroke={cfg.stroke} strokeWidth={strokeW}
-                  strokeOpacity={strokeOp} rx={2 * scale} />
-                {/* Corner accents — top-left */}
-                <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                {/* Corner accents — bottom-right */}
-                <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                {/* Label shadow */}
-                <rect x={labelX + 1} y={labelY + 1} width={labelW} height={labelH}
-                  fill="rgba(0,0,0,0.25)" rx={4 * scale} />
-                {/* Label background */}
-                <rect x={labelX} y={labelY} width={labelW} height={labelH}
-                  fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
-                {/* Label: main text */}
-                <text
-                  x={labelX + labelPad}
-                  y={labelY + labelH * 0.72}
-                  fontSize={mainFontSize}
-                  fill="white"
-                  fontFamily="system-ui,-apple-system,sans-serif"
-                  fontWeight="700"
-                  letterSpacing="0.2"
-                >
-                  {mainLabel}
-                </text>
-                {/* Label: confidence (smaller) */}
-                <text
-                  x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5}
-                  y={labelY + labelH * 0.72}
-                  fontSize={confFontSize}
-                  fill="white"
-                  fillOpacity="0.7"
-                  fontFamily="system-ui,-apple-system,sans-serif"
-                  fontWeight="500"
-                >
-                  {confLabel}
-                </text>
-              </g>
-            );
-          })}
+            // Pre-compute label positions
+            const labels = visible.map((d: any) => {
+              const { x1, y1, x2, y2 } = d.bbox;
+              const conf = d.confidence;
+              const sevText = d.severity ? (SEV_LABEL[d.severity] || d.severity) : '';
+              const mainLabel = sevText ? `${sevText} · ${d.damage_type}` : d.damage_type;
+              const confLabel = `${(conf * 100).toFixed(0)}%`;
+              const mainFontSize = Math.round(13 * scale);
+              const confFontSize = Math.round(10 * scale);
+              const mainCharW = mainFontSize * 0.58;
+              const confCharW = confFontSize * 0.52;
+              const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
+              let labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
+              const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
+              return { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH, labelX, labelY };
+            });
+            // Nudge overlapping labels
+            for (let i = 0; i < labels.length; i++) {
+              for (let j = i + 1; j < labels.length; j++) {
+                const a = labels[i], b = labels[j];
+                if (Math.abs(a.labelY - b.labelY) < labelH * 0.85 &&
+                    a.labelX < b.labelX + b.labelW && b.labelX < a.labelX + a.labelW) {
+                  b.labelY = a.labelY + labelH + 2 * scale;
+                  if (b.labelY > dims.h - labelH) b.labelY = a.labelY - labelH - 2 * scale;
+                }
+              }
+            }
+
+            return labels.map((l, i) => {
+              const { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH: lH, labelX, labelY } = l;
+              const cfg = getDamageConfig(d.damage_type);
+              const { x1, y1, x2, y2 } = d.bbox;
+              const bw = x2 - x1;
+              const bh = y2 - y1;
+              const conf = d.confidence;
+              const c2 = conf * conf;
+              const fillOp = 0.02 + c2 * 0.13;
+              const strokeOp = 0.15 + c2 * 0.8;
+              const cornerOp = 0.15 + c2 * 0.85;
+              const labelBgOp = 0.3 + c2 * 0.65;
+
+              return (
+                <g key={i}>
+                  <rect x={x1} y={y1} width={bw} height={bh}
+                    fill={cfg.stroke} fillOpacity={fillOp} rx={2 * scale} />
+                  <rect x={x1} y={y1} width={bw} height={bh}
+                    fill="none" stroke={cfg.stroke} strokeWidth={strokeW}
+                    strokeOpacity={strokeOp} rx={2 * scale} />
+                  <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <rect x={labelX + 1} y={labelY + 1} width={labelW} height={lH}
+                    fill="rgba(0,0,0,0.25)" rx={4 * scale} />
+                  <rect x={labelX} y={labelY} width={labelW} height={lH}
+                    fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
+                  <text
+                    x={labelX + labelPad}
+                    y={labelY + lH * 0.72}
+                    fontSize={mainFontSize}
+                    fill="white"
+                    fontFamily="system-ui,-apple-system,sans-serif"
+                    fontWeight="700"
+                    letterSpacing="0.2">
+                    {mainLabel}
+                  </text>
+                  <text
+                    x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5}
+                    y={labelY + lH * 0.72}
+                    fontSize={confFontSize}
+                    fill="white"
+                    fillOpacity="0.7"
+                    fontFamily="system-ui,-apple-system,sans-serif"
+                    fontWeight="500">
+                    {confLabel}
+                  </text>
+                </g>
+              );
+            });
+          })()}
         </svg>
       )}
     </div>

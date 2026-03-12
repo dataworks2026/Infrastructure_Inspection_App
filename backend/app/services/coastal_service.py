@@ -26,13 +26,14 @@ CLASS_NAMES_COASTAL = [
 ]
 
 SEVERITY_MAP = {
-    'Biological Growth': 'S0',
-    'Coating Failure':   'S1',
-    'Corrosion':         'S2',
-    'Cracking':          'S2',
-    'Decay':             'S2',
-    'Spalling':          'S2',
-    'Loss':              'S3',
+    'Biological Growth': '1',
+    'Coating Failure':   '1',
+    'Rust Staining':     '1',
+    'Corrosion':         '2',
+    'Cracking':          '2',
+    'Decay':             '3',
+    'Spalling':          '3',
+    'Loss':              '3',
 }
 
 class CoastalService:

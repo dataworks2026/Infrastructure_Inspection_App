@@ -21,9 +21,9 @@ CLASS_NAMES = [
 ]
 
 SEVERITY_MAP = {
-    'le-erosion': 'S2', 'Surface Crack': 'S2', 'Lightning Strike': 'S3',
-    'OIL LEAKAGE': 'S3', 'Drain hole impairment': 'S2',
-    'PU-tape': 'S1', 'Paint': 'S1', 'dirt': 'S0'
+    'le-erosion': '2', 'Surface Crack': '2', 'Lightning Strike': '3',
+    'OIL LEAKAGE': '3', 'Drain hole impairment': '2',
+    'PU-tape': '1', 'Paint': '1', 'dirt': '1'
 }
 
 class WindTurbineService:

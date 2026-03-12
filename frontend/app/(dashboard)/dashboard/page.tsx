@@ -36,10 +36,14 @@ function getDamageColor(damageType: string) {
 }
 
 const SEV: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  S3: { color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', label: 'Critical' },
-  S2: { color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A', label: 'Major'    },
-  S1: { color: '#EAB308', bg: '#FEFCE8', border: '#FEF08A', label: 'Minor'    },
-  S0: { color: '#10B981', bg: '#F0FDF4', border: '#BBF7D0', label: 'None'     },
+  '4': { color: '#B71C1C', bg: '#FEF2F2', border: '#FECACA', label: 'Severe'   },
+  '3': { color: '#FF7043', bg: '#FFF3E0', border: '#FFCCBC', label: 'Advanced' },
+  '2': { color: '#E6A817', bg: '#FFFBEB', border: '#FDE68A', label: 'Moderate' },
+  '1': { color: '#4CAF50', bg: '#F0FDF4', border: '#BBF7D0', label: 'Minor'    },
+  S3:  { color: '#FF7043', bg: '#FFF3E0', border: '#FFCCBC', label: 'Advanced' },
+  S2:  { color: '#E6A817', bg: '#FFFBEB', border: '#FDE68A', label: 'Moderate' },
+  S1:  { color: '#4CAF50', bg: '#F0FDF4', border: '#BBF7D0', label: 'Minor'    },
+  S0:  { color: '#4CAF50', bg: '#F0FDF4', border: '#BBF7D0', label: 'Minor'    },
 };
 
 const INFRA_ICON: Record<string, React.ElementType> = {
@@ -59,7 +63,7 @@ function SevBadge({ sev }: { sev: string | null }) {
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
       style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-      {sev} <span className="font-normal opacity-75">{s.label}</span>
+      {s.label}
     </span>
   );
 }
@@ -205,7 +209,7 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
         }}
       />
       {dims && dets.length > 0 && (() => {
-        const SEV_LABEL: Record<string,string> = { S0:'1-Minor', S1:'1-Minor', S2:'2-Moderate', S3:'3-Advanced', S4:'4-Severe' };
+        const SEV_LABEL: Record<string,string> = { '1':'1-Minor', '2':'2-Moderate', '3':'3-Advanced', '4':'4-Severe', S0:'1-Minor', S1:'1-Minor', S2:'2-Moderate', S3:'3-Advanced', S4:'4-Severe' };
         const visible = dets.filter((d: any) => d.confidence >= 0.20);
         const scale = dims.w / 700;
         const strokeW = Math.max(2, 2.5 * scale);
