@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inspectionsApi, imagesApi, assetsApi, analysisApi } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
@@ -351,18 +351,18 @@ export default function InspectionDetailPage() {
   const worstSeverity = allSeverities.sort().reverse()[0];
   const cleanCount = Object.values(analysisResults).filter((r: any) => r && !r.error && r.total_detections === 0).length;
 
-  const sortedImages = useMemo(() => {
+  // Sort images — computed inline (not useMemo) because this runs after early returns
+  const sortedImages = (() => {
     const sevRank: Record<string, number> = { S4: 0, S3: 1, S2: 2, S1: 3 };
-    const results = analysisResults;
     const arr = images.slice();
     if (imageSort === 'name') {
       arr.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true }));
     } else if (imageSort === 'detections') {
-      arr.sort((a: any, b: any) => (results[b.id]?.total_detections ?? -1) - (results[a.id]?.total_detections ?? -1));
+      arr.sort((a: any, b: any) => (analysisResults[b.id]?.total_detections ?? -1) - (analysisResults[a.id]?.total_detections ?? -1));
     } else if (imageSort === 'severity') {
       arr.sort((a: any, b: any) => {
-        const ra = results[a.id];
-        const rb = results[b.id];
+        const ra = analysisResults[a.id];
+        const rb = analysisResults[b.id];
         const worstA = (ra?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[d.severity] ?? 99), 99);
         const worstB = (rb?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[d.severity] ?? 99), 99);
         if (worstA !== worstB) return worstA - worstB;
@@ -370,8 +370,7 @@ export default function InspectionDetailPage() {
       });
     }
     return arr;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [images.length, imageSort, Object.keys(analysisResults).length]);
+  })();
 
   const currentImg = images.find((img: any) => img.id === selectedImage);
   const currentResult = currentImg ? analysisResults[currentImg.id] : null;
