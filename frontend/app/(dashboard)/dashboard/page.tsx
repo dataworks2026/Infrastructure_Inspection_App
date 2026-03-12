@@ -95,23 +95,24 @@ function windDirLabel(deg: number | null | undefined): string {
   return dirs[Math.round(deg / 45) % 8];
 }
 
-/* ── Env metric pill ── */
+/* ── Env metric pill (with green live dot) ── */
 function EnvPill({ icon, label, value, unit, color }: {
   icon: React.ReactNode; label: string; value: number | null | undefined; unit: string; color: string;
 }) {
   if (value == null) return null;
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-      style={{ background: color + '0A', border: `1px solid ${color}20` }}>
-      <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
+    <div className="flex items-center gap-1 px-1.5 py-1 rounded-md"
+      style={{ background: color + '08', border: `1px solid ${color}18` }}>
+      <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 relative"
         style={{ background: color + '18' }}>
         {icon}
+        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white" />
       </div>
       <div className="leading-none">
-        <p className="text-[8px] font-bold uppercase tracking-wider" style={{ color: color }}>{label}</p>
-        <p className="text-[12px] font-black leading-tight" style={{ color: TEAL }}>
+        <p className="text-[7px] font-bold uppercase tracking-wider" style={{ color: color }}>{label}</p>
+        <p className="text-[11px] font-black leading-tight whitespace-nowrap" style={{ color: TEAL }}>
           {Number.isInteger(value) ? value : value.toFixed(1)}
-          <span className="text-[9px] font-semibold ml-0.5" style={{ color: '#6B9A87' }}>{unit}</span>
+          <span className="text-[8px] font-semibold ml-0.5" style={{ color: '#6B9A87' }}>{unit}</span>
         </p>
       </div>
     </div>
@@ -126,47 +127,47 @@ function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
   const borderColor = sev === 'S3' ? '#EF4444' : sev === 'S2' ? '#F59E0B' : sev === 'S1' ? '#EAB308' : '#10B981';
   return (
     <Link href={`/assets/${asset.id}`}
-      className="interactive-row px-4 py-3 group border-l-[3px]"
+      className="interactive-row px-3 py-2.5 group border-l-[3px]"
       style={{ borderLeftColor: borderColor }}>
-      {/* Main row */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
+        {/* Icon */}
         <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
-          <Icon size={15} style={{ color: typeColor }} />
+          <Icon size={14} style={{ color: typeColor }} />
         </div>
-        <div className="min-w-0" style={{ minWidth: 120 }}>
-          <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
+        {/* Name + meta */}
+        <div className="min-w-0 flex-shrink" style={{ flex: '0 1 auto', maxWidth: 200 }}>
+          <p className="text-[12px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
             {asset.name}
           </p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+            <span className="text-[10px] truncate" style={{ color: '#6B9A87' }}>
               {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
-              {' · '}{asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
             </span>
             {asset.total_detections > 0 ? (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
                 style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
                 {asset.total_detections} det.
               </span>
             ) : (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 flex-shrink-0"
+              <span className="text-[9px] font-bold px-1 py-0.5 rounded-full flex items-center gap-0.5 flex-shrink-0"
                 style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
-                <Shield size={9} /> Clean
+                <Shield size={8} /> Clean
               </span>
             )}
             <SevBadge sev={asset.worst_severity} />
           </div>
         </div>
-        {/* Env metrics on the right */}
+        {/* Env metrics — pushed right */}
         {env ? (
-          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
-            <EnvPill icon={<Waves size={12} style={{ color: '#0891B2' }} />}
+          <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+            <EnvPill icon={<Waves size={11} style={{ color: '#0891B2' }} />}
               label="Sea Level" value={env.wave_height} unit="m" color="#0891B2" />
-            <EnvPill icon={<Activity size={12} style={{ color: '#6366F1' }} />}
+            <EnvPill icon={<Activity size={11} style={{ color: '#6366F1' }} />}
               label="Tidal" value={env.wave_period} unit="s" color="#6366F1" />
-            <EnvPill icon={<Thermometer size={12} style={{ color: '#EF4444' }} />}
+            <EnvPill icon={<Thermometer size={11} style={{ color: '#EF4444' }} />}
               label="Temp" value={env.temperature} unit="°F" color="#EF4444" />
-            <EnvPill icon={<Wind size={12} style={{ color: '#0EA5E9' }} />}
+            <EnvPill icon={<Wind size={11} style={{ color: '#0EA5E9' }} />}
               label="Wind" value={env.wind_speed}
               unit={env.wind_direction != null ? `${windDirLabel(env.wind_direction)}` : 'mph'}
               color="#0EA5E9" />
@@ -204,11 +205,40 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
         }}
       />
       {dims && dets.length > 0 && (() => {
-        const sorted = [...dets].sort((a, b) => b.confidence - a.confidence);
-        const top3 = sorted.slice(0, 3);
-        const rest = sorted.slice(3);
+        const SEV_LABEL: Record<string,string> = { S0:'1-Minor', S1:'1-Minor', S2:'2-Moderate', S3:'3-Advanced', S4:'4-Severe' };
+        const visible = dets.filter((d: any) => d.confidence >= 0.20);
         const scale = dims.w / 700;
         const strokeW = Math.max(2, 2.5 * scale);
+
+        // Compute label rects, then nudge overlaps
+        const labelH = Math.round(22 * scale);
+        const labelPad = Math.round(6 * scale);
+        const labels = visible.map((d: any) => {
+          const { x1, y1, x2, y2 } = d.bbox;
+          const conf = d.confidence;
+          const sevText = d.severity ? (SEV_LABEL[d.severity] || d.severity) : '';
+          const mainLabel = sevText ? `${sevText} · ${d.damage_type}` : d.damage_type;
+          const confLabel = `${(conf * 100).toFixed(0)}%`;
+          const mainFontSize = Math.round(13 * scale);
+          const confFontSize = Math.round(10 * scale);
+          const mainCharW = mainFontSize * 0.58;
+          const confCharW = confFontSize * 0.52;
+          const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
+          let labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
+          const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
+          return { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH, labelX, labelY };
+        });
+        // Nudge overlapping labels
+        for (let i = 0; i < labels.length; i++) {
+          for (let j = i + 1; j < labels.length; j++) {
+            const a = labels[i], b = labels[j];
+            if (Math.abs(a.labelY - b.labelY) < labelH * 0.85 &&
+                a.labelX < b.labelX + b.labelW && b.labelX < a.labelX + a.labelW) {
+              b.labelY = a.labelY + labelH + 2 * scale;
+              if (b.labelY > dims.h - labelH) b.labelY = a.labelY - labelH - 2 * scale;
+            }
+          }
+        }
 
         return (
           <svg
@@ -216,24 +246,8 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
             preserveAspectRatio="xMidYMid slice"
             className="absolute inset-0 w-full h-full pointer-events-none"
           >
-            {/* Faint outlines only for remaining detections */}
-            {rest.map((d, i) => {
-              const cfg = getDamageColor(d.damage_type);
-              const { x1, y1, x2, y2 } = d.bbox;
-              const c2 = d.confidence * d.confidence;
-              return (
-                <g key={`r${i}`} opacity={d.confidence < 0.15 ? 0.2 : 0.6}>
-                  <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1}
-                    fill={cfg.stroke} fillOpacity={0.02 + c2 * 0.08} rx={2 * scale} />
-                  <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1}
-                    fill="none" stroke={cfg.stroke} strokeWidth={strokeW * 0.7}
-                    strokeOpacity={0.15 + c2 * 0.4} rx={2 * scale}
-                    strokeDasharray={`${4 * scale} ${3 * scale}`} />
-                </g>
-              );
-            })}
-            {/* Top 3 with full labels */}
-            {top3.map((d, i) => {
+            {labels.map((l, i) => {
+              const { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH: lH, labelX, labelY } = l;
               const cfg = getDamageColor(d.damage_type);
               const { x1, y1, x2, y2 } = d.bbox;
               const bw = x2 - x1;
@@ -245,21 +259,8 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
               const cornerOp = 0.15 + c2 * 0.85;
               const labelBgOp = 0.3 + c2 * 0.65;
 
-              const sevTag = d.severity ? `${d.severity} ` : '';
-              const mainLabel = `${sevTag}${d.damage_type}`;
-              const confLabel = `${(conf * 100).toFixed(0)}%`;
-              const mainFontSize = Math.round(13 * scale);
-              const confFontSize = Math.round(10 * scale);
-              const labelH = Math.round(22 * scale);
-              const labelPad = Math.round(6 * scale);
-              const mainCharW = mainFontSize * 0.58;
-              const confCharW = confFontSize * 0.52;
-              const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
-              const labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
-              const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
-
               return (
-                <g key={`t${i}`} opacity={conf < 0.15 ? 0.3 : 1}>
+                <g key={i}>
                   <rect x={x1} y={y1} width={bw} height={bh}
                     fill={cfg.stroke} fillOpacity={fillOp} rx={2 * scale} />
                   <rect x={x1} y={y1} width={bw} height={bh}
@@ -269,17 +270,17 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
                   <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
                   <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
                   <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <rect x={labelX + 1} y={labelY + 1} width={labelW} height={labelH}
+                  <rect x={labelX + 1} y={labelY + 1} width={labelW} height={lH}
                     fill="rgba(0,0,0,0.25)" rx={4 * scale} />
-                  <rect x={labelX} y={labelY} width={labelW} height={labelH}
+                  <rect x={labelX} y={labelY} width={labelW} height={lH}
                     fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
-                  <text x={labelX + labelPad} y={labelY + labelH * 0.72}
+                  <text x={labelX + labelPad} y={labelY + lH * 0.72}
                     fontSize={mainFontSize} fill="white"
                     fontFamily="system-ui,-apple-system,sans-serif"
                     fontWeight="700" letterSpacing="0.2">
                     {mainLabel}
                   </text>
-                  <text x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5} y={labelY + labelH * 0.72}
+                  <text x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5} y={labelY + lH * 0.72}
                     fontSize={confFontSize} fill="white" fillOpacity="0.7"
                     fontFamily="system-ui,-apple-system,sans-serif"
                     fontWeight="500">
@@ -288,27 +289,6 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
                 </g>
               );
             })}
-            {/* "+N more" badge */}
-            {rest.length > 0 && (() => {
-              const badgeFontSize = Math.round(11 * scale);
-              const badgeText = `+${rest.length} more`;
-              const badgeW = badgeText.length * badgeFontSize * 0.6 + 12 * scale;
-              const badgeH = Math.round(20 * scale);
-              const badgeX = dims.w - badgeW - 8 * scale;
-              const badgeY = dims.h - badgeH - 8 * scale;
-              return (
-                <g>
-                  <rect x={badgeX} y={badgeY} width={badgeW} height={badgeH}
-                    fill="rgba(0,0,0,0.55)" rx={badgeH / 2} />
-                  <text x={badgeX + badgeW / 2} y={badgeY + badgeH * 0.72}
-                    fontSize={badgeFontSize} fill="white" fillOpacity="0.9"
-                    fontFamily="system-ui,-apple-system,sans-serif"
-                    fontWeight="600" textAnchor="middle">
-                    {badgeText}
-                  </text>
-                </g>
-              );
-            })()}
           </svg>
         );
       })()}
@@ -672,7 +652,7 @@ export default function DashboardPage() {
                   style={{ background: '#EDF6F0', color: '#6B9A87', border: '1px solid #C8E6D4' }}
                   title="Refresh live conditions">
                   <RefreshCw size={10} className={envFetching ? 'animate-spin' : ''} />
-                  Refresh
+                  Live 5m
                 </button>
               )}
               <Link href="/assets" className="interactive-link text-[11px] font-bold flex items-center gap-1"
