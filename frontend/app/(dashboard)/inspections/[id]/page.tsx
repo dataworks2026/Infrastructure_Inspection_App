@@ -81,11 +81,12 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
             const scale = dims.w / 700;
             const strokeW = Math.max(2, 2.5 * scale);
 
-            // Confidence-scaled opacity
-            const fillOp = 0.03 + conf * 0.12;
-            const strokeOp = 0.3 + conf * 0.65;
-            const cornerOp = 0.4 + conf * 0.6;
-            const labelBgOp = 0.6 + conf * 0.35;
+            // Confidence-scaled opacity (squared curve — low conf very faint)
+            const c2 = conf * conf;
+            const fillOp = 0.02 + c2 * 0.13;
+            const strokeOp = 0.15 + c2 * 0.8;
+            const cornerOp = 0.15 + c2 * 0.85;
+            const labelBgOp = 0.3 + c2 * 0.65;
 
             // Label: severity + damage_type (confidence smaller)
             const sevTag = d.severity ? `${d.severity} ` : '';
