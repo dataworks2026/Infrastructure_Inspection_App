@@ -152,76 +152,115 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
             'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
         }}
       />
-      {dims && dets.length > 0 && (
-        <svg
-          viewBox={`0 0 ${dims.w} ${dims.h}`}
-          preserveAspectRatio="xMidYMid slice"
-          className="absolute inset-0 w-full h-full pointer-events-none"
-        >
-          {dets.map((d, i) => {
-            const cfg = getDamageColor(d.damage_type);
-            const { x1, y1, x2, y2 } = d.bbox;
-            const bw = x2 - x1;
-            const bh = y2 - y1;
-            const conf = d.confidence;
-            const scale = dims.w / 700;
-            const strokeW = Math.max(2, 2.5 * scale);
+      {dims && dets.length > 0 && (() => {
+        const sorted = [...dets].sort((a, b) => b.confidence - a.confidence);
+        const top3 = sorted.slice(0, 3);
+        const rest = sorted.slice(3);
+        const scale = dims.w / 700;
+        const strokeW = Math.max(2, 2.5 * scale);
 
-            // Confidence-scaled opacity (squared curve — low conf very faint)
-            const c2 = conf * conf;
-            const fillOp = 0.02 + c2 * 0.13;
-            const strokeOp = 0.15 + c2 * 0.8;
-            const cornerOp = 0.15 + c2 * 0.85;
-            const labelBgOp = 0.3 + c2 * 0.65;
+        return (
+          <svg
+            viewBox={`0 0 ${dims.w} ${dims.h}`}
+            preserveAspectRatio="xMidYMid slice"
+            className="absolute inset-0 w-full h-full pointer-events-none"
+          >
+            {/* Faint outlines only for remaining detections */}
+            {rest.map((d, i) => {
+              const cfg = getDamageColor(d.damage_type);
+              const { x1, y1, x2, y2 } = d.bbox;
+              const c2 = d.confidence * d.confidence;
+              return (
+                <g key={`r${i}`} opacity={d.confidence < 0.15 ? 0.2 : 0.6}>
+                  <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1}
+                    fill={cfg.stroke} fillOpacity={0.02 + c2 * 0.08} rx={2 * scale} />
+                  <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1}
+                    fill="none" stroke={cfg.stroke} strokeWidth={strokeW * 0.7}
+                    strokeOpacity={0.15 + c2 * 0.4} rx={2 * scale}
+                    strokeDasharray={`${4 * scale} ${3 * scale}`} />
+                </g>
+              );
+            })}
+            {/* Top 3 with full labels */}
+            {top3.map((d, i) => {
+              const cfg = getDamageColor(d.damage_type);
+              const { x1, y1, x2, y2 } = d.bbox;
+              const bw = x2 - x1;
+              const bh = y2 - y1;
+              const conf = d.confidence;
+              const c2 = conf * conf;
+              const fillOp = 0.02 + c2 * 0.13;
+              const strokeOp = 0.15 + c2 * 0.8;
+              const cornerOp = 0.15 + c2 * 0.85;
+              const labelBgOp = 0.3 + c2 * 0.65;
 
-            // Label: severity + damage_type (confidence smaller)
-            const sevTag = d.severity ? `${d.severity} ` : '';
-            const mainLabel = `${sevTag}${d.damage_type}`;
-            const confLabel = `${(conf * 100).toFixed(0)}%`;
-            const mainFontSize = Math.round(13 * scale);
-            const confFontSize = Math.round(10 * scale);
-            const labelH = Math.round(22 * scale);
-            const labelPad = Math.round(6 * scale);
-            const mainCharW = mainFontSize * 0.58;
-            const confCharW = confFontSize * 0.52;
-            const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
-            const labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
-            const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
+              const sevTag = d.severity ? `${d.severity} ` : '';
+              const mainLabel = `${sevTag}${d.damage_type}`;
+              const confLabel = `${(conf * 100).toFixed(0)}%`;
+              const mainFontSize = Math.round(13 * scale);
+              const confFontSize = Math.round(10 * scale);
+              const labelH = Math.round(22 * scale);
+              const labelPad = Math.round(6 * scale);
+              const mainCharW = mainFontSize * 0.58;
+              const confCharW = confFontSize * 0.52;
+              const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
+              const labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
+              const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
 
-            return (
-              <g key={i} opacity={conf < 0.15 ? 0.3 : 1}>
-                <rect x={x1} y={y1} width={bw} height={bh}
-                  fill={cfg.stroke} fillOpacity={fillOp} rx={2 * scale} />
-                <rect x={x1} y={y1} width={bw} height={bh}
-                  fill="none" stroke={cfg.stroke} strokeWidth={strokeW}
-                  strokeOpacity={strokeOp} rx={2 * scale} />
-                {/* Corner accents */}
-                <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                {/* Label */}
-                <rect x={labelX + 1} y={labelY + 1} width={labelW} height={labelH}
-                  fill="rgba(0,0,0,0.25)" rx={4 * scale} />
-                <rect x={labelX} y={labelY} width={labelW} height={labelH}
-                  fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
-                <text x={labelX + labelPad} y={labelY + labelH * 0.72}
-                  fontSize={mainFontSize} fill="white"
-                  fontFamily="system-ui,-apple-system,sans-serif"
-                  fontWeight="700" letterSpacing="0.2">
-                  {mainLabel}
-                </text>
-                <text x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5} y={labelY + labelH * 0.72}
-                  fontSize={confFontSize} fill="white" fillOpacity="0.7"
-                  fontFamily="system-ui,-apple-system,sans-serif"
-                  fontWeight="500">
-                  {confLabel}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      )}
+              return (
+                <g key={`t${i}`} opacity={conf < 0.15 ? 0.3 : 1}>
+                  <rect x={x1} y={y1} width={bw} height={bh}
+                    fill={cfg.stroke} fillOpacity={fillOp} rx={2 * scale} />
+                  <rect x={x1} y={y1} width={bw} height={bh}
+                    fill="none" stroke={cfg.stroke} strokeWidth={strokeW}
+                    strokeOpacity={strokeOp} rx={2 * scale} />
+                  <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                  <rect x={labelX + 1} y={labelY + 1} width={labelW} height={labelH}
+                    fill="rgba(0,0,0,0.25)" rx={4 * scale} />
+                  <rect x={labelX} y={labelY} width={labelW} height={labelH}
+                    fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
+                  <text x={labelX + labelPad} y={labelY + labelH * 0.72}
+                    fontSize={mainFontSize} fill="white"
+                    fontFamily="system-ui,-apple-system,sans-serif"
+                    fontWeight="700" letterSpacing="0.2">
+                    {mainLabel}
+                  </text>
+                  <text x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5} y={labelY + labelH * 0.72}
+                    fontSize={confFontSize} fill="white" fillOpacity="0.7"
+                    fontFamily="system-ui,-apple-system,sans-serif"
+                    fontWeight="500">
+                    {confLabel}
+                  </text>
+                </g>
+              );
+            })}
+            {/* "+N more" badge */}
+            {rest.length > 0 && (() => {
+              const badgeFontSize = Math.round(11 * scale);
+              const badgeText = `+${rest.length} more`;
+              const badgeW = badgeText.length * badgeFontSize * 0.6 + 12 * scale;
+              const badgeH = Math.round(20 * scale);
+              const badgeX = dims.w - badgeW - 8 * scale;
+              const badgeY = dims.h - badgeH - 8 * scale;
+              return (
+                <g>
+                  <rect x={badgeX} y={badgeY} width={badgeW} height={badgeH}
+                    fill="rgba(0,0,0,0.55)" rx={badgeH / 2} />
+                  <text x={badgeX + badgeW / 2} y={badgeY + badgeH * 0.72}
+                    fontSize={badgeFontSize} fill="white" fillOpacity="0.9"
+                    fontFamily="system-ui,-apple-system,sans-serif"
+                    fontWeight="600" textAnchor="middle">
+                    {badgeText}
+                  </text>
+                </g>
+              );
+            })()}
+          </svg>
+        );
+      })()}
     </>
   );
 }
