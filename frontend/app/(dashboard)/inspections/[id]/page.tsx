@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inspectionsApi, imagesApi, assetsApi, analysisApi } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 
@@ -260,6 +260,7 @@ export default function InspectionDetailPage() {
   const [editName, setEditName] = useState('');
   const [editingDate, setEditingDate] = useState(false);
   const [editDate, setEditDate] = useState('');
+  const [imageSort, setImageSort] = useState<'name' | 'detections' | 'severity'>('name');
 
   const deleteMutation = useMutation({
     mutationFn: () => inspectionsApi.delete(inspectionId),
@@ -349,6 +350,32 @@ export default function InspectionDetailPage() {
   ).filter(Boolean);
   const worstSeverity = allSeverities.sort().reverse()[0];
   const cleanCount = Object.values(analysisResults).filter((r: any) => r && !r.error && r.total_detections === 0).length;
+
+  const SEV_RANK: Record<string, number> = { S4: 0, S3: 1, S2: 2, S1: 3 };
+  const sortedImages = useMemo(() => {
+    const arr = [...images];
+    switch (imageSort) {
+      case 'name':
+        return arr.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true }));
+      case 'detections':
+        return arr.sort((a: any, b: any) => {
+          const da = analysisResults[a.id]?.total_detections ?? -1;
+          const db = analysisResults[b.id]?.total_detections ?? -1;
+          return db - da;
+        });
+      case 'severity': {
+        return arr.sort((a: any, b: any) => {
+          const ra = analysisResults[a.id];
+          const rb = analysisResults[b.id];
+          const worstA = (ra?.detections || []).reduce((w: number, d: any) => Math.min(w, SEV_RANK[d.severity] ?? 99), 99);
+          const worstB = (rb?.detections || []).reduce((w: number, d: any) => Math.min(w, SEV_RANK[d.severity] ?? 99), 99);
+          if (worstA !== worstB) return worstA - worstB;
+          return (rb?.total_detections ?? -1) - (ra?.total_detections ?? -1);
+        });
+      }
+      default: return arr;
+    }
+  }, [images, imageSort, analysisResults]);
 
   const currentImg = images.find((img: any) => img.id === selectedImage);
   const currentResult = currentImg ? analysisResults[currentImg.id] : null;
@@ -547,11 +574,23 @@ export default function InspectionDetailPage() {
           {/* Left: Thumbnail strip */}
           <div className="col-span-3">
             <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">{images.length} Images</h3>
+                <div className="relative">
+                  <select
+                    value={imageSort}
+                    onChange={e => setImageSort(e.target.value as any)}
+                    className="appearance-none text-[11px] font-semibold pl-6 pr-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors outline-none"
+                  >
+                    <option value="name">Name</option>
+                    <option value="detections">Most Issues</option>
+                    <option value="severity">Most Severe</option>
+                  </select>
+                  <ArrowUpDown size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
               </div>
               <div className="max-h-[calc(100vh-320px)] overflow-y-auto p-2 space-y-1.5">
-                {images.map((img: any) => {
+                {sortedImages.map((img: any) => {
                   const r = analysisResults[img.id];
                   const hasDetections = r && !r.error && r.total_detections > 0;
                   const isPendingLoad = loadingDetections && img.analysis_status === 'completed' && !r;
