@@ -105,18 +105,18 @@ function EnvPill({ icon, label, value, unit, color }: {
 }) {
   if (value == null) return null;
   return (
-    <div className="flex items-center gap-1 px-1.5 py-1 rounded-md"
-      style={{ background: color + '08', border: `1px solid ${color}18` }}>
-      <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 relative"
-        style={{ background: color + '18' }}>
+    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl"
+      style={{ background: color + '0A', border: `1px solid ${color}20` }}>
+      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 relative"
+        style={{ background: color + '15' }}>
         {icon}
-        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white" />
+        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-[1.5px] ring-white" />
       </div>
       <div className="leading-none">
-        <p className="text-[7px] font-bold uppercase tracking-wider" style={{ color: color }}>{label}</p>
-        <p className="text-[11px] font-black leading-tight whitespace-nowrap" style={{ color: TEAL }}>
+        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: color }}>{label}</p>
+        <p className="text-[14px] font-black leading-tight whitespace-nowrap" style={{ color: TEAL }}>
           {Number.isInteger(value) ? value : value.toFixed(1)}
-          <span className="text-[8px] font-semibold ml-0.5" style={{ color: '#6B9A87' }}>{unit}</span>
+          <span className="text-[10px] font-semibold ml-0.5" style={{ color: '#6B9A87' }}>{unit}</span>
         </p>
       </div>
     </div>
@@ -127,62 +127,56 @@ function EnvPill({ icon, label, value, unit, color }: {
 function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
   const Icon = INFRA_ICON[asset.infrastructure_type] || Building2;
   const typeColor = INFRA_COLOR[asset.infrastructure_type] || '#64748B';
-  const sev = asset.worst_severity;
-  const borderColor = sev === 'S3' ? '#EF4444' : sev === 'S2' ? '#F59E0B' : sev === 'S1' ? '#EAB308' : '#10B981';
   return (
     <Link href={`/assets/${asset.id}`}
-      className="interactive-row px-3 py-2.5 group border-l-[3px]"
-      style={{ borderLeftColor: borderColor }}>
-      <div className="flex items-center gap-2">
-        {/* Icon */}
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
-          <Icon size={14} style={{ color: typeColor }} />
-        </div>
-        {/* Name + meta */}
-        <div className="min-w-0 flex-shrink" style={{ flex: '0 1 auto', maxWidth: 200 }}>
-          <p className="text-[12px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
-            {asset.name}
-          </p>
-          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-            <span className="text-[10px] truncate" style={{ color: '#6B9A87' }}>
-              {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
-            </span>
-            {asset.total_detections > 0 ? (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
-                {asset.total_detections} det.
-              </span>
-            ) : (
-              <span className="text-[9px] font-bold px-1 py-0.5 rounded-full flex items-center gap-0.5 flex-shrink-0"
-                style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
-                <Shield size={8} /> Clean
-              </span>
-            )}
-            <SevBadge sev={asset.worst_severity} />
-          </div>
-        </div>
-        {/* Env metrics — pushed right */}
-        {env ? (
-          <div className="flex items-center gap-1 ml-auto flex-shrink-0">
-            <EnvPill icon={<Waves size={11} style={{ color: '#0891B2' }} />}
-              label="Sea Level" value={env.wave_height} unit="m" color="#0891B2" />
-            <EnvPill icon={<Activity size={11} style={{ color: '#6366F1' }} />}
-              label="Tidal" value={env.wave_period} unit="s" color="#6366F1" />
-            <EnvPill icon={<Thermometer size={11} style={{ color: '#EF4444' }} />}
-              label="Temp" value={env.temperature} unit="°F" color="#EF4444" />
-            <EnvPill icon={<Wind size={11} style={{ color: '#0EA5E9' }} />}
-              label="Wind" value={env.wind_speed}
-              unit={env.wind_direction != null ? `${windDirLabel(env.wind_direction)}` : 'mph'}
-              color="#0EA5E9" />
-          </div>
-        ) : (
-          <div className="ml-auto flex-shrink-0">
-            <ArrowRight size={13} style={{ color: '#C8E6D4' }}
-              className="group-hover:text-[#0891B2] group-hover:translate-x-0.5 transition-all" />
-          </div>
-        )}
+      className="interactive-row flex items-center gap-3 px-5 py-3.5 group"
+      style={{ borderBottom: '1px solid #EDF6F0' }}>
+      {/* Icon */}
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
+        <Icon size={16} style={{ color: typeColor }} />
       </div>
+      {/* Name + meta — takes up left half */}
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
+          {asset.name}
+        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className="text-[11px]" style={{ color: '#6B9A87' }}>
+            {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
+          </span>
+          {asset.total_detections > 0 ? (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+              style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
+              {asset.total_detections} det.
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 flex-shrink-0"
+              style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
+              <Shield size={9} /> Clean
+            </span>
+          )}
+          <SevBadge sev={asset.worst_severity} />
+        </div>
+      </div>
+      {/* Env metrics — right half */}
+      {env ? (
+        <div className="flex items-center gap-2 flex-shrink-0 mr-1">
+          <EnvPill icon={<Waves size={14} style={{ color: '#0891B2' }} />}
+            label="Sea Level" value={env.wave_height} unit="m" color="#0891B2" />
+          <EnvPill icon={<Activity size={14} style={{ color: '#6366F1' }} />}
+            label="Tidal" value={env.wave_period} unit="s" color="#6366F1" />
+          <EnvPill icon={<Thermometer size={14} style={{ color: '#EF4444' }} />}
+            label="Temp" value={env.temperature} unit="°F" color="#EF4444" />
+          <EnvPill icon={<Wind size={14} style={{ color: '#0EA5E9' }} />}
+            label="Wind" value={env.wind_speed}
+            unit={env.wind_direction != null ? `${windDirLabel(env.wind_direction)}` : 'mph'}
+            color="#0EA5E9" />
+        </div>
+      ) : (
+        <ArrowRight size={14} style={{ color: '#C8E6D4' }}
+          className="flex-shrink-0 group-hover:text-[#0891B2] group-hover:translate-x-0.5 transition-all" />
+      )}
     </Link>
   );
 }
@@ -672,7 +666,7 @@ export default function DashboardPage() {
               <Link href="/assets" className="text-[11px] font-bold" style={{ color: BRAND }}>Create one →</Link>
             </div>
           ) : (
-            <div className="divide-y overflow-y-auto" style={{ borderColor: '#EDF6F0', maxHeight: 300 }}>
+            <div>
               {assetHealth.map(a => <AssetRow key={a.id} asset={a} env={envAssets[a.id]} />)}
             </div>
           )}
