@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, environmentalApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, AlertTriangle, ImageIcon, ArrowRight,
   Wind, Waves, Train, Anchor, Shield, ChevronRight, ChevronLeft,
-  Activity, TrendingUp,
+  Activity, TrendingUp, Thermometer, Navigation, MapPin, Radio,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -445,6 +445,138 @@ function CarouselRow({ groups }: { groups: { asset_id: string; asset_name: strin
   );
 }
 
+/* ── Wind direction helper ── */
+function windDirLabel(deg: number | null | undefined): string {
+  if (deg == null) return '';
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+/* ── Environmental metric card ── */
+function EnvMetric({ icon, label, value, unit, color }: {
+  icon: React.ReactNode; label: string; value: number | null | undefined; unit: string; color: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ background: color + '15', border: `1px solid ${color}25` }}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#6B9A87' }}>{label}</p>
+        {value != null ? (
+          <p className="text-[15px] font-black leading-tight" style={{ color: TEAL }}>
+            {typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(1)) : value}
+            <span className="text-[10px] font-semibold ml-0.5" style={{ color: '#6B9A87' }}>{unit}</span>
+          </p>
+        ) : (
+          <p className="text-[11px] font-medium" style={{ color: '#C8E6D4' }}>--</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Live Conditions section ── */
+function LiveConditions({ assetHealth }: { assetHealth: DashboardAssetHealth[] }) {
+  const { data: envData, isLoading } = useQuery({
+    queryKey: ['environmental'],
+    queryFn: environmentalApi.getAssetData,
+    refetchInterval: 300_000, // 5 min
+    staleTime: 240_000,
+  });
+
+  const assets = envData?.assets || {};
+  const hasData = Object.keys(assets).length > 0;
+
+  if (isLoading) {
+    return (
+      <div className="interactive-card bg-white rounded-2xl shadow-sm p-6" style={{ border: '1px solid #C8E6D4' }}>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Live Conditions</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-24 rounded-xl animate-pulse" style={{ background: '#EDF6F0' }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasData) return null;
+
+  return (
+    <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #EDF6F0' }}>
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+          </span>
+          <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Live Conditions</h2>
+        </div>
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: '#EDF6F0', color: '#6B9A87' }}>
+          <Radio size={9} className="inline mr-1" style={{ color: '#10B981' }} />
+          Auto-refresh 5m
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x" style={{ borderColor: '#EDF6F0' }}>
+        {assetHealth.map(a => {
+          const env = assets[a.id];
+          if (!env) return null;
+          const Icon = INFRA_ICON[a.infrastructure_type] || Building2;
+          const typeColor = INFRA_COLOR[a.infrastructure_type] || '#64748B';
+          return (
+            <div key={a.id} className="p-4 space-y-3">
+              {/* Asset header */}
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+                  style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
+                  <Icon size={13} style={{ color: typeColor }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-bold truncate" style={{ color: TEAL }}>{a.name}</p>
+                  {env.location_name && (
+                    <p className="text-[10px] truncate flex items-center gap-0.5" style={{ color: '#9AB8AD' }}>
+                      <MapPin size={8} /> {env.location_name}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* 2x2 metrics grid */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <EnvMetric
+                  icon={<Waves size={14} style={{ color: '#0891B2' }} />}
+                  label="Sea Level" value={env.wave_height} unit="m" color="#0891B2"
+                />
+                <EnvMetric
+                  icon={<Activity size={14} style={{ color: '#6366F1' }} />}
+                  label="Tidal" value={env.wave_period} unit="s" color="#6366F1"
+                />
+                <EnvMetric
+                  icon={<Thermometer size={14} style={{ color: '#EF4444' }} />}
+                  label="Temp" value={env.temperature} unit="°F" color="#EF4444"
+                />
+                <EnvMetric
+                  icon={<Wind size={14} style={{ color: '#0EA5E9' }} />}
+                  label="Wind" value={env.wind_speed}
+                  unit={env.wind_direction != null ? `mph ${windDirLabel(env.wind_direction)}` : 'mph'}
+                  color="#0EA5E9"
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ── */
 export default function DashboardPage() {
   const { data, isLoading } = useQuery({
@@ -604,6 +736,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Live Environmental Conditions */}
+      <LiveConditions assetHealth={assetHealth} />
 
       {/* Asset image carousels - ALL assets */}
       {carouselGroups.length > 0 ? (

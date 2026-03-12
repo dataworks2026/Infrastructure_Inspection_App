@@ -74,6 +74,11 @@ export const imagesApi = {
   gpsPoints: () => api.get('/images/gps-points').then(r => r.data),
 };
 
+// Environmental (live conditions)
+export const environmentalApi = {
+  getAssetData: () => api.get('/environmental/assets').then(r => r.data),
+};
+
 // Analysis
 export const analysisApi = {
   analyze: (imageId: string) =>
