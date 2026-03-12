@@ -6,7 +6,7 @@ import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, AlertTriangle, ImageIcon, ArrowRight,
   Wind, Waves, Train, Anchor, Shield, ChevronRight, ChevronLeft,
-  Activity, TrendingUp, Thermometer, Navigation, MapPin, Radio,
+  Activity, TrendingUp, Thermometer,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -88,45 +88,77 @@ function KPICard({ label, value, sub, icon, accentColor }: {
   );
 }
 
-/* ── Asset health row ── */
-function AssetRow({ asset }: { asset: DashboardAssetHealth }) {
+/* ── Wind direction helper ── */
+function windDirLabel(deg: number | null | undefined): string {
+  if (deg == null) return '';
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+/* ── Compact env metric (inline) ── */
+function EnvChip({ icon, value, unit }: { icon: React.ReactNode; value: number | null | undefined; unit: string }) {
+  if (value == null) return null;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold" style={{ color: '#6B9A87' }}>
+      {icon}
+      <span className="font-bold" style={{ color: TEAL }}>{Number.isInteger(value) ? value : value.toFixed(1)}</span>
+      <span className="font-normal">{unit}</span>
+    </span>
+  );
+}
+
+/* ── Asset health row (with live env data) ── */
+function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
   const Icon = INFRA_ICON[asset.infrastructure_type] || Building2;
   const typeColor = INFRA_COLOR[asset.infrastructure_type] || '#64748B';
   const sev = asset.worst_severity;
   const borderColor = sev === 'S3' ? '#EF4444' : sev === 'S2' ? '#F59E0B' : sev === 'S1' ? '#EAB308' : '#10B981';
   return (
     <Link href={`/assets/${asset.id}`}
-      className="interactive-row flex items-center gap-3 px-4 py-3 group border-l-[3px]"
+      className="interactive-row flex flex-col gap-1.5 px-4 py-3 group border-l-[3px]"
       style={{ borderLeftColor: borderColor }}>
-      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
-        <Icon size={15} style={{ color: typeColor }} />
+      {/* Top row: name + badges */}
+      <div className="flex items-center gap-3">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
+          <Icon size={15} style={{ color: typeColor }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
+            {asset.name}
+          </p>
+          <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
+            {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
+            {' · '}{asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {asset.total_detections > 0 ? (
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
+              {asset.total_detections} det.
+            </span>
+          ) : (
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+              style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
+              <Shield size={11} /> Clean
+            </span>
+          )}
+          <SevBadge sev={asset.worst_severity} />
+          <ArrowRight size={13} style={{ color: '#C8E6D4' }}
+            className="group-hover:text-[#0891B2] group-hover:translate-x-0.5 transition-all" />
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
-          {asset.name}
-        </p>
-        <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
-          {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
-          {' · '}{asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
-        </p>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {asset.total_detections > 0 ? (
-          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-            style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
-            {asset.total_detections} det.
-          </span>
-        ) : (
-          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
-            style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
-            <Shield size={11} /> Clean
-          </span>
-        )}
-        <SevBadge sev={asset.worst_severity} />
-        <ArrowRight size={13} style={{ color: '#C8E6D4' }}
-          className="group-hover:text-[#0891B2] group-hover:translate-x-0.5 transition-all" />
-      </div>
+      {/* Bottom row: live env metrics */}
+      {env && (
+        <div className="flex items-center gap-3 ml-10 flex-wrap">
+          <EnvChip icon={<Waves size={10} style={{ color: '#0891B2' }} />} value={env.wave_height} unit="m" />
+          <EnvChip icon={<Activity size={10} style={{ color: '#6366F1' }} />} value={env.wave_period} unit="s" />
+          <EnvChip icon={<Thermometer size={10} style={{ color: '#EF4444' }} />} value={env.temperature} unit="°F" />
+          <EnvChip icon={<Wind size={10} style={{ color: '#0EA5E9' }} />} value={env.wind_speed}
+            unit={env.wind_direction != null ? `mph ${windDirLabel(env.wind_direction)}` : 'mph'} />
+        </div>
+      )}
     </Link>
   );
 }
@@ -484,138 +516,6 @@ function CarouselRow({ groups }: { groups: { asset_id: string; asset_name: strin
   );
 }
 
-/* ── Wind direction helper ── */
-function windDirLabel(deg: number | null | undefined): string {
-  if (deg == null) return '';
-  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
-  return dirs[Math.round(deg / 45) % 8];
-}
-
-/* ── Environmental metric card ── */
-function EnvMetric({ icon, label, value, unit, color }: {
-  icon: React.ReactNode; label: string; value: number | null | undefined; unit: string; color: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 min-w-0">
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: color + '15', border: `1px solid ${color}25` }}>
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#6B9A87' }}>{label}</p>
-        {value != null ? (
-          <p className="text-[15px] font-black leading-tight" style={{ color: TEAL }}>
-            {typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(1)) : value}
-            <span className="text-[10px] font-semibold ml-0.5" style={{ color: '#6B9A87' }}>{unit}</span>
-          </p>
-        ) : (
-          <p className="text-[11px] font-medium" style={{ color: '#C8E6D4' }}>--</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── Live Conditions section ── */
-function LiveConditions({ assetHealth }: { assetHealth: DashboardAssetHealth[] }) {
-  const { data: envData, isLoading } = useQuery({
-    queryKey: ['environmental'],
-    queryFn: environmentalApi.getAssetData,
-    refetchInterval: 300_000, // 5 min
-    staleTime: 240_000,
-  });
-
-  const assets = envData?.assets || {};
-  const hasData = Object.keys(assets).length > 0;
-
-  if (isLoading) {
-    return (
-      <div className="interactive-card bg-white rounded-2xl shadow-sm p-6" style={{ border: '1px solid #C8E6D4' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Live Conditions</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-24 rounded-xl animate-pulse" style={{ background: '#EDF6F0' }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasData) return null;
-
-  return (
-    <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #EDF6F0' }}>
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-          </span>
-          <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Live Conditions</h2>
-        </div>
-        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-          style={{ background: '#EDF6F0', color: '#6B9A87' }}>
-          <Radio size={9} className="inline mr-1" style={{ color: '#10B981' }} />
-          Auto-refresh 5m
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x" style={{ borderColor: '#EDF6F0' }}>
-        {assetHealth.map(a => {
-          const env = assets[a.id];
-          if (!env) return null;
-          const Icon = INFRA_ICON[a.infrastructure_type] || Building2;
-          const typeColor = INFRA_COLOR[a.infrastructure_type] || '#64748B';
-          return (
-            <div key={a.id} className="p-4 space-y-3">
-              {/* Asset header */}
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-                  style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
-                  <Icon size={13} style={{ color: typeColor }} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[12px] font-bold truncate" style={{ color: TEAL }}>{a.name}</p>
-                  {env.location_name && (
-                    <p className="text-[10px] truncate flex items-center gap-0.5" style={{ color: '#9AB8AD' }}>
-                      <MapPin size={8} /> {env.location_name}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* 2x2 metrics grid */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <EnvMetric
-                  icon={<Waves size={14} style={{ color: '#0891B2' }} />}
-                  label="Sea Level" value={env.wave_height} unit="m" color="#0891B2"
-                />
-                <EnvMetric
-                  icon={<Activity size={14} style={{ color: '#6366F1' }} />}
-                  label="Tidal" value={env.wave_period} unit="s" color="#6366F1"
-                />
-                <EnvMetric
-                  icon={<Thermometer size={14} style={{ color: '#EF4444' }} />}
-                  label="Temp" value={env.temperature} unit="°F" color="#EF4444"
-                />
-                <EnvMetric
-                  icon={<Wind size={14} style={{ color: '#0EA5E9' }} />}
-                  label="Wind" value={env.wind_speed}
-                  unit={env.wind_direction != null ? `mph ${windDirLabel(env.wind_direction)}` : 'mph'}
-                  color="#0EA5E9"
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /* ── Main page ── */
 export default function DashboardPage() {
   const { data, isLoading } = useQuery({
@@ -623,6 +523,14 @@ export default function DashboardPage() {
     queryFn: dashboardApi.overview,
     refetchInterval: 120_000,
   });
+
+  const { data: envData } = useQuery({
+    queryKey: ['environmental'],
+    queryFn: environmentalApi.getAssetData,
+    refetchInterval: 300_000,
+    staleTime: 240_000,
+  });
+  const envAssets = envData?.assets || {};
 
   const images = data?.recent_analyzed_images || [];
   const assetHealth = data?.asset_health || [];
@@ -723,7 +631,19 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
           <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid #EDF6F0' }}>
-            <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Asset Health</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Asset Health</h2>
+              {Object.keys(envAssets).length > 0 && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                  </span>
+                  LIVE
+                </span>
+              )}
+            </div>
             <Link href="/assets" className="interactive-link text-[11px] font-bold flex items-center gap-1"
               style={{ color: BRAND }}>
               View all <ArrowRight size={10} />
@@ -736,8 +656,8 @@ export default function DashboardPage() {
               <Link href="/assets" className="text-[11px] font-bold" style={{ color: BRAND }}>Create one →</Link>
             </div>
           ) : (
-            <div className="divide-y overflow-y-auto" style={{ borderColor: '#EDF6F0', maxHeight: 260 }}>
-              {assetHealth.map(a => <AssetRow key={a.id} asset={a} />)}
+            <div className="divide-y overflow-y-auto" style={{ borderColor: '#EDF6F0', maxHeight: 340 }}>
+              {assetHealth.map(a => <AssetRow key={a.id} asset={a} env={envAssets[a.id]} />)}
             </div>
           )}
         </div>
@@ -775,9 +695,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      {/* Live Environmental Conditions */}
-      <LiveConditions assetHealth={assetHealth} />
 
       {/* Asset image carousels - ALL assets */}
       {carouselGroups.length > 0 ? (
