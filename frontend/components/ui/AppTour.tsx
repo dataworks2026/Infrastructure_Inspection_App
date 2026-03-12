@@ -78,13 +78,13 @@ const STEPS: TourStep[] = [
   },
   /* 5 — Map */
   {
-    target: '[data-tour="map-view"]',
+    target: null,
     route: '/map',
     title: 'Explore the Map',
     subtitle: 'Interactive Map',
     description: 'Visualize all your assets on a live map. Toggle photo overlays, filter by infrastructure type, and click assets to see inspection details.',
     icon: Map,
-    placement: 'top',
+    placement: 'center',
     hint: 'Toggle the Photos button to see GPS-tagged imagery',
   },
   /* 6 — Done */
