@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { dashboardApi, environmentalApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, AlertTriangle, ImageIcon, ArrowRight,
   Wind, Waves, Train, Anchor, Shield, ChevronRight, ChevronLeft,
-  Activity, TrendingUp, Thermometer,
+  Activity, TrendingUp, Thermometer, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -95,15 +95,26 @@ function windDirLabel(deg: number | null | undefined): string {
   return dirs[Math.round(deg / 45) % 8];
 }
 
-/* ── Compact env metric (inline) ── */
-function EnvChip({ icon, value, unit }: { icon: React.ReactNode; value: number | null | undefined; unit: string }) {
+/* ── Env metric pill ── */
+function EnvPill({ icon, label, value, unit, color }: {
+  icon: React.ReactNode; label: string; value: number | null | undefined; unit: string; color: string;
+}) {
   if (value == null) return null;
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold" style={{ color: '#6B9A87' }}>
-      {icon}
-      <span className="font-bold" style={{ color: TEAL }}>{Number.isInteger(value) ? value : value.toFixed(1)}</span>
-      <span className="font-normal">{unit}</span>
-    </span>
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+      style={{ background: color + '0A', border: `1px solid ${color}20` }}>
+      <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
+        style={{ background: color + '18' }}>
+        {icon}
+      </div>
+      <div className="leading-none">
+        <p className="text-[8px] font-bold uppercase tracking-wider" style={{ color: color }}>{label}</p>
+        <p className="text-[12px] font-black leading-tight" style={{ color: TEAL }}>
+          {Number.isInteger(value) ? value : value.toFixed(1)}
+          <span className="text-[9px] font-semibold ml-0.5" style={{ color: '#6B9A87' }}>{unit}</span>
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -115,50 +126,58 @@ function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
   const borderColor = sev === 'S3' ? '#EF4444' : sev === 'S2' ? '#F59E0B' : sev === 'S1' ? '#EAB308' : '#10B981';
   return (
     <Link href={`/assets/${asset.id}`}
-      className="interactive-row flex flex-col gap-1.5 px-4 py-3 group border-l-[3px]"
+      className="interactive-row px-4 py-3 group border-l-[3px]"
       style={{ borderLeftColor: borderColor }}>
-      {/* Top row: name + badges */}
+      {/* Main row */}
       <div className="flex items-center gap-3">
         <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
           <Icon size={15} style={{ color: typeColor }} />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0" style={{ minWidth: 120 }}>
           <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
             {asset.name}
           </p>
-          <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
-            {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
-            {' · '}{asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {asset.total_detections > 0 ? (
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
-              {asset.total_detections} det.
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
+              {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
+              {' · '}{asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
             </span>
-          ) : (
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
-              style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
-              <Shield size={11} /> Clean
-            </span>
-          )}
-          <SevBadge sev={asset.worst_severity} />
-          <ArrowRight size={13} style={{ color: '#C8E6D4' }}
-            className="group-hover:text-[#0891B2] group-hover:translate-x-0.5 transition-all" />
+            {asset.total_detections > 0 ? (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                style={{ background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' }}>
+                {asset.total_detections} det.
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 flex-shrink-0"
+                style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
+                <Shield size={9} /> Clean
+              </span>
+            )}
+            <SevBadge sev={asset.worst_severity} />
+          </div>
         </div>
+        {/* Env metrics on the right */}
+        {env ? (
+          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+            <EnvPill icon={<Waves size={12} style={{ color: '#0891B2' }} />}
+              label="Sea Level" value={env.wave_height} unit="m" color="#0891B2" />
+            <EnvPill icon={<Activity size={12} style={{ color: '#6366F1' }} />}
+              label="Tidal" value={env.wave_period} unit="s" color="#6366F1" />
+            <EnvPill icon={<Thermometer size={12} style={{ color: '#EF4444' }} />}
+              label="Temp" value={env.temperature} unit="°F" color="#EF4444" />
+            <EnvPill icon={<Wind size={12} style={{ color: '#0EA5E9' }} />}
+              label="Wind" value={env.wind_speed}
+              unit={env.wind_direction != null ? `${windDirLabel(env.wind_direction)}` : 'mph'}
+              color="#0EA5E9" />
+          </div>
+        ) : (
+          <div className="ml-auto flex-shrink-0">
+            <ArrowRight size={13} style={{ color: '#C8E6D4' }}
+              className="group-hover:text-[#0891B2] group-hover:translate-x-0.5 transition-all" />
+          </div>
+        )}
       </div>
-      {/* Bottom row: live env metrics */}
-      {env && (
-        <div className="flex items-center gap-3 ml-10 flex-wrap">
-          <EnvChip icon={<Waves size={10} style={{ color: '#0891B2' }} />} value={env.wave_height} unit="m" />
-          <EnvChip icon={<Activity size={10} style={{ color: '#6366F1' }} />} value={env.wave_period} unit="s" />
-          <EnvChip icon={<Thermometer size={10} style={{ color: '#EF4444' }} />} value={env.temperature} unit="°F" />
-          <EnvChip icon={<Wind size={10} style={{ color: '#0EA5E9' }} />} value={env.wind_speed}
-            unit={env.wind_direction != null ? `mph ${windDirLabel(env.wind_direction)}` : 'mph'} />
-        </div>
-      )}
     </Link>
   );
 }
@@ -524,7 +543,8 @@ export default function DashboardPage() {
     refetchInterval: 120_000,
   });
 
-  const { data: envData } = useQuery({
+  const queryClient = useQueryClient();
+  const { data: envData, isFetching: envFetching } = useQuery({
     queryKey: ['environmental'],
     queryFn: environmentalApi.getAssetData,
     refetchInterval: 300_000,
@@ -644,10 +664,22 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
-            <Link href="/assets" className="interactive-link text-[11px] font-bold flex items-center gap-1"
-              style={{ color: BRAND }}>
-              View all <ArrowRight size={10} />
-            </Link>
+            <div className="flex items-center gap-2">
+              {Object.keys(envAssets).length > 0 && (
+                <button
+                  onClick={(e) => { e.preventDefault(); queryClient.invalidateQueries({ queryKey: ['environmental'] }); }}
+                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all hover:scale-105"
+                  style={{ background: '#EDF6F0', color: '#6B9A87', border: '1px solid #C8E6D4' }}
+                  title="Refresh live conditions">
+                  <RefreshCw size={10} className={envFetching ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              )}
+              <Link href="/assets" className="interactive-link text-[11px] font-bold flex items-center gap-1"
+                style={{ color: BRAND }}>
+                View all <ArrowRight size={10} />
+              </Link>
+            </div>
           </div>
           {assetHealth.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2 flex-1">
@@ -656,7 +688,7 @@ export default function DashboardPage() {
               <Link href="/assets" className="text-[11px] font-bold" style={{ color: BRAND }}>Create one →</Link>
             </div>
           ) : (
-            <div className="divide-y overflow-y-auto" style={{ borderColor: '#EDF6F0', maxHeight: 340 }}>
+            <div className="divide-y overflow-y-auto" style={{ borderColor: '#EDF6F0', maxHeight: 300 }}>
               {assetHealth.map(a => <AssetRow key={a.id} asset={a} env={envAssets[a.id]} />)}
             </div>
           )}
