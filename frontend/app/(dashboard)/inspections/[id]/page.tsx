@@ -54,12 +54,12 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
   return (
-    <div className={`relative cursor-pointer group ${fitScreen ? 'h-full flex items-center justify-center' : 'w-full'}`} onClick={onClick}>
+    <div className={`relative cursor-pointer group ${fitScreen ? 'inline-block max-h-full max-w-full' : 'w-full'}`} onClick={onClick}>
       <img
         src={imageUrl}
         alt="AI Analysis"
         className={fitScreen
-          ? 'max-h-full max-w-full object-contain rounded-lg block'
+          ? 'block max-h-[calc(100vh-160px)] max-w-full object-contain rounded-lg'
           : 'w-full rounded-lg border border-slate-200 block'}
         onLoad={(e) => {
           const img = e.currentTarget;
@@ -212,7 +212,7 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center relative px-16 py-4" onClick={e => e.stopPropagation()}>
+      <div className="flex-1 min-h-0 flex items-center justify-center relative px-16 py-4 overflow-hidden" onClick={e => e.stopPropagation()}>
         {images.length > 1 && (
           <>
             <button onClick={goPrev} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all">
