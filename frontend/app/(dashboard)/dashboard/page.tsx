@@ -36,14 +36,10 @@ function getDamageColor(damageType: string) {
 }
 
 const SEV: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  '4': { color: '#B71C1C', bg: '#FEF2F2', border: '#FECACA', label: 'Severe'   },
-  '3': { color: '#FF7043', bg: '#FFF3E0', border: '#FFCCBC', label: 'Advanced' },
-  '2': { color: '#E6A817', bg: '#FFFBEB', border: '#FDE68A', label: 'Moderate' },
-  '1': { color: '#4CAF50', bg: '#F0FDF4', border: '#BBF7D0', label: 'Minor'    },
-  S3:  { color: '#FF7043', bg: '#FFF3E0', border: '#FFCCBC', label: 'Advanced' },
-  S2:  { color: '#E6A817', bg: '#FFFBEB', border: '#FDE68A', label: 'Moderate' },
-  S1:  { color: '#4CAF50', bg: '#F0FDF4', border: '#BBF7D0', label: 'Minor'    },
-  S0:  { color: '#4CAF50', bg: '#F0FDF4', border: '#BBF7D0', label: 'Minor'    },
+  S4: { color: '#B71C1C', bg: '#FEF2F2', border: '#FECACA', label: 'Severe'   },
+  S3: { color: '#FF7043', bg: '#FFF3E0', border: '#FFCCBC', label: 'Advanced' },
+  S2: { color: '#E6A817', bg: '#FFFBEB', border: '#FDE68A', label: 'Moderate' },
+  S1: { color: '#4CAF50', bg: '#F0FDF4', border: '#BBF7D0', label: 'Minor'    },
 };
 
 const INFRA_ICON: Record<string, React.ElementType> = {
@@ -63,7 +59,7 @@ function SevBadge({ sev }: { sev: string | null }) {
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
       style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-      {s.label}
+      {sev} {s.label}
     </span>
   );
 }
@@ -203,7 +199,6 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
         }}
       />
       {dims && dets.length > 0 && (() => {
-        const SEV_LABEL: Record<string,string> = { '1':'1-Minor', '2':'2-Moderate', '3':'3-Advanced', '4':'4-Severe', S0:'1-Minor', S1:'1-Minor', S2:'2-Moderate', S3:'3-Advanced', S4:'4-Severe' };
         const visible = dets.filter((d: any) => d.confidence >= 0.20);
         const scale = dims.w / 700;
         const strokeW = Math.max(2, 2.5 * scale);
@@ -214,17 +209,14 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
         const labels = visible.map((d: any) => {
           const { x1, y1, x2, y2 } = d.bbox;
           const conf = d.confidence;
-          const sevText = d.severity ? (SEV_LABEL[d.severity] || d.severity) : '';
-          const mainLabel = sevText ? `${sevText} · ${d.damage_type}` : d.damage_type;
-          const confLabel = `${(conf * 100).toFixed(0)}%`;
+          const sev = d.severity || '';
+          const mainLabel = sev ? `${sev} ${d.damage_type}` : d.damage_type;
           const mainFontSize = Math.round(13 * scale);
-          const confFontSize = Math.round(10 * scale);
           const mainCharW = mainFontSize * 0.58;
-          const confCharW = confFontSize * 0.52;
-          const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
+          const labelW = mainLabel.length * mainCharW + labelPad * 2;
           let labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
           const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
-          return { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH, labelX, labelY };
+          return { d, mainLabel, mainFontSize, mainCharW, labelW, labelH, labelX, labelY };
         });
         // Nudge overlapping labels
         for (let i = 0; i < labels.length; i++) {
@@ -245,17 +237,18 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
             className="absolute inset-0 w-full h-full pointer-events-none"
           >
             {labels.map((l, i) => {
-              const { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH: lH, labelX, labelY } = l;
+              const { d, mainLabel, mainFontSize, labelW, labelH: lH, labelX, labelY } = l;
               const cfg = getDamageColor(d.damage_type);
               const { x1, y1, x2, y2 } = d.bbox;
               const bw = x2 - x1;
               const bh = y2 - y1;
               const conf = d.confidence;
-              const c2 = conf * conf;
-              const fillOp = 0.02 + c2 * 0.13;
-              const strokeOp = 0.15 + c2 * 0.8;
-              const cornerOp = 0.15 + c2 * 0.85;
-              const labelBgOp = 0.3 + c2 * 0.65;
+              // >50% = bold & visible, <50% = faint
+              const hi = conf >= 0.5;
+              const fillOp = hi ? 0.12 : 0.04;
+              const strokeOp = hi ? 0.9 : 0.3;
+              const cornerOp = hi ? 0.95 : 0.35;
+              const labelBgOp = hi ? 0.85 : 0.45;
 
               return (
                 <g key={i}>
@@ -277,12 +270,6 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
                     fontFamily="system-ui,-apple-system,sans-serif"
                     fontWeight="700" letterSpacing="0.2">
                     {mainLabel}
-                  </text>
-                  <text x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5} y={labelY + lH * 0.72}
-                    fontSize={confFontSize} fill="white" fillOpacity="0.7"
-                    fontFamily="system-ui,-apple-system,sans-serif"
-                    fontWeight="500">
-                    {confLabel}
                   </text>
                 </g>
               );
@@ -582,9 +569,16 @@ export default function DashboardPage() {
 
   const sevBreakdown = data?.severity_breakdown || {};
 
-  const sevDonut = Object.entries(sevBreakdown).map(([k, v]) => ({
-    name: `${k} ${SEV[k]?.label || k}`, value: v as number, color: SEV[k]?.color || '#64748B',
-  }));
+  // Normalize old S0 → S1, old numeric 1→S1 etc, then merge counts
+  const SEV_NORM: Record<string,string> = { S0:'S1', '1':'S1', '2':'S2', '3':'S3', '4':'S4', S1:'S1', S2:'S2', S3:'S3', S4:'S4' };
+  const mergedSev: Record<string,number> = {};
+  Object.entries(sevBreakdown).forEach(([k, v]) => {
+    const nk = SEV_NORM[k] || k;
+    mergedSev[nk] = (mergedSev[nk] || 0) + (v as number);
+  });
+  const sevDonut = Object.entries(mergedSev).map(([k, v]) => ({
+    name: `${k} ${SEV[k]?.label || ''}`.trim(), value: v, color: SEV[k]?.color || '#64748B',
+  })).sort((a, b) => b.value - a.value);
 
   const tooltipStyle = {
     contentStyle: { background: '#FFFFFF', border: '1px solid #C8E6D4', borderRadius: 10, fontSize: 12 },

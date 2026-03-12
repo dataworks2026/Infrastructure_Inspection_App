@@ -140,12 +140,12 @@ export default function UploadPage() {
                       <span className="font-semibold text-slate-700">{d.damage_type}</span>
                       <span className="text-slate-400">{(d.confidence * 100).toFixed(0)}%</span>
                       {d.severity && <span className={`px-2 py-0.5 rounded-md font-semibold ${
-                        ['1','S0','S1'].includes(d.severity) ? 'bg-emerald-50 text-emerald-700' :
-                        ['2','S2'].includes(d.severity) ? 'bg-amber-50 text-amber-700' :
-                        ['3','S3'].includes(d.severity) ? 'bg-orange-50 text-orange-700' :
-                        ['4','S4'].includes(d.severity) ? 'bg-red-50 text-red-700' :
+                        d.severity === 'S1' ? 'bg-emerald-50 text-emerald-700' :
+                        d.severity === 'S2' ? 'bg-amber-50 text-amber-700' :
+                        d.severity === 'S3' ? 'bg-orange-50 text-orange-700' :
+                        d.severity === 'S4' ? 'bg-red-50 text-red-700' :
                         'bg-purple-50 text-purple-700'
-                      }`}>{{ '1':'1-Minor','2':'2-Moderate','3':'3-Advanced','4':'4-Severe',S0:'1-Minor',S1:'1-Minor',S2:'2-Moderate',S3:'3-Advanced' }[d.severity] || d.severity}</span>}
+                      }`}>{d.severity}</span>}
                     </div>
                   ))}
                 </div>

@@ -34,7 +34,7 @@ export default function LoginPage() {
 
   const features = [
     { icon: Cpu, title: 'YOLO Detection', desc: 'Computer vision on imagery' },
-    { icon: SearchCheck, title: 'S0\u2013S3 Severity', desc: 'Auto severity classification' },
+    { icon: SearchCheck, title: 'S1\u2013S4 Severity', desc: 'Auto severity classification' },
     { icon: BarChart3, title: 'Fleet Dashboard', desc: 'Live critical alert monitoring' },
     { icon: FileText, title: 'Compliance Reports', desc: 'One-click report export' },
   ];

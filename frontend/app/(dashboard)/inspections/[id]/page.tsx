@@ -10,11 +10,10 @@ import { useToast } from '@/components/ui/Toast';
 
 // ─── Severity ───────────────────────────────────────────────────────────────
 const severityConfig: Record<string, { label: string; color: string; bg: string }> = {
-  S0: { label: 'None',     color: 'text-emerald-700', bg: 'bg-emerald-50'  },
-  S1: { label: 'Minor',    color: 'text-lime-700',    bg: 'bg-lime-50'     },
+  S1: { label: 'Minor',    color: 'text-emerald-700', bg: 'bg-emerald-50'  },
   S2: { label: 'Moderate', color: 'text-amber-700',   bg: 'bg-amber-50'    },
-  S3: { label: 'Severe',   color: 'text-red-700',     bg: 'bg-red-50'      },
-  S4: { label: 'Critical', color: 'text-purple-700',  bg: 'bg-purple-50'   },
+  S3: { label: 'Advanced', color: 'text-orange-700',  bg: 'bg-orange-50'   },
+  S4: { label: 'Severe',   color: 'text-red-700',     bg: 'bg-red-50'      },
 };
 
 function SeverityBadge({ severity, size = 'sm' }: { severity: string; size?: 'sm' | 'lg' }) {
@@ -73,28 +72,22 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
           className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
         >
           {(() => {
-            const SEV_LABEL: Record<string,string> = { '1':'1-Minor', '2':'2-Moderate', '3':'3-Advanced', '4':'4-Severe', S0:'1-Minor', S1:'1-Minor', S2:'2-Moderate', S3:'3-Advanced', S4:'4-Severe' };
             const visible = detections.filter((d: any) => d.confidence >= 0.20);
             const scale = dims.w / 700;
             const strokeW = Math.max(2, 2.5 * scale);
             const labelH = Math.round(22 * scale);
             const labelPad = Math.round(6 * scale);
 
-            // Pre-compute label positions
             const labels = visible.map((d: any) => {
               const { x1, y1, x2, y2 } = d.bbox;
-              const conf = d.confidence;
-              const sevText = d.severity ? (SEV_LABEL[d.severity] || d.severity) : '';
-              const mainLabel = sevText ? `${sevText} · ${d.damage_type}` : d.damage_type;
-              const confLabel = `${(conf * 100).toFixed(0)}%`;
+              const sev = d.severity || '';
+              const mainLabel = sev ? `${sev} ${d.damage_type}` : d.damage_type;
               const mainFontSize = Math.round(13 * scale);
-              const confFontSize = Math.round(10 * scale);
               const mainCharW = mainFontSize * 0.58;
-              const confCharW = confFontSize * 0.52;
-              const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
+              const labelW = mainLabel.length * mainCharW + labelPad * 2;
               let labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
               const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
-              return { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH, labelX, labelY };
+              return { d, mainLabel, mainFontSize, labelW, labelH, labelX, labelY };
             });
             // Nudge overlapping labels
             for (let i = 0; i < labels.length; i++) {
@@ -109,17 +102,17 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
             }
 
             return labels.map((l, i) => {
-              const { d, mainLabel, confLabel, mainFontSize, confFontSize, mainCharW, labelW, labelH: lH, labelX, labelY } = l;
+              const { d, mainLabel, mainFontSize, labelW, labelH: lH, labelX, labelY } = l;
               const cfg = getDamageConfig(d.damage_type);
               const { x1, y1, x2, y2 } = d.bbox;
               const bw = x2 - x1;
               const bh = y2 - y1;
               const conf = d.confidence;
-              const c2 = conf * conf;
-              const fillOp = 0.02 + c2 * 0.13;
-              const strokeOp = 0.15 + c2 * 0.8;
-              const cornerOp = 0.15 + c2 * 0.85;
-              const labelBgOp = 0.3 + c2 * 0.65;
+              const hi = conf >= 0.5;
+              const fillOp = hi ? 0.12 : 0.04;
+              const strokeOp = hi ? 0.9 : 0.3;
+              const cornerOp = hi ? 0.95 : 0.35;
+              const labelBgOp = hi ? 0.85 : 0.45;
 
               return (
                 <g key={i}>
@@ -136,25 +129,11 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
                     fill="rgba(0,0,0,0.25)" rx={4 * scale} />
                   <rect x={labelX} y={labelY} width={labelW} height={lH}
                     fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
-                  <text
-                    x={labelX + labelPad}
-                    y={labelY + lH * 0.72}
-                    fontSize={mainFontSize}
-                    fill="white"
+                  <text x={labelX + labelPad} y={labelY + lH * 0.72}
+                    fontSize={mainFontSize} fill="white"
                     fontFamily="system-ui,-apple-system,sans-serif"
-                    fontWeight="700"
-                    letterSpacing="0.2">
+                    fontWeight="700" letterSpacing="0.2">
                     {mainLabel}
-                  </text>
-                  <text
-                    x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5}
-                    y={labelY + lH * 0.72}
-                    fontSize={confFontSize}
-                    fill="white"
-                    fillOpacity="0.7"
-                    fontFamily="system-ui,-apple-system,sans-serif"
-                    fontWeight="500">
-                    {confLabel}
                   </text>
                 </g>
               );
