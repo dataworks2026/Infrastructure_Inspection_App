@@ -610,7 +610,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div data-tour="dashboard-kpis" className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <KPICard label="Active Assets" value={data?.active_assets ?? 0}
           sub={`${data?.total_assets ?? 0} total`} icon={<Building2 size={17} />} accentColor={BRAND} />
         <KPICard label="Total Detections" value={data?.total_detections ?? 0}
@@ -620,7 +620,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Two-column: Asset Health + Severity Donut */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div data-tour="dashboard-health" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
           <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid #EDF6F0' }}>
             <div className="flex items-center gap-2">

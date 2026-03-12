@@ -185,7 +185,7 @@ export default function UploadPage() {
         <p className="text-base text-slate-500 mt-1">Upload images for AI-powered damage analysis</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl space-y-6">
+      <form onSubmit={handleSubmit} data-tour="upload-form" className="max-w-3xl space-y-6">
         {/* Inspection Details */}
         <div className="bg-white rounded-xl p-6 shadow-sm space-y-4" style={{ border: '1px solid #C8E6D4' }}>
           <h2 className="text-base font-bold uppercase tracking-wider" style={{ color: TEAL }}>Inspection Details</h2>

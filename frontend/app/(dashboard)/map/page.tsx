@@ -105,7 +105,7 @@ export default function MapPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: '#082E29' }}>Map</h1>
         <p className="text-sm sm:text-base text-slate-500 mt-1">Asset locations and inspection imagery</p>
       </div>
-      <div className="h-[calc(100vh-160px)] lg:h-[calc(100vh-120px)] flex flex-col -mb-10 relative rounded-xl overflow-hidden">
+      <div data-tour="map-view" className="h-[calc(100vh-160px)] lg:h-[calc(100vh-120px)] flex flex-col -mb-10 relative rounded-xl overflow-hidden">
 
       {/* Floating top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">

@@ -109,7 +109,7 @@ export default function AssetsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
+      <div data-tour="assets-header" className="flex items-center justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: TEAL }}>Assets</h1>
           <p className="text-sm sm:text-base text-slate-500 mt-1">Infrastructure assets under inspection</p>

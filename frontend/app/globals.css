@@ -250,10 +250,10 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ═══════════════════════════════════════
-   App Tour / Walkthrough
+   App Tour / Walkthrough — Story-driven
    ═══════════════════════════════════════ */
 
-/* Overlay fade */
+/* Overlay fade — FAST */
 @keyframes tour-fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -263,8 +263,8 @@ input:focus, select:focus, textarea:focus {
   to   { opacity: 0; }
 }
 .tour-overlay { pointer-events: auto; }
-.tour-fade-in  { animation: tour-fade-in  0.35s ease forwards; }
-.tour-fade-out { animation: tour-fade-out 0.3s ease forwards; }
+.tour-fade-in  { animation: tour-fade-in  0.2s ease forwards; }
+.tour-fade-out { animation: tour-fade-out 0.18s ease forwards; }
 
 /* SVG overlay */
 .tour-svg-overlay {
@@ -273,16 +273,16 @@ input:focus, select:focus, textarea:focus {
 
 /* Spotlight glow pulse */
 @keyframes tour-glow {
-  0%, 100% { stroke-opacity: 0.5; }
-  50%      { stroke-opacity: 1; }
+  0%, 100% { stroke-opacity: 0.4; }
+  50%      { stroke-opacity: 0.9; }
 }
 .tour-glow-ring {
-  animation: tour-glow 2s ease-in-out infinite;
+  animation: tour-glow 1.8s ease-in-out infinite;
 }
 
-/* Spotlight rect transition */
+/* Spotlight rect transition — snappy */
 .tour-spotlight-rect {
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Tooltip card */
@@ -290,34 +290,35 @@ input:focus, select:focus, textarea:focus {
   background: #FFFFFF;
   border: 1px solid #C8E6D4;
   border-radius: 20px;
-  padding: 28px 28px 20px;
+  padding: 24px 26px 18px;
   box-shadow:
-    0 20px 60px rgba(8, 46, 41, 0.2),
-    0 4px 16px rgba(8, 46, 41, 0.08),
-    0 0 0 1px rgba(8, 145, 178, 0.06);
+    0 20px 60px rgba(8, 46, 41, 0.22),
+    0 4px 16px rgba(8, 46, 41, 0.1),
+    0 0 0 1px rgba(8, 145, 178, 0.08);
   pointer-events: auto;
   position: relative;
+  overflow: hidden;
 }
 
-/* Tooltip enter / exit */
+/* Tooltip enter / exit — FAST */
 @keyframes tour-tooltip-in {
-  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes tour-tooltip-out {
   from { opacity: 1; transform: translateY(0) scale(1); }
-  to   { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 0; transform: translateY(-6px) scale(0.98); }
 }
-.tour-tooltip-in  { animation: tour-tooltip-in  0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.tour-tooltip-out { animation: tour-tooltip-out 0.25s ease forwards; }
+.tour-tooltip-in  { animation: tour-tooltip-in  0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.tour-tooltip-out { animation: tour-tooltip-out 0.15s ease forwards; }
 
 /* Close button */
 .tour-close-btn {
   position: absolute;
   top: 12px;
   right: 12px;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -326,7 +327,8 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid #C8E6D4;
   color: #6B9A87;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.15s ease;
+  z-index: 2;
 }
 .tour-close-btn:hover {
   background: #082E29;
@@ -335,77 +337,91 @@ input:focus, select:focus, textarea:focus {
   transform: scale(1.1);
 }
 
-/* Progress dots */
-.tour-dots {
+/* ── Progress bar (replaces dots) ── */
+.tour-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #EDF6F0;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+}
+.tour-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0891B2, #082E29);
+  border-radius: 0 2px 2px 0;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Subtitle tag ── */
+.tour-subtitle-tag {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 5px;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
+  margin-top: 4px;
 }
-.tour-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #C8E6D4;
-  transition: all 0.3s ease;
+.tour-subtitle-tag span {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #0891B2;
 }
-.tour-dot-active {
-  background: #0891B2;
-  width: 24px;
-  border-radius: 4px;
-  box-shadow: 0 0 8px rgba(8, 145, 178, 0.4);
-}
-.tour-dot-done {
-  background: #082E29;
+.tour-subtitle-tag svg {
+  color: #0891B2;
 }
 
 /* Icon container */
 .tour-icon-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
   background: linear-gradient(135deg, #082E29, #0A3D36);
   color: #93C5FD;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 16px;
+  margin: 0 auto 14px;
   box-shadow: 0 4px 14px rgba(8, 46, 41, 0.2);
 }
 
 /* Title */
 .tour-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   color: #082E29;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   letter-spacing: -0.01em;
 }
 
 /* Description */
 .tour-desc {
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.6;
   color: #475569;
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 /* Hint chip */
 .tour-hint {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   justify-content: center;
-  padding: 6px 14px;
-  background: #EDF6F0;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, #EDF6F0, #E0F2E9);
   border: 1px solid #C8E6D4;
   border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   color: #3D6B5E;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   width: fit-content;
   margin-left: auto;
   margin-right: auto;
@@ -414,7 +430,7 @@ input:focus, select:focus, textarea:focus {
 /* Action buttons row */
 .tour-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
   align-items: center;
 }
@@ -424,16 +440,16 @@ input:focus, select:focus, textarea:focus {
 .tour-btn-back {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 9px 16px;
-  border-radius: 12px;
-  font-size: 13px;
+  gap: 3px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  font-size: 12.5px;
   font-weight: 600;
   background: transparent;
   border: 1px solid #C8E6D4;
   color: #6B9A87;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.15s ease;
 }
 .tour-btn-skip:hover,
 .tour-btn-back:hover {
@@ -446,16 +462,16 @@ input:focus, select:focus, textarea:focus {
 .tour-btn-next {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 9px 22px;
-  border-radius: 12px;
-  font-size: 13px;
+  gap: 5px;
+  padding: 8px 20px;
+  border-radius: 11px;
+  font-size: 12.5px;
   font-weight: 700;
   background: linear-gradient(135deg, #082E29, #0A3D36);
   border: none;
   color: #93C5FD;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   box-shadow: 0 2px 10px rgba(8, 46, 41, 0.25);
 }
 .tour-btn-next:hover {
@@ -468,9 +484,9 @@ input:focus, select:focus, textarea:focus {
 /* Step counter */
 .tour-step-counter {
   text-align: center;
-  margin-top: 14px;
-  font-size: 11px;
+  margin-top: 10px;
+  font-size: 10px;
   font-weight: 700;
   color: #94A3B8;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }

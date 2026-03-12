@@ -2,99 +2,101 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Building2, Map, ClipboardList, Upload,
-  Search, ChevronRight, ChevronLeft, X, Sparkles, Rocket,
-  MousePointerClick, Eye, ArrowRight,
+  LayoutDashboard, Building2, Map, Upload, Search,
+  X, Sparkles, Rocket, ArrowRight, Activity, Eye,
+  ChevronRight, ChevronLeft, Crosshair, Zap,
 } from 'lucide-react';
 
 /* ── Tour step definition ── */
 interface TourStep {
-  /** CSS selector to spotlight (null = centered modal) */
   target: string | null;
-  /** Which route the user should be on */
   route?: string;
   title: string;
+  subtitle?: string;
   description: string;
   icon: React.ElementType;
-  /** Where to place the tooltip relative to the target */
   placement: 'bottom' | 'right' | 'left' | 'top' | 'center';
-  /** Extra hint shown below description */
   hint?: string;
+  /** Step number label like "Step 1 of 5" — auto-calculated */
+  cta?: string;
 }
 
 const STEPS: TourStep[] = [
+  /* 0 — Welcome splash */
   {
     target: null,
     title: 'Welcome to Mira Intel',
-    description: 'Your AI-powered infrastructure inspection platform. Let\u2019s take a quick tour to get you up to speed.',
+    subtitle: 'AI-Powered Infrastructure Inspection',
+    description: 'We\'ll walk you through the platform in under 30 seconds. Here\'s how your drone inspection workflow works — from adding assets to AI-powered damage detection.',
     icon: Sparkles,
     placement: 'center',
-    hint: 'Takes about 60 seconds',
+    hint: 'Quick walkthrough — 30 seconds',
+    cta: 'Let\'s Go',
   },
+  /* 1 — Dashboard KPIs */
   {
-    target: 'aside',
-    title: 'Navigation Sidebar',
-    description: 'Your command center. Access every section of the platform from here. Press [ to collapse it anytime.',
-    icon: MousePointerClick,
-    placement: 'right',
-    hint: 'Tip: Use \u2318K to search anything',
-  },
-  {
-    target: '[data-tour="nav-dashboard"]',
+    target: '[data-tour="dashboard-kpis"]',
     route: '/dashboard',
-    title: 'Dashboard',
-    description: 'Get a real-time overview of your assets, detections, and severity breakdown\u2014all at a glance.',
+    title: 'Your Command Center',
+    subtitle: 'Dashboard',
+    description: 'See your active assets, total detections, and images analyzed at a glance. These KPIs update in real time as new inspections are processed.',
     icon: LayoutDashboard,
-    placement: 'right',
+    placement: 'bottom',
+    hint: 'Live data — auto-refreshes every 2 min',
   },
+  /* 2 — Asset Health & Severity */
   {
-    target: '[data-tour="nav-assets"]',
+    target: '[data-tour="dashboard-health"]',
+    route: '/dashboard',
+    title: 'Track Damage Severity',
+    subtitle: 'Asset Health',
+    description: 'Monitor each asset\'s condition with severity levels S1–S4. The donut chart shows your fleet\'s damage distribution — spot critical issues instantly.',
+    icon: Activity,
+    placement: 'top',
+  },
+  /* 3 — Assets page */
+  {
+    target: '[data-tour="assets-header"]',
     route: '/assets',
-    title: 'Assets',
-    description: 'Manage your infrastructure assets\u2014wind turbines, piers, coastal structures. Add new ones with quick-fill locations.',
+    title: 'Register Your Infrastructure',
+    subtitle: 'Assets',
+    description: 'Add wind turbines, piers, coastal structures, and more. Use quick-fill presets for known locations or enter GPS coordinates manually.',
     icon: Building2,
-    placement: 'right',
+    placement: 'bottom',
+    hint: 'Tip: Use "New Asset" with Quick Fill presets',
   },
+  /* 4 — Upload & Analyze */
   {
-    target: '[data-tour="nav-map"]',
-    route: '/map',
-    title: 'Interactive Map',
-    description: 'Visualize all assets on a live map. Toggle photo overlays and filter by infrastructure type.',
-    icon: Map,
-    placement: 'right',
-  },
-  {
-    target: '[data-tour="nav-upload"]',
+    target: '[data-tour="upload-form"]',
     route: '/upload',
-    title: 'Upload & Analyze',
-    description: 'Drag and drop drone images. Our YOLOv8 AI model detects damage types, confidence scores, and severity levels automatically.',
+    title: 'Upload & Run AI Analysis',
+    subtitle: 'Inspection Upload',
+    description: 'Select an asset, name your inspection, then drag & drop drone images. Our YOLOv8 AI model detects damage types, confidence scores, and severity levels automatically.',
     icon: Upload,
     placement: 'right',
-    hint: 'Supports JPG, PNG, and TIFF',
+    hint: 'Supports JPG, PNG, TIFF — batch processing',
   },
+  /* 5 — Map */
   {
-    target: '[data-tour="nav-inspections"]',
-    route: '/inspections',
-    title: 'Inspections',
-    description: 'Track all inspection records. Sort, filter by status, and drill into AI-annotated images with bounding boxes.',
-    icon: ClipboardList,
-    placement: 'right',
+    target: '[data-tour="map-view"]',
+    route: '/map',
+    title: 'Explore the Map',
+    subtitle: 'Interactive Map',
+    description: 'Visualize all your assets on a live map. Toggle photo overlays, filter by infrastructure type, and click assets to see inspection details.',
+    icon: Map,
+    placement: 'top',
+    hint: 'Toggle the Photos button to see GPS-tagged imagery',
   },
-  {
-    target: '[data-tour="search-trigger"]',
-    title: 'Quick Search',
-    description: 'Find any asset, inspection, or page instantly with the command palette.',
-    icon: Search,
-    placement: 'right',
-    hint: 'Shortcut: \u2318K or Ctrl+K',
-  },
+  /* 6 — Done */
   {
     target: null,
     route: '/dashboard',
-    title: 'You\u2019re All Set!',
-    description: 'Start by uploading drone images or exploring your dashboard. You can replay this tour anytime from the sidebar.',
+    title: 'You\'re All Set!',
+    subtitle: 'Ready to Inspect',
+    description: 'Start by adding an asset, then upload drone images to run your first AI inspection. You can replay this tour anytime from the sidebar.',
     icon: Rocket,
     placement: 'center',
+    cta: 'Start Inspecting',
   },
 ];
 
@@ -110,7 +112,7 @@ export function useAppTour() {
   useEffect(() => {
     const done = localStorage.getItem(STORAGE_KEY);
     if (!done) {
-      const timer = setTimeout(() => setActive(true), 800);
+      const timer = setTimeout(() => setActive(true), 600);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -130,8 +132,7 @@ export default function AppTour({
   const pathname = usePathname();
   const [step, setStep]       = useState(0);
   const [rect, setRect]       = useState<DOMRect | null>(null);
-  const [entering, setEntering] = useState(true);
-  const [exiting, setExiting]   = useState(false);
+  const [phase, setPhase]     = useState<'enter' | 'idle' | 'exit'>('enter');
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   const current = STEPS[step];
@@ -162,8 +163,7 @@ export default function AppTour({
       }
     };
 
-    /* Small delay to let route transitions settle */
-    const timer = setTimeout(measure, 150);
+    const timer = setTimeout(measure, 120);
     window.addEventListener('resize', measure);
     return () => {
       clearTimeout(timer);
@@ -174,8 +174,8 @@ export default function AppTour({
   /* Entrance animation */
   useEffect(() => {
     if (active) {
-      setEntering(true);
-      const t = setTimeout(() => setEntering(false), 350);
+      setPhase('enter');
+      const t = setTimeout(() => setPhase('idle'), 250);
       return () => clearTimeout(t);
     }
   }, [active, step]);
@@ -190,16 +190,17 @@ export default function AppTour({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, step]);
 
   const finish = useCallback(() => {
-    setExiting(true);
+    setPhase('exit');
     localStorage.setItem(STORAGE_KEY, 'true');
     setTimeout(() => {
-      setExiting(false);
+      setPhase('enter');
       setStep(0);
       onClose();
-    }, 300);
+    }, 200);
   }, [onClose]);
 
   const next = useCallback(() => {
@@ -224,7 +225,7 @@ export default function AppTour({
       };
     }
 
-    const gap = 16;
+    const gap = 14;
     const base: React.CSSProperties = { position: 'fixed' };
 
     switch (current.placement) {
@@ -253,7 +254,7 @@ export default function AppTour({
   };
 
   /* Spotlight cutout dimensions with padding */
-  const pad = 8;
+  const pad = 10;
   const spot = rect ? {
     x: rect.x - pad,
     y: rect.y - pad,
@@ -262,17 +263,20 @@ export default function AppTour({
     r: 16,
   } : null;
 
-  const overlayClass = exiting
+  const overlayClass = phase === 'exit'
     ? 'tour-overlay tour-fade-out'
-    : entering
+    : phase === 'enter'
       ? 'tour-overlay tour-fade-in'
       : 'tour-overlay';
 
-  const tooltipClass = exiting
+  const tooltipClass = phase === 'exit'
     ? 'tour-tooltip tour-tooltip-out'
-    : entering
+    : phase === 'enter'
       ? 'tour-tooltip tour-tooltip-in'
       : 'tour-tooltip';
+
+  /* Progress percentage for the bar */
+  const progress = ((step + 1) / total) * 100;
 
   return (
     <div className={overlayClass} style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>
@@ -298,7 +302,7 @@ export default function AppTour({
         <rect
           x="0" y="0"
           width="100%" height="100%"
-          fill="rgba(4, 20, 18, 0.72)"
+          fill="rgba(4, 20, 18, 0.68)"
           mask="url(#tour-spotlight-mask)"
         />
         {/* Glow ring around spotlight */}
@@ -308,7 +312,7 @@ export default function AppTour({
             width={spot.w + 4} height={spot.h + 4}
             rx={spot.r + 2} ry={spot.r + 2}
             fill="none"
-            stroke="rgba(8,145,178,0.5)"
+            stroke="rgba(8,145,178,0.45)"
             strokeWidth="2"
             className="tour-glow-ring"
           />
@@ -321,7 +325,7 @@ export default function AppTour({
         className={tooltipClass}
         style={{
           ...getTooltipStyle(),
-          maxWidth: current.placement === 'center' ? 440 : 360,
+          maxWidth: current.placement === 'center' ? 460 : 380,
           zIndex: 10000,
         }}
       >
@@ -331,22 +335,25 @@ export default function AppTour({
           className="tour-close-btn"
           title="Skip tour (Esc)"
         >
-          <X size={16} />
+          <X size={15} />
         </button>
 
-        {/* Step indicator dots */}
-        <div className="tour-dots">
-          {STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`tour-dot ${i === step ? 'tour-dot-active' : i < step ? 'tour-dot-done' : ''}`}
-            />
-          ))}
+        {/* Progress bar */}
+        <div className="tour-progress-bar">
+          <div className="tour-progress-fill" style={{ width: `${progress}%` }} />
         </div>
+
+        {/* Subtitle tag */}
+        {current.subtitle && (
+          <div className="tour-subtitle-tag">
+            <Icon size={12} />
+            <span>{current.subtitle}</span>
+          </div>
+        )}
 
         {/* Icon */}
         <div className="tour-icon-wrap">
-          <Icon size={current.placement === 'center' ? 30 : 24} />
+          <Icon size={current.placement === 'center' ? 28 : 22} />
         </div>
 
         {/* Content */}
@@ -355,7 +362,7 @@ export default function AppTour({
 
         {current.hint && (
           <div className="tour-hint">
-            <Eye size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
+            <Zap size={12} style={{ flexShrink: 0, opacity: 0.8 }} />
             <span>{current.hint}</span>
           </div>
         )}
@@ -364,11 +371,11 @@ export default function AppTour({
         <div className="tour-actions">
           {isFirst ? (
             <button onClick={finish} className="tour-btn-skip">
-              Skip tour
+              Skip
             </button>
           ) : (
             <button onClick={prev} className="tour-btn-back">
-              <ChevronLeft size={16} />
+              <ChevronLeft size={15} />
               Back
             </button>
           )}
@@ -376,13 +383,13 @@ export default function AppTour({
           <button onClick={next} className="tour-btn-next">
             {isLast ? (
               <>
-                Get Started
-                <Rocket size={16} />
+                {current.cta || 'Get Started'}
+                <Rocket size={15} />
               </>
             ) : (
               <>
-                Next
-                <ChevronRight size={16} />
+                {current.cta || 'Next'}
+                <ArrowRight size={15} />
               </>
             )}
           </button>
@@ -390,17 +397,15 @@ export default function AppTour({
 
         {/* Step counter */}
         <div className="tour-step-counter">
-          {step + 1} / {total}
+          {step + 1} of {total}
         </div>
       </div>
 
-      {/* Click blocker on overlay area (outside spotlight) */}
+      {/* Click blocker on overlay area */}
       <div
         style={{ position: 'absolute', inset: 0, zIndex: 9998 }}
         onClick={(e) => {
-          /* Only close if clicking the dark overlay, not the tooltip */
           if ((e.target as HTMLElement).closest('.tour-tooltip')) return;
-          /* Don't close - let them interact with spotted element */
         }}
       />
     </div>
