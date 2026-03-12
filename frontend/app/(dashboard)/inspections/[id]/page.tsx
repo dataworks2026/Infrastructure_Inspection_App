@@ -45,19 +45,22 @@ function getDamageConfig(damageType: string) {
 }
 
 // ─── Custom SVG Annotated Overlay ────────────────────────────────────────────
-function AnnotatedOverlay({ imageUrl, detections, onClick }: {
+function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
   imageUrl: string;
   detections: any[];
   onClick?: () => void;
+  fitScreen?: boolean;
 }) {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
   return (
-    <div className="relative w-full cursor-pointer group" onClick={onClick}>
+    <div className={`relative cursor-pointer group ${fitScreen ? 'h-full flex items-center justify-center' : 'w-full'}`} onClick={onClick}>
       <img
         src={imageUrl}
         alt="AI Analysis"
-        className="w-full rounded-lg border border-slate-200 block"
+        className={fitScreen
+          ? 'max-h-full max-w-full object-contain rounded-lg block'
+          : 'w-full rounded-lg border border-slate-200 block'}
         onLoad={(e) => {
           const img = e.currentTarget;
           setDims({ w: img.naturalWidth, h: img.naturalHeight });
@@ -74,49 +77,74 @@ function AnnotatedOverlay({ imageUrl, detections, onClick }: {
             const { x1, y1, x2, y2 } = d.bbox;
             const bw = x2 - x1;
             const bh = y2 - y1;
+            const conf = d.confidence;
             const scale = dims.w / 700;
-            const fontSize = Math.round(13 * scale);
             const strokeW = Math.max(2, 2.5 * scale);
+
+            // Confidence-scaled opacity
+            const fillOp = 0.03 + conf * 0.12;
+            const strokeOp = 0.3 + conf * 0.65;
+            const cornerOp = 0.4 + conf * 0.6;
+            const labelBgOp = 0.6 + conf * 0.35;
+
+            // Label: severity + damage_type (confidence smaller)
+            const sevTag = d.severity ? `${d.severity} ` : '';
+            const mainLabel = `${sevTag}${d.damage_type}`;
+            const confLabel = `${(conf * 100).toFixed(0)}%`;
+            const mainFontSize = Math.round(13 * scale);
+            const confFontSize = Math.round(10 * scale);
             const labelH = Math.round(22 * scale);
             const labelPad = Math.round(6 * scale);
-            const shortLabel = `${d.damage_type} ${(d.confidence * 100).toFixed(0)}%`;
-            const charW = fontSize * 0.58;
-            const labelW = shortLabel.length * charW + labelPad * 2;
+            const mainCharW = mainFontSize * 0.58;
+            const confCharW = confFontSize * 0.52;
+            const labelW = mainLabel.length * mainCharW + confLabel.length * confCharW + labelPad * 3;
             const labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
             const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
 
             return (
-              <g key={i}>
+              <g key={i} opacity={conf < 0.15 ? 0.3 : 1}>
                 {/* Box fill tint */}
                 <rect x={x1} y={y1} width={bw} height={bh}
-                  fill={cfg.stroke} fillOpacity="0.07" rx={2 * scale} />
+                  fill={cfg.stroke} fillOpacity={fillOp} rx={2 * scale} />
                 {/* Box stroke */}
                 <rect x={x1} y={y1} width={bw} height={bh}
                   fill="none" stroke={cfg.stroke} strokeWidth={strokeW}
-                  strokeOpacity="0.95" rx={2 * scale} />
+                  strokeOpacity={strokeOp} rx={2 * scale} />
                 {/* Corner accents — top-left */}
-                <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
-                <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
+                <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
                 {/* Corner accents — bottom-right */}
-                <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
-                <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity="1" strokeLinecap="round" />
+                <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
+                <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
                 {/* Label shadow */}
                 <rect x={labelX + 1} y={labelY + 1} width={labelW} height={labelH}
                   fill="rgba(0,0,0,0.25)" rx={4 * scale} />
                 {/* Label background */}
                 <rect x={labelX} y={labelY} width={labelW} height={labelH}
-                  fill={cfg.stroke} fillOpacity="0.95" rx={4 * scale} />
-                {/* Label text */}
+                  fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
+                {/* Label: main text */}
                 <text
                   x={labelX + labelPad}
                   y={labelY + labelH * 0.72}
-                  fontSize={fontSize}
+                  fontSize={mainFontSize}
                   fill="white"
                   fontFamily="system-ui,-apple-system,sans-serif"
                   fontWeight="700"
                   letterSpacing="0.2"
                 >
-                  {shortLabel}
+                  {mainLabel}
+                </text>
+                {/* Label: confidence (smaller) */}
+                <text
+                  x={labelX + labelPad + mainLabel.length * mainCharW + labelPad * 0.5}
+                  y={labelY + labelH * 0.72}
+                  fontSize={confFontSize}
+                  fill="white"
+                  fillOpacity="0.7"
+                  fontFamily="system-ui,-apple-system,sans-serif"
+                  fontWeight="500"
+                >
+                  {confLabel}
                 </text>
               </g>
             );
@@ -196,8 +224,8 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
           </>
         )}
         {showAnnotated && hasAnnotation ? (
-          <div className="max-h-full max-w-full">
-            <AnnotatedOverlay imageUrl={img.url} detections={result.detections} />
+          <div className="h-full w-full flex items-center justify-center overflow-hidden">
+            <AnnotatedOverlay imageUrl={img.url} detections={result.detections} fitScreen />
           </div>
         ) : (
           <img src={img.url} alt={img.filename} className="max-h-full max-w-full object-contain rounded-lg" />
