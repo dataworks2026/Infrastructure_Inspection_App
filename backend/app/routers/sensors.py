@@ -12,6 +12,7 @@ from app.services.noaa import (
     fetch_coops_latest,
     fetch_coops_range,
     fetch_ndbc_latest,
+    fetch_ndbc_range,
     DEFAULT_COOPS_STATION,
     DEFAULT_NDBC_STATION,
 )
@@ -140,18 +141,24 @@ async def get_sensor_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Historical NOAA CO-OPS data for an asset."""
+    """Historical NOAA data for an asset. Wind uses NDBC, others use CO-OPS."""
     stations = _get_stations(asset_id)
 
     async with httpx.AsyncClient() as client:
-        data = await fetch_coops_range(
-            client, stations["coops"], start, end, sensor_type
-        )
+        if sensor_type == "wind":
+            # Wind history from NDBC buoy (CO-OPS 8518750 has no wind)
+            data = await fetch_ndbc_range(client, stations["ndbc"], start, end)
+            station = stations["ndbc"]
+        else:
+            data = await fetch_coops_range(
+                client, stations["coops"], start, end, sensor_type
+            )
+            station = stations["coops"]
 
     return {
         "asset_id": asset_id,
         "sensor_type": sensor_type,
-        "station": stations["coops"],
+        "station": station,
         "start": start,
         "end": end,
         "readings": data,

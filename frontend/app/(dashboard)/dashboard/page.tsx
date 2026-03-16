@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { dashboardApi, environmentalApi } from '@/lib/api';
+import { dashboardApi, sensorsApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, AlertTriangle, ImageIcon, ArrowRight,
@@ -166,7 +166,7 @@ function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
             label="Temp" value={env.temperature} unit="°F" color="#EF4444" />
           <EnvPill icon={<Wind size={14} style={{ color: '#0EA5E9' }} />}
             label="Wind" value={env.wind_speed}
-            unit={env.wind_direction != null ? `${windDirLabel(env.wind_direction)}` : 'mph'}
+            unit={env.wind_direction != null ? `${windDirLabel(env.wind_direction)}` : 'kn'}
             color="#0EA5E9" />
         </div>
       ) : (
@@ -510,12 +510,26 @@ export default function DashboardPage() {
 
   const queryClient = useQueryClient();
   const { data: envData, isFetching: envFetching } = useQuery({
-    queryKey: ['environmental'],
-    queryFn: environmentalApi.getAssetData,
+    queryKey: ['sensors-live'],
+    queryFn: sensorsApi.getLive,
     refetchInterval: 300_000,
     staleTime: 240_000,
   });
-  const envAssets = envData?.assets || {};
+  // Map NOAA sensor fields to the env pill field names
+  const envAssets = useMemo(() => {
+    const raw = envData?.assets || {};
+    const mapped: Record<string, any> = {};
+    for (const [id, a] of Object.entries(raw) as [string, any][]) {
+      mapped[id] = {
+        wave_height: a.wave_height_m,
+        wave_period: a.wave_period_s,
+        temperature: a.temperature_f,
+        wind_speed: a.wind_speed_kn,
+        wind_direction: a.wind_direction_deg,
+      };
+    }
+    return mapped;
+  }, [envData]);
 
   const images = data?.recent_analyzed_images || [];
   const assetHealth = data?.asset_health || [];
@@ -639,7 +653,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               {Object.keys(envAssets).length > 0 && (
                 <button
-                  onClick={(e) => { e.preventDefault(); queryClient.invalidateQueries({ queryKey: ['environmental'] }); }}
+                  onClick={(e) => { e.preventDefault(); queryClient.invalidateQueries({ queryKey: ['sensors-live'] }); }}
                   className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all hover:scale-105"
                   style={{ background: '#EDF6F0', color: '#6B9A87', border: '1px solid #C8E6D4' }}
                   title="Refresh live conditions">

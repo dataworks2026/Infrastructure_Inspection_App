@@ -125,3 +125,53 @@ async def fetch_ndbc_latest(
         return result
     except Exception:
         return empty
+
+
+async def fetch_ndbc_range(
+    client: httpx.AsyncClient,
+    station_id: str,
+    begin_date: str,
+    end_date: str,
+) -> list[dict]:
+    """Fetch NDBC wind history from realtime2 txt (~45 days available).
+    begin_date/end_date as YYYYMMDD. Returns CO-OPS-compatible dicts."""
+    url = f"{NDBC_BASE}/{station_id}.txt"
+    try:
+        r = await client.get(url, timeout=15)
+        r.raise_for_status()
+        lines = r.text.strip().split("\n")
+        if len(lines) < 3:
+            return []
+
+        headers = lines[0].replace("#", "").split()
+        results = []
+        for line in lines[2:]:
+            vals = line.split()
+            if len(vals) < len(headers):
+                continue
+            row = dict(zip(headers, vals))
+            # Build timestamp: YYYY MM DD hh mm
+            ts = f"{row.get('YY','')}-{row.get('MM','')}-{row.get('DD','')} {row.get('hh','')}:{row.get('mm','')}"
+            day_str = f"{row.get('YY','')}{row.get('MM','')}{row.get('DD','')}"
+
+            if day_str < begin_date or day_str > end_date:
+                continue
+
+            wspd = _safe_float(row.get("WSPD"))
+            gst = _safe_float(row.get("GST"))
+            wdir = _safe_float(row.get("WDIR"))
+            if wspd is None:
+                continue
+
+            # Convert m/s to knots for consistency
+            results.append({
+                "t": ts,
+                "v": str(round(wspd * 1.94384, 1)),  # m/s → knots
+                "s": str(round(wspd * 1.94384, 1)),
+                "g": str(round(gst * 1.94384, 1)) if gst else None,
+                "d": str(int(wdir)) if wdir else None,
+            })
+
+        return results
+    except Exception:
+        return []
