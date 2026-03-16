@@ -120,7 +120,8 @@ const RANGE_OPTIONS = [
 const SENSOR_TYPES = [
   { value: 'air_temperature', label: 'Temperature', unit: '°F', color: '#EF4444', icon: Thermometer },
   { value: 'wind', label: 'Wind Speed', unit: 'kn', color: BRAND, icon: Wind },
-  { value: 'water_level', label: 'Water Level', unit: 'ft', color: '#3B82F6', icon: Waves },
+  { value: 'water_level', label: 'Water Level', unit: 'ft', color: '#3B82F6', icon: Droplets },
+  { value: 'wave_height', label: 'Wave Height', unit: 'm', color: '#8B5CF6', icon: Waves },
 ];
 
 export default function SensorsPage() {

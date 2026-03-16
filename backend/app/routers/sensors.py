@@ -135,7 +135,7 @@ async def get_live_sensor_data(
 @router.get("/history")
 async def get_sensor_history(
     asset_id: str = Query(...),
-    sensor_type: str = Query(..., description="air_temperature, wind, water_level"),
+    sensor_type: str = Query(..., description="air_temperature, wind, water_level, wave_height"),
     start: str = Query(..., description="YYYYMMDD"),
     end: str = Query(..., description="YYYYMMDD"),
     db: Session = Depends(get_db),
@@ -145,9 +145,9 @@ async def get_sensor_history(
     stations = _get_stations(asset_id)
 
     async with httpx.AsyncClient() as client:
-        if sensor_type == "wind":
-            # Wind history from NDBC buoy (CO-OPS 8518750 has no wind)
-            data = await fetch_ndbc_range(client, stations["ndbc"], start, end)
+        if sensor_type in ("wind", "wave_height"):
+            # Wind + wave history from NDBC buoy
+            data = await fetch_ndbc_range(client, stations["ndbc"], start, end, field=sensor_type)
             station = stations["ndbc"]
         else:
             data = await fetch_coops_range(
