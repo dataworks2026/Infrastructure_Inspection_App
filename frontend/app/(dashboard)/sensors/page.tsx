@@ -133,6 +133,12 @@ export default function SensorsPage() {
   const [sensorType, setSensorType] = useState('air_temperature');
   const [showRangeDropdown, setShowRangeDropdown] = useState(false);
   const [showSensorDropdown, setShowSensorDropdown] = useState(false);
+  const [customMode, setCustomMode] = useState(false);
+  const [customStart, setCustomStart] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Live data
   const { data: liveData, isFetching: liveFetching } = useQuery<SensorLiveResponse>({
@@ -155,15 +161,17 @@ export default function SensorsPage() {
   const activeAsset: SensorAssetLive | undefined = activeAssetId ? liveAssets[activeAssetId] : undefined;
 
   // History
+  const histStart = customMode ? customStart.replace(/-/g, '') : dateStr(rangeDays);
+  const histEnd = customMode ? customEnd.replace(/-/g, '') : dateStr(0);
   const { data: historyData, isFetching: histFetching } = useQuery<SensorHistoryResponse>({
-    queryKey: ['sensors-history', activeAssetId, sensorType, rangeDays],
+    queryKey: ['sensors-history', activeAssetId, sensorType, histStart, histEnd],
     queryFn: () => sensorsApi.getHistory({
       asset_id: activeAssetId!,
       sensor_type: sensorType,
-      start: dateStr(rangeDays),
-      end: dateStr(0),
+      start: histStart,
+      end: histEnd,
     }),
-    enabled: !!activeAssetId,
+    enabled: !!activeAssetId && (!customMode || (customStart <= customEnd)),
     staleTime: 300_000,
   });
 
@@ -361,7 +369,7 @@ export default function SensorsPage() {
                 onClick={() => { setShowRangeDropdown(!showRangeDropdown); setShowSensorDropdown(false); }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold"
                 style={{ background: 'white', border: `1px solid ${MINT_BORDER}`, color: TEAL }}>
-                {RANGE_OPTIONS.find(r => r.days === rangeDays)?.label}
+                {customMode ? 'Custom Range' : RANGE_OPTIONS.find(r => r.days === rangeDays)?.label}
                 <ChevronDown size={12} />
               </button>
               {showRangeDropdown && (
@@ -369,15 +377,46 @@ export default function SensorsPage() {
                   style={{ border: `1px solid ${MINT_BORDER}` }}>
                   {RANGE_OPTIONS.map(r => (
                     <button key={r.days}
-                      onClick={() => { setRangeDays(r.days); setShowRangeDropdown(false); }}
-                      className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#F8FBF9] first:rounded-t-lg last:rounded-b-lg"
-                      style={{ color: rangeDays === r.days ? BRAND : TEAL }}>
+                      onClick={() => { setRangeDays(r.days); setCustomMode(false); setShowRangeDropdown(false); }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#F8FBF9]"
+                      style={{ color: !customMode && rangeDays === r.days ? BRAND : TEAL }}>
                       {r.label}
                     </button>
                   ))}
+                  <button
+                    onClick={() => { setCustomMode(true); setShowRangeDropdown(false); }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#F8FBF9] last:rounded-b-lg flex items-center gap-2"
+                    style={{ color: customMode ? BRAND : TEAL, borderTop: `1px solid ${MINT}` }}>
+                    <Calendar size={12} />
+                    Custom Range
+                  </button>
                 </div>
               )}
             </div>
+
+            {/* Custom date pickers */}
+            {customMode && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={customStart}
+                  max={customEnd}
+                  onChange={e => setCustomStart(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: 'white', border: `1px solid ${MINT_BORDER}`, color: TEAL }}
+                />
+                <ArrowRight size={12} style={{ color: '#9CB8AC' }} />
+                <input
+                  type="date"
+                  value={customEnd}
+                  min={customStart}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setCustomEnd(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: 'white', border: `1px solid ${MINT_BORDER}`, color: TEAL }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
