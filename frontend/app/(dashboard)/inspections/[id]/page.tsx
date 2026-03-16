@@ -9,20 +9,29 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 
 // ─── Severity ───────────────────────────────────────────────────────────────
-const severityConfig: Record<string, { label: string; color: string; bg: string }> = {
-  S1: { label: 'Minor',    color: 'text-emerald-700', bg: 'bg-emerald-50'  },
-  S2: { label: 'Moderate', color: 'text-amber-700',   bg: 'bg-amber-50'    },
-  S3: { label: 'Advanced', color: 'text-orange-700',  bg: 'bg-orange-50'   },
-  S4: { label: 'Severe',   color: 'text-red-700',     bg: 'bg-red-50'      },
+const severityConfig: Record<string, { label: string; color: string; bg: string; hex: string }> = {
+  S1: { label: 'Minor',    color: 'text-emerald-700', bg: 'bg-emerald-50', hex: '#4CAF50'  },
+  S2: { label: 'Moderate', color: 'text-amber-700',   bg: 'bg-amber-50',   hex: '#E6A817'  },
+  S3: { label: 'Advanced', color: 'text-orange-700',  bg: 'bg-orange-50',  hex: '#FF7043'  },
+  S4: { label: 'Severe',   color: 'text-red-700',     bg: 'bg-red-50',     hex: '#B71C1C'  },
+};
+
+/* Normalize legacy S0 → S1 */
+const normSev = (s: string | null | undefined): string | null => {
+  if (!s) return null;
+  if (s === 'S0' || s === '0') return 'S1';
+  const map: Record<string,string> = { '1':'S1','2':'S2','3':'S3','4':'S4' };
+  return map[s] || s;
 };
 
 function SeverityBadge({ severity, size = 'sm' }: { severity: string; size?: 'sm' | 'lg' }) {
-  const config = severityConfig[severity] || severityConfig.S1;
+  const norm = normSev(severity) || severity;
+  const config = severityConfig[norm] || severityConfig.S1;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold ${config.bg} ${config.color} ${
       size === 'lg' ? 'text-base px-3 py-1' : 'text-sm'
     }`}>
-      {severity} <span className="font-normal opacity-75">{config.label}</span>
+      {norm} <span className="font-normal opacity-75">{config.label}</span>
     </span>
   );
 }
@@ -80,7 +89,7 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
 
             const labels = visible.map((d: any) => {
               const { x1, y1, x2, y2 } = d.bbox;
-              const sev = d.severity || '';
+              const sev = normSev(d.severity) || '';
               const mainLabel = sev ? `${sev} ${d.damage_type}` : d.damage_type;
               const mainFontSize = Math.round(13 * scale);
               const mainCharW = mainFontSize * 0.58;
@@ -103,7 +112,8 @@ function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
 
             return labels.map((l, i) => {
               const { d, mainLabel, mainFontSize, labelW, labelH: lH, labelX, labelY } = l;
-              const cfg = getDamageConfig(d.damage_type);
+              const sevHex = severityConfig[normSev(d.severity) || '']?.hex || '#64748B';
+              const cfg = { stroke: sevHex, light: sevHex + '30' };
               const { x1, y1, x2, y2 } = d.bbox;
               const bw = x2 - x1;
               const bh = y2 - y1;
@@ -363,8 +373,8 @@ export default function InspectionDetailPage() {
       arr.sort((a: any, b: any) => {
         const ra = analysisResults[a.id];
         const rb = analysisResults[b.id];
-        const worstA = (ra?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[d.severity] ?? 99), 99);
-        const worstB = (rb?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[d.severity] ?? 99), 99);
+        const worstA = (ra?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[normSev(d.severity) || ''] ?? 99), 99);
+        const worstB = (rb?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[normSev(d.severity) || ''] ?? 99), 99);
         if (worstA !== worstB) return worstA - worstB;
         return (rb?.total_detections ?? -1) - (ra?.total_detections ?? -1);
       });

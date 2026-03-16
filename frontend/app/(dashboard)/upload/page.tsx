@@ -139,13 +139,16 @@ export default function UploadPage() {
                     <div key={i} className="flex items-center gap-3 text-sm rounded-lg px-3 py-2" style={{ background: '#EDF6F0' }}>
                       <span className="font-semibold text-slate-700">{d.damage_type}</span>
                       <span className="text-slate-400">{(d.confidence * 100).toFixed(0)}%</span>
-                      {d.severity && <span className={`px-2 py-0.5 rounded-md font-semibold ${
-                        d.severity === 'S1' ? 'bg-emerald-50 text-emerald-700' :
-                        d.severity === 'S2' ? 'bg-amber-50 text-amber-700' :
-                        d.severity === 'S3' ? 'bg-orange-50 text-orange-700' :
-                        d.severity === 'S4' ? 'bg-red-50 text-red-700' :
-                        'bg-purple-50 text-purple-700'
-                      }`}>{d.severity}</span>}
+                      {d.severity && (() => {
+                        const ns = (d.severity === 'S0' || d.severity === '0') ? 'S1' : d.severity;
+                        return <span className={`px-2 py-0.5 rounded-md font-semibold ${
+                          ns === 'S1' ? 'bg-emerald-50 text-emerald-700' :
+                          ns === 'S2' ? 'bg-amber-50 text-amber-700' :
+                          ns === 'S3' ? 'bg-orange-50 text-orange-700' :
+                          ns === 'S4' ? 'bg-red-50 text-red-700' :
+                          'bg-purple-50 text-purple-700'
+                        }`}>{ns}</span>;
+                      })()}
                     </div>
                   ))}
                 </div>

@@ -52,14 +52,29 @@ const INFRA_COLOR: Record<string, string> = {
   wind_turbine: '#0EA5E9', coastal: '#06B6D4', pier: '#3B82F6', railway: '#6366F1',
 };
 
+/* ── Normalize legacy S0 → S1 ── */
+const normSev = (s: string | null | undefined): string | null => {
+  if (!s) return null;
+  if (s === 'S0' || s === '0') return 'S1';
+  const map: Record<string,string> = { '1':'S1','2':'S2','3':'S3','4':'S4' };
+  return map[s] || s;
+};
+
+/* ── Severity color for bounding boxes ── */
+function getSeverityColor(severity: string | null | undefined): string {
+  const s = normSev(severity);
+  return SEV[s || '']?.color || '#64748B';
+}
+
 function SevBadge({ sev }: { sev: string | null }) {
-  if (!sev) return null;
-  const s = SEV[sev];
+  const norm = normSev(sev);
+  if (!norm) return null;
+  const s = SEV[norm];
   if (!s) return null;
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
       style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-      {sev} {s.label}
+      {norm} {s.label}
     </span>
   );
 }
@@ -209,7 +224,7 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
         const labels = visible.map((d: any) => {
           const { x1, y1, x2, y2 } = d.bbox;
           const conf = d.confidence;
-          const sev = d.severity || '';
+          const sev = normSev(d.severity) || '';
           const mainLabel = sev ? `${sev} ${d.damage_type}` : d.damage_type;
           const mainFontSize = Math.round(13 * scale);
           const mainCharW = mainFontSize * 0.58;
@@ -238,7 +253,8 @@ function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
           >
             {labels.map((l, i) => {
               const { d, mainLabel, mainFontSize, labelW, labelH: lH, labelX, labelY } = l;
-              const cfg = getDamageColor(d.damage_type);
+              const sevColor = getSeverityColor(d.severity);
+              const cfg = { stroke: sevColor, light: sevColor + '30' };
               const { x1, y1, x2, y2 } = d.bbox;
               const bw = x2 - x1;
               const bh = y2 - y1;
@@ -293,7 +309,7 @@ function AssetCarouselCard({
 
   const totalDetections = imgs.reduce((sum, i) => sum + i.detection_count, 0);
   const worstSev = imgs.find(i => i.max_severity)?.max_severity ?? null;
-  const borderAccent = worstSev === 'S3' ? '#EF4444' : worstSev === 'S2' ? '#F59E0B' : worstSev === 'S1' ? '#EAB308' : '#C8E6D4';
+  const borderAccent = worstSev === 'S4' ? '#B71C1C' : worstSev === 'S3' ? '#EF4444' : worstSev === 'S2' ? '#F59E0B' : worstSev === 'S1' ? '#EAB308' : '#C8E6D4';
 
   const prev = () => setIdx(i => Math.max(0, i - 1));
   const next = () => setIdx(i => Math.min(imgs.length - 1, i + 1));
@@ -544,7 +560,7 @@ export default function DashboardPage() {
       imgGroups[key].push(img);
     }
 
-    const sevRank: Record<string, number> = { S3: 0, S2: 1, S1: 2, S0: 3 };
+    const sevRank: Record<string, number> = { S4: 0, S3: 1, S2: 2, S1: 3 };
 
     // Build from assetHealth so ALL assets appear
     const groups = assetHealth.map(a => {
@@ -590,9 +606,15 @@ export default function DashboardPage() {
     const nk = SEV_NORM[k] || k;
     mergedSev[nk] = (mergedSev[nk] || 0) + (v as number);
   });
-  const sevDonut = Object.entries(mergedSev).map(([k, v]) => ({
-    name: `${k} ${SEV[k]?.label || ''}`.trim(), value: v, color: SEV[k]?.color || '#64748B',
-  })).sort((a, b) => b.value - a.value);
+  // Ensure all 4 severity levels always appear (S1–S4)
+  for (const k of ['S1', 'S2', 'S3', 'S4']) {
+    if (!(k in mergedSev)) mergedSev[k] = 0;
+  }
+  const sevDonut = Object.entries(mergedSev)
+    .filter(([k]) => SEV[k])
+    .map(([k, v]) => ({
+      name: `${k} ${SEV[k]?.label || ''}`.trim(), value: v, color: SEV[k]?.color || '#64748B',
+    })).sort((a, b) => b.value - a.value);
 
   const tooltipStyle = {
     contentStyle: { background: '#FFFFFF', border: '1px solid #C8E6D4', borderRadius: 10, fontSize: 12 },

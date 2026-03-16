@@ -177,10 +177,11 @@ function getAssetIcon(color: string, isSelected: boolean, infraType: string): L.
 
 // ── Severity dot for inspection photo markers ─────────────────────────────────
 function severityColor(sev: string | null): string {
-  if (sev === 'S3') return '#EF4444';
-  if (sev === 'S2') return '#F59E0B';
-  if (sev === 'S1') return '#EAB308';
-  if (sev === 'S0') return '#10B981';
+  const s = (sev === 'S0' || sev === '0') ? 'S1' : sev;
+  if (s === 'S4') return '#B71C1C';
+  if (s === 'S3') return '#EF4444';
+  if (s === 'S2') return '#F59E0B';
+  if (s === 'S1') return '#EAB308';
   return '#38BDF8';
 }
 
