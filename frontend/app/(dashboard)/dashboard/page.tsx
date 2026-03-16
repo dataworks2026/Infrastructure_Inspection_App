@@ -143,9 +143,9 @@ function AssetRow({ asset, env, sevCounts }: { asset: DashboardAssetHealth; env?
           )}
           <SevBadge sev={asset.worst_severity} />
         </div>
+        {/* Severity breakdown — always visible as a 3rd line */}
+        {sevCounts && <SevMiniChart counts={sevCounts} />}
       </div>
-      {/* Severity mini chart */}
-      {sevCounts && <SevMiniChart counts={sevCounts} />}
       {/* Env metrics */}
       {env ? (
         <div className="flex items-center gap-2 flex-shrink-0 mr-1">
@@ -168,31 +168,42 @@ function AssetRow({ asset, env, sevCounts }: { asset: DashboardAssetHealth; env?
   );
 }
 
-/* ── Mini severity stacked bar per asset ── */
+/* ── Per-asset severity breakdown (labeled chips + proportional bar) ── */
 function SevMiniChart({ counts }: { counts: Record<string, number> }) {
   const items = ['S1', 'S2', 'S3', 'S4'] as const;
   const total = items.reduce((s, k) => s + (counts[k] || 0), 0);
 
   return (
-    <div className="flex items-center gap-2.5 flex-shrink-0">
-      {/* Stacked bar */}
-      <div className="flex h-1.5 rounded-full overflow-hidden" style={{ width: 56, background: '#EDF6F0' }}>
+    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+      {/* Proportional stacked bar */}
+      <div className="flex h-[6px] rounded-full overflow-hidden mr-0.5" style={{ width: 48, background: '#EDF6F0' }}>
         {total > 0 && items.map(k => {
           const pct = ((counts[k] || 0) / total) * 100;
           return pct > 0 ? (
-            <div key={k} style={{ width: `${pct}%`, background: SEV[k].color, minWidth: 2 }} />
+            <div key={k} style={{ width: `${pct}%`, background: SEV[k].color, minWidth: 3 }} />
           ) : null;
         })}
       </div>
-      {/* Counts */}
-      <div className="flex items-center gap-1.5">
-        {items.map(k => (
-          <span key={k} className="flex items-center gap-0.5">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: SEV[k].color }} />
-            <span className="text-[10px] font-bold" style={{ color: TEAL }}>{counts[k] || 0}</span>
+      {/* Labeled severity chips — styled like SevBadge for consistency */}
+      {items.map(k => {
+        const count = counts[k] || 0;
+        const s = SEV[k];
+        const isActive = count > 0;
+        return (
+          <span key={k}
+            className="inline-flex items-center gap-[3px] text-[9px] font-bold pl-1 pr-1.5 py-[2px] rounded-full"
+            style={{
+              background: isActive ? s.bg : '#F8FAFB',
+              color: isActive ? s.color : '#B0C4BC',
+              border: `1px solid ${isActive ? s.border : '#E2EDE8'}`,
+            }}>
+            <span className="w-[6px] h-[6px] rounded-full flex-shrink-0"
+              style={{ background: isActive ? s.color : '#CBD5D0' }} />
+            {k}
+            <span className="font-black tabular-nums">{count}</span>
           </span>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
