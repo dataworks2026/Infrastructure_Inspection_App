@@ -9,9 +9,7 @@ import {
   Activity, TrendingUp, Thermometer, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
-import {
-  PieChart, Pie, Cell, Tooltip as RechartTooltip, ResponsiveContainer,
-} from 'recharts';
+// recharts removed — severity donut replaced with per-asset mini charts
 import type { DashboardAnalyzedImage, DashboardAssetHealth, DashboardDetection } from '@/types';
 
 const TEAL  = '#082E29';
@@ -79,30 +77,6 @@ function SevBadge({ sev }: { sev: string | null }) {
   );
 }
 
-/* ── KPI card ── */
-function KPICard({ label, value, sub, icon, accentColor }: {
-  label: string; value: number | string; sub?: string;
-  icon: React.ReactNode; accentColor: string;
-}) {
-  return (
-    <div className="interactive-card bg-white rounded-2xl p-4 shadow-sm flex flex-col gap-2 min-w-0"
-      style={{ border: '1px solid #C8E6D4' }}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-bold uppercase tracking-wider truncate" style={{ color: '#6B9A87' }}>{label}</p>
-        <span className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: accentColor + '18', color: accentColor }}>
-          {icon}
-        </span>
-      </div>
-      <div className="text-[28px] font-black leading-none tracking-tight" style={{ color: TEAL }}>
-        {value}
-      </div>
-      {sub && <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>{sub}</p>}
-      <div className="h-0.5 rounded-full mt-auto" style={{ background: `linear-gradient(90deg, ${accentColor}, ${accentColor}44)` }} />
-    </div>
-  );
-}
-
 /* ── Wind direction helper ── */
 function windDirLabel(deg: number | null | undefined): string {
   if (deg == null) return '';
@@ -135,7 +109,7 @@ function EnvPill({ icon, label, value, unit, color }: {
 }
 
 /* ── Asset health row (with live env data) ── */
-function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
+function AssetRow({ asset, env, sevCounts }: { asset: DashboardAssetHealth; env?: any; sevCounts?: Record<string, number> }) {
   const Icon = INFRA_ICON[asset.infrastructure_type] || Building2;
   const typeColor = INFRA_COLOR[asset.infrastructure_type] || '#64748B';
   return (
@@ -170,7 +144,9 @@ function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
           <SevBadge sev={asset.worst_severity} />
         </div>
       </div>
-      {/* Env metrics — right half */}
+      {/* Severity mini chart */}
+      {sevCounts && <SevMiniChart counts={sevCounts} />}
+      {/* Env metrics */}
       {env ? (
         <div className="flex items-center gap-2 flex-shrink-0 mr-1">
           <EnvPill icon={<Waves size={14} style={{ color: '#0891B2' }} />}
@@ -189,6 +165,35 @@ function AssetRow({ asset, env }: { asset: DashboardAssetHealth; env?: any }) {
           className="flex-shrink-0 group-hover:text-[#0891B2] group-hover:translate-x-0.5 transition-all" />
       )}
     </Link>
+  );
+}
+
+/* ── Mini severity stacked bar per asset ── */
+function SevMiniChart({ counts }: { counts: Record<string, number> }) {
+  const items = ['S1', 'S2', 'S3', 'S4'] as const;
+  const total = items.reduce((s, k) => s + (counts[k] || 0), 0);
+
+  return (
+    <div className="flex items-center gap-2.5 flex-shrink-0">
+      {/* Stacked bar */}
+      <div className="flex h-1.5 rounded-full overflow-hidden" style={{ width: 56, background: '#EDF6F0' }}>
+        {total > 0 && items.map(k => {
+          const pct = ((counts[k] || 0) / total) * 100;
+          return pct > 0 ? (
+            <div key={k} style={{ width: `${pct}%`, background: SEV[k].color, minWidth: 2 }} />
+          ) : null;
+        })}
+      </div>
+      {/* Counts */}
+      <div className="flex items-center gap-1.5">
+        {items.map(k => (
+          <span key={k} className="flex items-center gap-0.5">
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: SEV[k].color }} />
+            <span className="text-[10px] font-bold" style={{ color: TEAL }}>{counts[k] || 0}</span>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -550,6 +555,20 @@ export default function DashboardPage() {
   const images = data?.recent_analyzed_images || [];
   const assetHealth = data?.asset_health || [];
 
+  // Per-asset severity counts from image detections
+  const assetSevCounts = useMemo(() => {
+    const counts: Record<string, Record<string, number>> = {};
+    for (const img of images) {
+      const key = img.asset_id;
+      if (!counts[key]) counts[key] = { S1: 0, S2: 0, S3: 0, S4: 0 };
+      for (const det of (img.detections || [])) {
+        const s = normSev(det.severity);
+        if (s && counts[key][s] !== undefined) counts[key][s]++;
+      }
+    }
+    return counts;
+  }, [images]);
+
   // Build carousel groups: include ALL assets from asset_health,
   // merge with images grouped by asset. Sort images high→low severity, limit 10.
   const carouselGroups = useMemo(() => {
@@ -597,31 +616,6 @@ export default function DashboardPage() {
 
   if (isLoading) return <DashboardSkeleton />;
 
-  const sevBreakdown = data?.severity_breakdown || {};
-
-  // Normalize old S0 → S1, old numeric 1→S1 etc, then merge counts
-  const SEV_NORM: Record<string,string> = { S0:'S1', '1':'S1', '2':'S2', '3':'S3', '4':'S4', S1:'S1', S2:'S2', S3:'S3', S4:'S4' };
-  const mergedSev: Record<string,number> = {};
-  Object.entries(sevBreakdown).forEach(([k, v]) => {
-    const nk = SEV_NORM[k] || k;
-    mergedSev[nk] = (mergedSev[nk] || 0) + (v as number);
-  });
-  // Ensure all 4 severity levels always appear (S1–S4)
-  for (const k of ['S1', 'S2', 'S3', 'S4']) {
-    if (!(k in mergedSev)) mergedSev[k] = 0;
-  }
-  const sevDonut = Object.entries(mergedSev)
-    .filter(([k]) => SEV[k])
-    .map(([k, v]) => ({
-      name: `${k} ${SEV[k]?.label || ''}`.trim(), value: v, color: SEV[k]?.color || '#64748B',
-    })).sort((a, b) => b.value - a.value);
-
-  const tooltipStyle = {
-    contentStyle: { background: '#FFFFFF', border: '1px solid #C8E6D4', borderRadius: 10, fontSize: 12 },
-    labelStyle: { color: TEAL, fontWeight: 700 },
-    itemStyle: { color: TEAL },
-  };
-
   return (
     <div className="space-y-4">
 
@@ -645,19 +639,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI Row */}
-      <div data-tour="dashboard-kpis" className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <KPICard label="Active Assets" value={data?.active_assets ?? 0}
-          sub={`${data?.total_assets ?? 0} total`} icon={<Building2 size={17} />} accentColor={BRAND} />
-        <KPICard label="Total Detections" value={data?.total_detections ?? 0}
-          sub={`across ${data?.total_inspections ?? 0} inspections`} icon={<AlertTriangle size={17} />} accentColor="#EF4444" />
-        <KPICard label="Images Analyzed" value={data?.total_images ?? 0}
-          sub={`${data?.pending_inspections ?? 0} pending`} icon={<ImageIcon size={17} />} accentColor={BLUE} />
-      </div>
-
-      {/* Two-column: Asset Health + Severity Donut */}
-      <div data-tour="dashboard-health" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
+      {/* Asset Health — full width */}
+      <div data-tour="dashboard-health">
+        <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
           <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid #EDF6F0' }}>
             <div className="flex items-center gap-2">
               <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Asset Health</h2>
@@ -672,7 +656,26 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            {/* Inline KPI stats */}
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg"
+                style={{ background: BRAND + '0A', border: `1px solid ${BRAND}20` }}>
+                <Building2 size={12} style={{ color: BRAND }} />
+                <span className="font-black" style={{ color: TEAL }}>{data?.active_assets ?? 0}</span>
+                <span style={{ color: '#6B9A87' }}>assets</span>
+              </div>
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg"
+                style={{ background: '#EF444410', border: '1px solid #EF444420' }}>
+                <AlertTriangle size={12} style={{ color: '#EF4444' }} />
+                <span className="font-black" style={{ color: TEAL }}>{(data?.total_detections ?? 0).toLocaleString()}</span>
+                <span style={{ color: '#6B9A87' }}>detections</span>
+              </div>
+              <div className="hidden md:flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg"
+                style={{ background: BLUE + '0A', border: `1px solid ${BLUE}20` }}>
+                <ImageIcon size={12} style={{ color: BLUE }} />
+                <span className="font-black" style={{ color: TEAL }}>{data?.total_images ?? 0}</span>
+                <span style={{ color: '#6B9A87' }}>analyzed</span>
+              </div>
               {Object.keys(envAssets).length > 0 && (
                 <button
                   onClick={(e) => { e.preventDefault(); queryClient.invalidateQueries({ queryKey: ['sensors-live'] }); }}
@@ -697,43 +700,10 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div>
-              {assetHealth.map(a => <AssetRow key={a.id} asset={a} env={envAssets[a.id]} />)}
+              {assetHealth.map(a => <AssetRow key={a.id} asset={a} env={envAssets[a.id]} sevCounts={assetSevCounts[a.id]} />)}
             </div>
           )}
         </div>
-
-        {sevDonut.length > 0 ? (
-          <div className="interactive-card bg-white rounded-2xl p-4 shadow-sm flex flex-col" style={{ border: '1px solid #C8E6D4' }}>
-            <h2 className="text-[12px] font-black uppercase tracking-wider mb-3" style={{ color: '#6B9A87' }}>Severity Mix</h2>
-            <div className="flex-1 flex flex-col items-center justify-center gap-3">
-              <ResponsiveContainer width="100%" height={120}>
-                <PieChart>
-                  <Pie data={sevDonut} cx="50%" cy="50%" innerRadius={30} outerRadius={50}
-                    dataKey="value" paddingAngle={3}>
-                    {sevDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <RechartTooltip {...tooltipStyle} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="w-full space-y-1.5">
-                {sevDonut.map((d, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-[12px]" style={{ color: '#6B9A87' }}>
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                      {d.name}
-                    </span>
-                    <span className="text-[13px] font-black font-mono" style={{ color: TEAL }}>{d.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="interactive-card bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center" style={{ border: '1px solid #C8E6D4' }}>
-            <Activity size={26} style={{ color: '#C8E6D4' }} />
-            <p className="text-[12px] mt-2" style={{ color: '#6B9A87' }}>No severity data</p>
-          </div>
-        )}
       </div>
 
       {/* Asset image carousels - ALL assets */}
