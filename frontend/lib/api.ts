@@ -82,7 +82,7 @@ export const environmentalApi = {
 // Sensors (NOAA government data)
 export const sensorsApi = {
   getLive: () => api.get('/sensors/live').then(r => r.data),
-  getHistory: (params: { asset_id: number; sensor_type: string; start: string; end: string }) =>
+  getHistory: (params: { asset_id: string; sensor_type: string; start: string; end: string }) =>
     api.get('/sensors/history', { params }).then(r => r.data),
 };
 

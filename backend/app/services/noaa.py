@@ -25,10 +25,16 @@ async def fetch_coops_latest(
         "format": "json",
         "application": "mira_intel",
     }
+    # water_level requires a datum
+    if product == "water_level":
+        params["datum"] = "MLLW"
     try:
         r = await client.get(COOPS_BASE, params=params, timeout=10)
         r.raise_for_status()
-        data = r.json().get("data", [])
+        j = r.json()
+        if "error" in j:
+            return {"value": None, "station": station_id, "product": product}
+        data = j.get("data", [])
         if data:
             return {"value": data[0], "station": station_id, "product": product}
     except Exception:
@@ -54,19 +60,28 @@ async def fetch_coops_range(
         "format": "json",
         "application": "mira_intel",
     }
+    if product == "water_level":
+        params["datum"] = "MLLW"
     try:
         r = await client.get(COOPS_BASE, params=params, timeout=15)
         r.raise_for_status()
-        return r.json().get("data", [])
+        j = r.json()
+        if "error" in j:
+            return []
+        return j.get("data", [])
     except Exception:
         return []
 
 
 def _safe_float(val: str) -> float | None:
-    """Parse float, return None for missing/bad values (NDBC uses 99/999)."""
+    """Parse float, return None for missing/bad values (NDBC uses MM and 99/999)."""
+    if val is None or val == "MM":
+        return None
     try:
         f = float(val)
-        return None if f >= 99.0 and val.replace(".", "").replace("-", "").isdigit() and f in (99.0, 999.0, 9999.0) else f
+        if f in (99.0, 999.0, 9999.0):
+            return None
+        return f
     except (ValueError, TypeError):
         return None
 
@@ -75,34 +90,38 @@ async def fetch_ndbc_latest(
     client: httpx.AsyncClient,
     station_id: str = DEFAULT_NDBC_STATION,
 ) -> dict:
-    """Fetch latest buoy observation from NDBC realtime2 text file."""
+    """Fetch latest buoy observation from NDBC realtime2 text file.
+    Scans up to 10 recent rows to find non-MM values for each field."""
     url = f"{NDBC_BASE}/{station_id}.txt"
+    empty = {
+        "wave_height": None, "wave_period": None,
+        "wind_speed": None, "wind_gust": None,
+        "wind_direction": None, "air_temp": None, "water_temp": None,
+        "station": station_id,
+    }
     try:
         r = await client.get(url, timeout=10)
         r.raise_for_status()
         lines = r.text.strip().split("\n")
         if len(lines) < 3:
-            return {"wave_height": None, "wave_period": None, "wind_speed": None, "wind_gust": None}
+            return empty
 
         headers = lines[0].replace("#", "").split()
-        # Skip units row (line 1), data starts at line 2
-        values = lines[2].split()
+        fields = {"WVHT": "wave_height", "DPD": "wave_period", "WSPD": "wind_speed",
+                  "GST": "wind_gust", "WDIR": "wind_direction", "ATMP": "air_temp", "WTMP": "water_temp"}
 
-        row = dict(zip(headers, values))
-        return {
-            "wave_height": _safe_float(row.get("WVHT")),      # meters
-            "wave_period": _safe_float(row.get("DPD")),        # seconds
-            "wind_speed": _safe_float(row.get("WSPD")),        # m/s
-            "wind_gust": _safe_float(row.get("GST")),          # m/s
-            "wind_direction": _safe_float(row.get("WDIR")),    # degrees
-            "air_temp": _safe_float(row.get("ATMP")),          # celsius
-            "water_temp": _safe_float(row.get("WTMP")),        # celsius
-            "station": station_id,
-        }
+        result = dict(empty)
+        # Scan rows 2..11 (skip header + units) for first non-MM value per field
+        for line in lines[2:12]:
+            vals = line.split()
+            row = dict(zip(headers, vals))
+            for ndbc_key, out_key in fields.items():
+                if result[out_key] is None:
+                    result[out_key] = _safe_float(row.get(ndbc_key))
+            # Stop early if all fields populated
+            if all(result[k] is not None for k in fields.values()):
+                break
+
+        return result
     except Exception:
-        return {
-            "wave_height": None, "wave_period": None,
-            "wind_speed": None, "wind_gust": None,
-            "wind_direction": None, "air_temp": None, "water_temp": None,
-            "station": station_id,
-        }
+        return empty

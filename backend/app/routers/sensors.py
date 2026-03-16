@@ -23,7 +23,6 @@ _cache: dict[str, dict] = {}
 CACHE_TTL = 300
 
 # Station mapping per asset (could later come from DB)
-# For now all Governor's Island assets use the same nearby stations
 ASSET_STATIONS = {
     "default": {
         "coops": DEFAULT_COOPS_STATION,  # The Battery, NY
@@ -32,17 +31,19 @@ ASSET_STATIONS = {
 }
 
 
-def _get_stations(asset_id: int) -> dict:
+def _get_stations(asset_id) -> dict:
     return ASSET_STATIONS.get(str(asset_id), ASSET_STATIONS["default"])
 
 
 def _ms_to_mph(ms: float | None) -> float | None:
-    """Convert m/s to mph."""
     return round(ms * 2.23694, 1) if ms is not None else None
 
 
+def _ms_to_kn(ms: float | None) -> float | None:
+    return round(ms * 1.94384, 1) if ms is not None else None
+
+
 def _c_to_f(c: float | None) -> float | None:
-    """Convert Celsius to Fahrenheit."""
     return round(c * 9 / 5 + 32, 1) if c is not None else None
 
 
@@ -77,38 +78,28 @@ async def get_live_sensor_data(
         for a in assets:
             stations = _get_stations(a.id)
 
-            # Fetch all NOAA data in parallel
-            temp_res, wind_res, water_res, ndbc_res = await asyncio.gather(
+            # Fetch CO-OPS (temp + water level) and NDBC (wind + waves) in parallel
+            # Wind is NOT available at CO-OPS 8518750, so we use NDBC buoy for wind
+            temp_res, water_res, ndbc_res = await asyncio.gather(
                 fetch_coops_latest(client, stations["coops"], "air_temperature"),
-                fetch_coops_latest(client, stations["coops"], "wind"),
                 fetch_coops_latest(client, stations["coops"], "water_level"),
                 fetch_ndbc_latest(client, stations["ndbc"]),
             )
 
-            # Parse CO-OPS responses
+            # Parse CO-OPS air temperature
             temp_val = None
             if temp_res["value"]:
                 try:
-                    temp_val = float(temp_res["value"].get("v", 0))
-                except (ValueError, TypeError, AttributeError):
+                    temp_val = float(temp_res["value"]["v"])
+                except (ValueError, TypeError, KeyError):
                     pass
 
-            wind_speed = None
-            wind_dir = None
-            wind_gust = None
-            if wind_res["value"]:
-                try:
-                    wind_speed = float(wind_res["value"].get("s", 0))
-                    wind_dir = wind_res["value"].get("d", "")
-                    wind_gust = float(wind_res["value"].get("g", 0))
-                except (ValueError, TypeError, AttributeError):
-                    pass
-
+            # Parse CO-OPS water level
             water_level = None
             if water_res["value"]:
                 try:
-                    water_level = float(water_res["value"].get("v", 0))
-                except (ValueError, TypeError, AttributeError):
+                    water_level = float(water_res["value"]["v"])
+                except (ValueError, TypeError, KeyError):
                     pass
 
             asset_data[a.id] = {
@@ -117,15 +108,18 @@ async def get_live_sensor_data(
                 "latitude": a.latitude,
                 "longitude": a.longitude,
                 "temperature_f": temp_val,
-                "wind_speed_kn": wind_speed,
-                "wind_direction": wind_dir,
-                "wind_gust_kn": wind_gust,
                 "water_level_ft": water_level,
+                # Wind from NDBC buoy (converted from m/s)
+                "wind_speed_kn": _ms_to_kn(ndbc_res.get("wind_speed")),
+                "wind_direction_deg": ndbc_res.get("wind_direction"),
+                "wind_gust_kn": _ms_to_kn(ndbc_res.get("wind_gust")),
+                "wind_speed_mph": _ms_to_mph(ndbc_res.get("wind_speed")),
+                # Waves from NDBC buoy
                 "wave_height_m": ndbc_res.get("wave_height"),
                 "wave_period_s": ndbc_res.get("wave_period"),
-                "ndbc_wind_speed_mph": _ms_to_mph(ndbc_res.get("wind_speed")),
-                "ndbc_wind_gust_mph": _ms_to_mph(ndbc_res.get("wind_gust")),
+                # Temps
                 "water_temp_f": _c_to_f(ndbc_res.get("water_temp")),
+                "air_temp_ndbc_f": _c_to_f(ndbc_res.get("air_temp")),
                 "sources": {
                     "coops_station": stations["coops"],
                     "ndbc_station": stations["ndbc"],
@@ -139,7 +133,7 @@ async def get_live_sensor_data(
 
 @router.get("/history")
 async def get_sensor_history(
-    asset_id: int = Query(...),
+    asset_id: str = Query(...),
     sensor_type: str = Query(..., description="air_temperature, wind, water_level"),
     start: str = Query(..., description="YYYYMMDD"),
     end: str = Query(..., description="YYYYMMDD"),

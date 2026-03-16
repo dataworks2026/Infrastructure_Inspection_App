@@ -157,7 +157,7 @@ export default function SensorsPage() {
   const { data: historyData, isFetching: histFetching } = useQuery<SensorHistoryResponse>({
     queryKey: ['sensors-history', activeAssetId, sensorType, rangeDays],
     queryFn: () => sensorsApi.getHistory({
-      asset_id: Number(activeAssetId),
+      asset_id: activeAssetId!,
       sensor_type: sensorType,
       start: dateStr(rangeDays),
       end: dateStr(0),
@@ -281,9 +281,9 @@ export default function SensorsPage() {
             label="Wind"
             value={fmt(activeAsset.wind_speed_kn)}
             unit="kn"
-            source={`NOAA CO-OPS — Station ${activeAsset.sources.coops_station}`}
+            source={`NOAA NDBC — Buoy ${activeAsset.sources.ndbc_station}`}
             color={BRAND}
-            subtitle={activeAsset.wind_gust_kn != null ? `Gusts: ${fmt(activeAsset.wind_gust_kn)} kn · ${activeAsset.wind_direction || ''}` : undefined}
+            subtitle={activeAsset.wind_gust_kn != null ? `Gusts: ${fmt(activeAsset.wind_gust_kn)} kn · ${activeAsset.wind_direction_deg != null ? activeAsset.wind_direction_deg + '°' : ''}` : undefined}
           />
           <SensorCard
             icon={<Droplets size={24} color="#3B82F6" />}

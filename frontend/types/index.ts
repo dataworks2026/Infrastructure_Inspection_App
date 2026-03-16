@@ -126,15 +126,15 @@ export interface SensorAssetLive {
   latitude: number;
   longitude: number;
   temperature_f: number | null;
-  wind_speed_kn: number | null;
-  wind_direction: string | null;
-  wind_gust_kn: number | null;
   water_level_ft: number | null;
+  wind_speed_kn: number | null;
+  wind_direction_deg: number | null;
+  wind_gust_kn: number | null;
+  wind_speed_mph: number | null;
   wave_height_m: number | null;
   wave_period_s: number | null;
-  ndbc_wind_speed_mph: number | null;
-  ndbc_wind_gust_mph: number | null;
   water_temp_f: number | null;
+  air_temp_ndbc_f: number | null;
   sources: { coops_station: string; ndbc_station: string };
 }
 
