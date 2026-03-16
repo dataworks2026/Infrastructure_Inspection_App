@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText,
   LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
-  Settings, Search, HelpCircle, X,
+  Settings, Search, HelpCircle, X, Activity,
 } from 'lucide-react';
 import { clearAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/app/providers';
@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: '/assets',      label: 'Assets',      icon: Building2,       tourId: 'nav-assets' },
   { href: '/map',         label: 'Map',         icon: Map,             tourId: 'nav-map' },
   { href: '/inspections', label: 'Inspections', icon: ClipboardList,   tourId: 'nav-inspections' },
+  { href: '/sensors',     label: 'Sensors',     icon: Activity,        tourId: 'nav-sensors' },
   { href: '/upload',      label: 'Upload',      icon: Upload,          tourId: 'nav-upload' },
   { href: '/reports',     label: 'Reports',     icon: FileText },
 ];

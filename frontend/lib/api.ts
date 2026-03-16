@@ -74,9 +74,16 @@ export const imagesApi = {
   gpsPoints: () => api.get('/images/gps-points').then(r => r.data),
 };
 
-// Environmental (live conditions)
+// Environmental (live conditions — Open-Meteo, dashboard pills)
 export const environmentalApi = {
   getAssetData: () => api.get('/environmental/assets').then(r => r.data),
+};
+
+// Sensors (NOAA government data)
+export const sensorsApi = {
+  getLive: () => api.get('/sensors/live').then(r => r.data),
+  getHistory: (params: { asset_id: number; sensor_type: string; start: string; end: string }) =>
+    api.get('/sensors/history', { params }).then(r => r.data),
 };
 
 // Analysis

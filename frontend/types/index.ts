@@ -119,6 +119,48 @@ export interface DashboardOverview {
   asset_health: DashboardAssetHealth[];
 }
 
+// ── Sensors (NOAA) ──────────────────────────────────────────
+export interface SensorAssetLive {
+  asset_name: string;
+  location_name: string | null;
+  latitude: number;
+  longitude: number;
+  temperature_f: number | null;
+  wind_speed_kn: number | null;
+  wind_direction: string | null;
+  wind_gust_kn: number | null;
+  water_level_ft: number | null;
+  wave_height_m: number | null;
+  wave_period_s: number | null;
+  ndbc_wind_speed_mph: number | null;
+  ndbc_wind_gust_mph: number | null;
+  water_temp_f: number | null;
+  sources: { coops_station: string; ndbc_station: string };
+}
+
+export interface SensorLiveResponse {
+  assets: Record<string, SensorAssetLive>;
+  updated_at: number;
+}
+
+export interface SensorHistoryReading {
+  t: string;   // timestamp
+  v: string;   // value
+  f?: string;  // flags
+  s?: string;  // speed (wind)
+  d?: string;  // direction (wind)
+  g?: string;  // gust (wind)
+}
+
+export interface SensorHistoryResponse {
+  asset_id: number;
+  sensor_type: string;
+  station: string;
+  start: string;
+  end: string;
+  readings: SensorHistoryReading[];
+}
+
 export interface AuthToken {
   access_token: string;
   token_type: string;

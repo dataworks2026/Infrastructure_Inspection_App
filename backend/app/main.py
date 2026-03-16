@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.database import engine, Base
-from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental
+from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
 import app.models  # noqa: ensure all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -29,6 +29,7 @@ app.include_router(images.router, prefix="/api/v1", tags=["images"])
 app.include_router(analysis.router, prefix="/api/v1", tags=["analysis"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(environmental.router, prefix="/api/v1/environmental", tags=["environmental"])
+app.include_router(sensors.router, prefix="/api/v1/sensors", tags=["sensors"])
 
 @app.get("/health")
 async def health():
