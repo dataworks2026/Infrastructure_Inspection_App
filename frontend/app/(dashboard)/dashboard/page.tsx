@@ -1,16 +1,30 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { dashboardApi, sensorsApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
-  Building2, AlertTriangle, ImageIcon, ArrowRight,
-  Wind, Waves, Anchor, Shield, ChevronRight, ChevronLeft,
-  Activity, Thermometer, RefreshCw, Map, FileText, Lock,
+  Building2, ArrowRight,
+  Wind, Waves, Anchor, Shield,
+  Activity, Thermometer, RefreshCw, Map, ClipboardList,
+  Maximize2, Box,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import type { DashboardAnalyzedImage, DashboardAssetHealth } from '@/types';
+import dynamic from 'next/dynamic';
+import type { DashboardAssetHealth } from '@/types';
+
+/* ── Dynamic import of 3D scene (no SSR — Three.js needs browser) ── */
+const TurbineScene = dynamic(
+  () => import('../digital-twin/viewer/TurbineScene'),
+  { ssr: false, loading: () => (
+    <div className="w-full h-full flex items-center justify-center" style={{ background: '#0A1A2F' }}>
+      <div className="flex flex-col items-center gap-3">
+        <Box size={32} className="animate-pulse" style={{ color: '#0891B2' }} />
+        <p className="text-[12px] font-semibold" style={{ color: '#6B9A87' }}>Loading 3D scene…</p>
+      </div>
+    </div>
+  )}
+);
 
 const TEAL  = '#082E29';
 const MINT  = '#EDF6F0';
@@ -43,11 +57,6 @@ const normSev = (s: string | null | undefined): string | null => {
   return map[s] || s;
 };
 
-function getSeverityColor(severity: string | null | undefined): string {
-  const s = normSev(severity);
-  return SEV[s || '']?.color || '#64748B';
-}
-
 /* ── Wind direction helper ── */
 function windDirLabel(deg: number | null | undefined): string {
   if (deg == null) return '';
@@ -62,7 +71,6 @@ function SevBar({ counts }: { counts: Record<string, number> }) {
 
   return (
     <div className="flex items-center gap-2 flex-shrink-0">
-      {/* Wider proportional stacked bar */}
       <div className="hidden lg:flex h-2 rounded-full overflow-hidden" style={{ width: 80, background: '#EDF6F0' }}>
         {total > 0 && items.map(k => {
           const pct = ((counts[k] || 0) / total) * 100;
@@ -71,7 +79,6 @@ function SevBar({ counts }: { counts: Record<string, number> }) {
           ) : null;
         })}
       </div>
-      {/* Chips */}
       <div className="flex items-center gap-1">
         {items.map(k => {
           const count = counts[k] || 0;
@@ -97,7 +104,7 @@ function SevBar({ counts }: { counts: Record<string, number> }) {
   );
 }
 
-/* ── Asset health row (no sensors, severity on right) ── */
+/* ── Asset health row ── */
 function AssetRow({ asset, sevCounts }: { asset: DashboardAssetHealth; sevCounts?: Record<string, number> }) {
   const Icon = INFRA_ICON[asset.infrastructure_type] || Building2;
   const typeColor = INFRA_COLOR[asset.infrastructure_type] || '#64748B';
@@ -105,12 +112,10 @@ function AssetRow({ asset, sevCounts }: { asset: DashboardAssetHealth; sevCounts
     <Link href={`/assets/${asset.id}`}
       className="interactive-row flex items-center gap-3 px-5 py-3.5 group"
       style={{ borderBottom: '1px solid #EDF6F0' }}>
-      {/* Icon */}
       <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
         style={{ background: typeColor + '15', border: `1px solid ${typeColor}30` }}>
         <Icon size={16} style={{ color: typeColor }} />
       </div>
-      {/* Name + type */}
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-bold truncate group-hover:text-[#0891B2] transition-colors" style={{ color: TEAL }}>
           {asset.name}
@@ -119,7 +124,6 @@ function AssetRow({ asset, sevCounts }: { asset: DashboardAssetHealth; sevCounts
           {INFRA_LABEL[asset.infrastructure_type] || asset.infrastructure_type}
         </span>
       </div>
-      {/* Severity chips on right */}
       {sevCounts ? (
         <SevBar counts={sevCounts} />
       ) : (
@@ -134,7 +138,7 @@ function AssetRow({ asset, sevCounts }: { asset: DashboardAssetHealth; sevCounts
   );
 }
 
-/* ── Env metric pill (with green live dot) ── */
+/* ── Env metric pill ── */
 function EnvPill({ icon, label, value, unit, color }: {
   icon: React.ReactNode; label: string; value: number | null | undefined; unit: string; color: string;
 }) {
@@ -158,319 +162,12 @@ function EnvPill({ icon, label, value, unit, color }: {
   );
 }
 
-/* ── Image with SVG bounding-box overlay ── */
-function BboxOverlayImage({ img }: { img: DashboardAnalyzedImage }) {
-  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
-  const dets = img.detections || [];
-
-  return (
-    <>
-      <img
-        src={img.url}
-        alt={img.filename}
-        className="w-full h-full object-cover"
-        onLoad={e => {
-          const el = e.currentTarget;
-          setDims({ w: el.naturalWidth, h: el.naturalHeight });
-        }}
-        onError={e => {
-          (e.target as HTMLImageElement).src =
-            'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23EDF6F0"/><text x="50" y="55" text-anchor="middle" font-size="28" fill="%236B9A87">📷</text></svg>';
-        }}
-      />
-      {dims && dets.length > 0 && (() => {
-        const visible = dets.filter((d: any) => d.confidence >= 0.20);
-        const scale = dims.w / 700;
-        const strokeW = Math.max(2, 2.5 * scale);
-        const labelH = Math.round(22 * scale);
-        const labelPad = Math.round(6 * scale);
-        const labels = visible.map((d: any) => {
-          const { x1, y1, x2, y2 } = d.bbox;
-          const sev = normSev(d.severity) || '';
-          const mainLabel = sev ? `${sev} ${d.damage_type}` : d.damage_type;
-          const mainFontSize = Math.round(13 * scale);
-          const mainCharW = mainFontSize * 0.58;
-          const labelW = mainLabel.length * mainCharW + labelPad * 2;
-          let labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
-          const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
-          return { d, mainLabel, mainFontSize, labelW, labelH, labelX, labelY };
-        });
-        for (let i = 0; i < labels.length; i++) {
-          for (let j = i + 1; j < labels.length; j++) {
-            const a = labels[i], b = labels[j];
-            if (Math.abs(a.labelY - b.labelY) < labelH * 0.85 &&
-                a.labelX < b.labelX + b.labelW && b.labelX < a.labelX + a.labelW) {
-              b.labelY = a.labelY + labelH + 2 * scale;
-              if (b.labelY > dims.h - labelH) b.labelY = a.labelY - labelH - 2 * scale;
-            }
-          }
-        }
-
-        return (
-          <svg viewBox={`0 0 ${dims.w} ${dims.h}`} preserveAspectRatio="xMidYMid slice"
-            className="absolute inset-0 w-full h-full pointer-events-none">
-            {labels.map((l, i) => {
-              const { d, mainLabel, mainFontSize, labelW, labelH: lH, labelX, labelY } = l;
-              const sevColor = getSeverityColor(d.severity);
-              const { x1, y1, x2, y2 } = d.bbox;
-              const bw = x2 - x1, bh = y2 - y1;
-              const hi = d.confidence >= 0.5;
-              const fillOp = hi ? 0.12 : 0.04;
-              const strokeOp = hi ? 0.9 : 0.3;
-              const cornerOp = hi ? 0.95 : 0.35;
-              const labelBgOp = hi ? 0.85 : 0.45;
-
-              return (
-                <g key={i}>
-                  <rect x={x1} y={y1} width={bw} height={bh}
-                    fill={sevColor} fillOpacity={fillOp} rx={2 * scale} />
-                  <rect x={x1} y={y1} width={bw} height={bh}
-                    fill="none" stroke={sevColor} strokeWidth={strokeW}
-                    strokeOpacity={strokeOp} rx={2 * scale} />
-                  <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={sevColor} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={sevColor} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={sevColor} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={sevColor} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <rect x={labelX + 1} y={labelY + 1} width={labelW} height={lH}
-                    fill="rgba(0,0,0,0.25)" rx={4 * scale} />
-                  <rect x={labelX} y={labelY} width={labelW} height={lH}
-                    fill={sevColor} fillOpacity={labelBgOp} rx={4 * scale} />
-                  <text x={labelX + labelPad} y={labelY + lH * 0.72}
-                    fontSize={mainFontSize} fill="white"
-                    fontFamily="system-ui,-apple-system,sans-serif"
-                    fontWeight="700" letterSpacing="0.2">
-                    {mainLabel}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        );
-      })()}
-    </>
-  );
-}
-
-/* ── Per-asset carousel card (clickable to inspections) ── */
-function AssetCarouselCard({
-  group,
-}: {
-  group: { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] };
-}) {
-  const router = useRouter();
-  const [idx, setIdx] = useState(0);
-  const imgs = group.images.slice(0, 10);
-  const img = imgs[idx];
-
-  const totalDetections = imgs.reduce((sum, i) => sum + i.detection_count, 0);
-  const worstSev = imgs.find(i => i.max_severity)?.max_severity ?? null;
-  const borderAccent = worstSev === 'S4' ? '#B71C1C' : worstSev === 'S3' ? '#EF4444' : worstSev === 'S2' ? '#F59E0B' : worstSev === 'S1' ? '#EAB308' : '#C8E6D4';
-
-  const prev = (e: React.MouseEvent) => { e.stopPropagation(); setIdx(i => Math.max(0, i - 1)); };
-  const next = (e: React.MouseEvent) => { e.stopPropagation(); setIdx(i => Math.min(imgs.length - 1, i + 1)); };
-
-  // Navigate to inspection detail page when image/card is clicked
-  const goToInspection = () => {
-    if (img?.inspection_id) router.push(`/inspections/${img.inspection_id}`);
-    else router.push('/inspections');
-  };
-
-  if (!img) {
-    return (
-      <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0"
-        style={{ border: '1px solid #C8E6D4', minWidth: 280 }}>
-        <div className="flex items-center justify-between px-3 py-2 flex-shrink-0"
-          style={{ background: MINT, borderBottom: '1px solid #C8E6D4' }}>
-          <p className="text-[12px] font-black truncate" style={{ color: TEAL }}>{group.asset_name}</p>
-          <Link href="/inspections" className="flex items-center gap-0.5 text-[10px] font-bold ml-2 flex-shrink-0 hover:opacity-70"
-            style={{ color: BRAND }}>
-            View <ChevronRight size={11} />
-          </Link>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center py-10 gap-2" style={{ aspectRatio: '4/3' }}>
-          <ImageIcon size={30} style={{ color: '#C8E6D4' }} />
-          <p className="text-[12px] font-medium" style={{ color: '#6B9A87' }}>No images analyzed yet</p>
-          <Link href="/upload" className="text-[11px] font-bold" style={{ color: BRAND }}>Upload images →</Link>
-        </div>
-      </div>
-    );
-  }
-
-  const sev = img.max_severity ? SEV[img.max_severity] : null;
-
-  return (
-    <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0 cursor-pointer group/card"
-      style={{ border: `1px solid ${borderAccent}`, minWidth: 280 }}
-      onClick={goToInspection}>
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 flex-shrink-0"
-        style={{ background: MINT, borderBottom: '1px solid #C8E6D4' }}>
-        <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-black truncate group-hover/card:text-[#0891B2] transition-colors" style={{ color: TEAL }}>{group.asset_name}</p>
-          <p className="text-[10px] mt-0.5" style={{ color: '#6B9A87' }}>
-            {imgs.length} image{imgs.length !== 1 ? 's' : ''}&nbsp;·&nbsp;
-            <span style={{ color: totalDetections > 0 ? '#EF4444' : '#10B981', fontWeight: 700 }}>
-              {totalDetections} detection{totalDetections !== 1 ? 's' : ''}
-            </span>
-          </p>
-        </div>
-        <span className="flex items-center gap-0.5 text-[10px] font-bold ml-2 flex-shrink-0 group-hover/card:opacity-70 transition-opacity"
-          style={{ color: BRAND }}>
-          Open <ChevronRight size={11} />
-        </span>
-      </div>
-
-      {/* Image carousel */}
-      <div className="relative bg-slate-100 overflow-hidden flex-shrink-0" style={{ aspectRatio: '4/3' }}>
-        <BboxOverlayImage img={img} />
-
-        {/* Detection badge */}
-        {img.detection_count > 0 ? (
-          <div className="absolute top-2 right-2 flex items-center gap-1 text-white text-[11px] font-black px-2 py-0.5 rounded-full shadow-md"
-            style={{ background: sev?.color || '#EF4444' }}>
-            <AlertTriangle size={11} /> {img.detection_count}
-          </div>
-        ) : (
-          <div className="absolute top-2 right-2 text-[11px] font-black px-2 py-0.5 rounded-full shadow-md"
-            style={{ background: '#10B981', color: 'white' }}>
-            Clean
-          </div>
-        )}
-
-        {/* Carousel controls */}
-        {imgs.length > 1 && (
-          <>
-            <button onClick={prev} disabled={idx === 0}
-              className="carousel-arrow absolute left-1.5 top-1/2 -translate-y-1/2"
-              style={{ opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'default' : 'pointer' }}>
-              <ChevronLeft size={14} style={{ color: TEAL }} />
-            </button>
-            <button onClick={next} disabled={idx === imgs.length - 1}
-              className="carousel-arrow absolute right-1.5 top-1/2 -translate-y-1/2"
-              style={{ opacity: idx === imgs.length - 1 ? 0.3 : 1, cursor: idx === imgs.length - 1 ? 'default' : 'pointer' }}>
-              <ChevronRight size={14} style={{ color: TEAL }} />
-            </button>
-          </>
-        )}
-
-        {/* Progress bar */}
-        {imgs.length > 1 && (
-          <div className="absolute bottom-0 left-0 right-0 h-1" style={{ background: 'rgba(0,0,0,0.2)' }}>
-            <div className="h-full transition-all duration-300 ease-out"
-              style={{ width: `${((idx + 1) / imgs.length) * 100}%`, background: sev?.color || BRAND }} />
-          </div>
-        )}
-
-        {/* Counter */}
-        <div className="absolute bottom-2 right-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded"
-          style={{ background: 'rgba(8,46,41,0.7)', color: 'white' }}>
-          {idx + 1}/{imgs.length}
-        </div>
-      </div>
-
-      {/* Image info */}
-      <div className="px-3 py-2.5 flex flex-col gap-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {img.max_severity && (() => {
-            const norm = normSev(img.max_severity);
-            const s = norm ? SEV[norm] : null;
-            if (!s || !norm) return null;
-            return (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
-                style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                {norm} {s.label}
-              </span>
-            );
-          })()}
-          {!img.max_severity && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-              style={{ background: '#F0FDF4', color: '#10B981', border: '1px solid #BBF7D0' }}>
-              <Shield size={8} /> Clean
-            </span>
-          )}
-        </div>
-        {img.damage_types && img.damage_types.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            {img.damage_types.map((dt) => (
-              <span key={dt.damage_type}
-                className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                style={{ background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA' }}>
-                {dt.damage_type} ({dt.count})
-              </span>
-            ))}
-          </div>
-        )}
-        <p className="text-[11px] font-medium truncate" style={{ color: '#6B9A87' }}>{img.inspection_name}</p>
-      </div>
-    </div>
-  );
-}
-
-/* ── Scrollable carousel row ── */
-function CarouselRow({ groups }: { groups: { asset_id: string; asset_name: string; images: DashboardAnalyzedImage[] }[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  };
-
-  const scroll = (dir: 'left' | 'right') => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir === 'left' ? -340 : 340, behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    checkScroll();
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', checkScroll, { passive: true });
-    const ro = new ResizeObserver(checkScroll);
-    ro.observe(el);
-    return () => { el.removeEventListener('scroll', checkScroll); ro.disconnect(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const showArrows = groups.length > 3;
-
-  return (
-    <div className="relative">
-      {showArrows && canScrollLeft && (
-        <button onClick={() => scroll('left')}
-          className="carousel-scroll-btn absolute -left-1 top-1/2 -translate-y-1/2 z-10">
-          <ChevronLeft size={18} />
-        </button>
-      )}
-      <div ref={scrollRef}
-        className="flex gap-4 overflow-x-auto pb-2 carousel-scroll"
-        style={{ scrollSnapType: 'x mandatory' }}>
-        {groups.map(group => (
-          <div key={group.asset_id || group.asset_name}
-            className="flex-shrink-0"
-            style={{ width: groups.length <= 3 ? `calc(${100 / Math.min(groups.length, 3)}% - ${((Math.min(groups.length, 3) - 1) * 16) / Math.min(groups.length, 3)}px)` : 340, scrollSnapAlign: 'start' }}>
-            <AssetCarouselCard group={group} />
-          </div>
-        ))}
-      </div>
-      {showArrows && canScrollRight && (
-        <button onClick={() => scroll('right')}
-          className="carousel-scroll-btn absolute -right-1 top-1/2 -translate-y-1/2 z-10">
-          <ChevronRight size={18} />
-        </button>
-      )}
-    </div>
-  );
-}
-
 /* ══════════════════════════════════════════════════
    MAIN PAGE
    ══════════════════════════════════════════════════ */
 export default function DashboardPage() {
+  const [selectedPin, setSelectedPin] = useState<string | null>(null);
+
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: dashboardApi.overview,
@@ -485,7 +182,6 @@ export default function DashboardPage() {
     staleTime: 240_000,
   });
 
-  // Pick first available sensor env (Gov Island)
   const sensorEnv = useMemo(() => {
     const raw = envData?.assets || {};
     const first = Object.values(raw)[0] as any;
@@ -502,7 +198,6 @@ export default function DashboardPage() {
   const images = data?.recent_analyzed_images || [];
   const assetHealth = data?.asset_health || [];
 
-  // Per-asset severity counts
   const assetSevCounts = useMemo(() => {
     const counts: Record<string, Record<string, number>> = {};
     for (const img of images) {
@@ -515,43 +210,6 @@ export default function DashboardPage() {
     }
     return counts;
   }, [images]);
-
-  // Build carousel groups
-  const carouselGroups = useMemo(() => {
-    const imgGroups: Record<string, DashboardAnalyzedImage[]> = {};
-    for (const img of images) {
-      const key = img.asset_id || img.asset_name;
-      if (!imgGroups[key]) imgGroups[key] = [];
-      imgGroups[key].push(img);
-    }
-    const sevRank: Record<string, number> = { S4: 0, S3: 1, S2: 2, S1: 3 };
-    const groups = assetHealth.map(a => {
-      const assetImages = (imgGroups[a.id] || [])
-        .sort((x, y) =>
-          (sevRank[x.max_severity || ''] ?? 4) - (sevRank[y.max_severity || ''] ?? 4) ||
-          y.detection_count - x.detection_count
-        )
-        .slice(0, 10);
-      return { asset_id: a.id, asset_name: a.name, images: assetImages };
-    });
-    const healthIds = new Set(assetHealth.map(a => a.id));
-    for (const [key, imgs] of Object.entries(imgGroups)) {
-      if (!healthIds.has(key)) {
-        const sorted = [...imgs]
-          .sort((x, y) =>
-            (sevRank[x.max_severity || ''] ?? 4) - (sevRank[y.max_severity || ''] ?? 4) ||
-            y.detection_count - x.detection_count
-          )
-          .slice(0, 10);
-        groups.push({ asset_id: key, asset_name: sorted[0]?.asset_name || key, images: sorted });
-      }
-    }
-    return groups.sort((a, b) => {
-      const wa = sevRank[a.images[0]?.max_severity || ''] ?? 4;
-      const wb = sevRank[b.images[0]?.max_severity || ''] ?? 4;
-      return wa - wb;
-    });
-  }, [images, assetHealth]);
 
   if (isLoading) return <DashboardSkeleton />;
 
@@ -605,23 +263,20 @@ export default function DashboardPage() {
           <ArrowRight size={16} className="flex-shrink-0 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: '#10B981' }} />
         </Link>
 
-        {/* Reports — Soon */}
-        <div className="interactive-card bg-white rounded-2xl shadow-sm px-4 py-3 flex items-center gap-3 opacity-60"
-          style={{ border: '1px solid #E2EDE8' }}>
+        {/* Inspections */}
+        <Link href="/inspections"
+          className="interactive-card bg-white rounded-2xl shadow-sm px-4 py-3 flex items-center gap-3 group hover:shadow-md transition-all"
+          style={{ border: '1px solid #C8E6D4' }}>
           <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: '#6B9A8712' }}>
-            <FileText size={20} style={{ color: '#6B9A87' }} />
+            style={{ background: '#6366F112' }}>
+            <ClipboardList size={20} style={{ color: '#6366F1' }} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-black leading-tight" style={{ color: TEAL }}>Reports</p>
-            <p className="text-[11px] font-semibold" style={{ color: '#6B9A87' }}>Generate reports</p>
+            <p className="text-[13px] font-black leading-tight" style={{ color: TEAL }}>Inspections</p>
+            <p className="text-[11px] font-semibold" style={{ color: '#6B9A87' }}>View all inspections</p>
           </div>
-          <span className="text-[9px] font-black px-2 py-0.5 rounded-full flex-shrink-0 uppercase tracking-wider"
-            style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A' }}>
-            <Lock size={8} className="inline mr-0.5 -mt-[1px]" />
-            Soon
-          </span>
-        </div>
+          <ArrowRight size={16} className="flex-shrink-0 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: '#6366F1' }} />
+        </Link>
       </div>
 
       {/* ── Asset Health (left) + Sensors Card (right) ── */}
@@ -661,7 +316,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Sensors Card — single Gov Island location */}
+        {/* Sensors Card */}
         <Link href="/sensors"
           className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all"
           style={{ border: '1px solid #C8E6D4' }}>
@@ -691,7 +346,6 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-
           <div className="px-4 py-3 flex-1 flex flex-col gap-2">
             <p className="text-[11px] font-semibold" style={{ color: '#6B9A87' }}>
               Governor&apos;s Island, NY
@@ -718,30 +372,28 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* ── Most Affected Images ── */}
-      {carouselGroups.length > 0 ? (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>
-              Most Affected Images
-            </h2>
-            <Link href="/inspections" className="interactive-link text-[11px] font-bold flex items-center gap-1"
-              style={{ color: BRAND }}>
-              All Inspections <ArrowRight size={10} />
-            </Link>
+      {/* ── Digital Twin 3D Viewer ── */}
+      <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #EDF6F0' }}>
+          <div className="flex items-center gap-2">
+            <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Digital Twin</h2>
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ background: '#EDE9FE', color: '#7C3AED', border: '1px solid #DDD6FE' }}>
+              <Box size={8} />
+              3D
+            </span>
           </div>
-          <CarouselRow groups={carouselGroups} />
+          <Link href="/digital-twin/viewer"
+            className="interactive-link text-[11px] font-bold flex items-center gap-1 hover:opacity-70 transition-opacity"
+            style={{ color: BRAND }}>
+            <Maximize2 size={10} />
+            Full Viewer <ArrowRight size={10} />
+          </Link>
         </div>
-      ) : (
-        <div className="interactive-card bg-white rounded-2xl shadow-sm p-8 flex flex-col items-center gap-3"
-          style={{ border: '1px solid #C8E6D4' }}>
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: MINT }}>
-            <ImageIcon size={22} style={{ color: '#6B9A87' }} />
-          </div>
-          <p className="text-[13px] font-semibold" style={{ color: '#6B9A87' }}>No analyzed images yet</p>
-          <Link href="/upload" className="text-[11px] font-bold" style={{ color: BRAND }}>Upload your first inspection →</Link>
+        <div style={{ height: 380 }} className="relative bg-[#0A1A2F]">
+          <TurbineScene selectedPin={selectedPin} onSelectPin={setSelectedPin} />
         </div>
-      )}
+      </div>
 
       <div className="h-2" />
     </div>
