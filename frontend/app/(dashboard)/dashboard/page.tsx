@@ -7,7 +7,7 @@ import {
   Building2, ArrowRight,
   Wind, Waves, Anchor, Shield,
   Activity, Thermometer, RefreshCw, Map, ClipboardList,
-  Maximize2, Box,
+  Maximize2, Box, AlertTriangle, TrendingDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -374,7 +374,7 @@ export default function DashboardPage() {
 
       {/* ── Digital Twin 3D Viewer ── */}
       <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
-        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #EDF6F0' }}>
+        <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: '1px solid #EDF6F0' }}>
           <div className="flex items-center gap-2">
             <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Digital Twin</h2>
             <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
@@ -390,12 +390,113 @@ export default function DashboardPage() {
             Full Viewer <ArrowRight size={10} />
           </Link>
         </div>
-        <div style={{ height: 380 }} className="relative bg-[#0A1A2F]">
-          <TurbineScene selectedPin={selectedPin} onSelectPin={setSelectedPin} />
+        <div className="relative bg-[#0A1A2F]"
+          style={{ height: 'calc(100vh - 28rem)', minHeight: 220, maxHeight: 500 }}>
+          <TurbineScene
+            selectedPin={selectedPin}
+            onSelectPin={setSelectedPin}
+            cameraPosition={[3, 2.5, 5]}
+            cameraFov={42}
+            controlsTarget={[0, 0.5, -0.5]}
+            minDistance={1.5}
+            maxDistance={12}
+          />
+
+          {/* ── Glass overlay: stats on 3D ── */}
+          <div className="absolute inset-0 pointer-events-none z-10">
+
+            {/* Top-left: Health Score */}
+            <div className="absolute top-3 left-3 pointer-events-auto">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl backdrop-blur-md"
+                style={{ background: 'rgba(8,46,41,0.65)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="relative w-10 h-10 flex-shrink-0">
+                  <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="#10B981" strokeWidth="3"
+                      strokeDasharray={`${87 * 0.942} ${100 * 0.942}`} strokeLinecap="round" />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white">87</span>
+                </div>
+                <div className="leading-none">
+                  <p className="text-[10px] font-black text-white">Health Score</p>
+                  <p className="text-[9px] font-semibold" style={{ color: '#10B981' }}>Good Condition</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Top-right: Severity summary */}
+            <div className="absolute top-3 right-3 pointer-events-auto">
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl backdrop-blur-md"
+                style={{ background: 'rgba(8,46,41,0.65)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                {(['S1', 'S2', 'S3', 'S4'] as const).map(k => {
+                  const pinCounts = { S1: 0, S2: 5, S3: 4, S4: 3 };
+                  const count = pinCounts[k];
+                  const s = SEV[k];
+                  return (
+                    <span key={k} className="inline-flex items-center gap-[3px] text-[9px] font-bold px-1.5 py-[2px] rounded-full"
+                      style={{ background: count > 0 ? s.color + '30' : 'rgba(255,255,255,0.08)', color: count > 0 ? s.color : 'rgba(255,255,255,0.3)' }}>
+                      <span className="w-[5px] h-[5px] rounded-full" style={{ background: count > 0 ? s.color : 'rgba(255,255,255,0.2)' }} />
+                      {k} <span className="font-black">{count}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Bottom-left: Structures */}
+            <div className="absolute bottom-3 left-3 pointer-events-auto">
+              <div className="flex flex-col gap-1 px-3 py-2 rounded-xl backdrop-blur-md"
+                style={{ background: 'rgba(8,46,41,0.65)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <p className="text-[8px] font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>Structures</p>
+                {[
+                  { name: 'Seawall', health: 78, defects: 4, color: '#FF7043' },
+                  { name: 'Riprap', health: 82, defects: 3, color: '#E6A817' },
+                  { name: 'Timber Pier', health: 71, defects: 5, color: '#FF7043' },
+                ].map(s => (
+                  <div key={s.name} className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold text-white w-16 truncate">{s.name}</span>
+                    <div className="w-12 h-[4px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                      <div className="h-full rounded-full" style={{ width: `${s.health}%`, background: s.health >= 80 ? '#10B981' : s.health >= 70 ? '#E6A817' : '#EF4444' }} />
+                    </div>
+                    <span className="text-[9px] font-black tabular-nums" style={{ color: s.health >= 80 ? '#10B981' : s.health >= 70 ? '#E6A817' : '#EF4444' }}>{s.health}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bottom-right: Quick stats */}
+            <div className="absolute bottom-3 right-3 pointer-events-auto">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-xl backdrop-blur-md"
+                style={{ background: 'rgba(8,46,41,0.65)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle size={11} style={{ color: '#EF4444' }} />
+                  <div className="leading-none">
+                    <p className="text-[12px] font-black text-white">12</p>
+                    <p className="text-[8px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>Defects</p>
+                  </div>
+                </div>
+                <div className="w-[1px] h-6" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                <div className="flex items-center gap-1.5">
+                  <TrendingDown size={11} style={{ color: '#FF7043' }} />
+                  <div className="leading-none">
+                    <p className="text-[12px] font-black text-white">3</p>
+                    <p className="text-[8px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>Critical</p>
+                  </div>
+                </div>
+                <div className="w-[1px] h-6" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                <div className="flex items-center gap-1.5">
+                  <Activity size={11} style={{ color: '#0891B2' }} />
+                  <div className="leading-none">
+                    <p className="text-[12px] font-black text-white">3</p>
+                    <p className="text-[8px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>Surveys</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
-
-      <div className="h-2" />
     </div>
   );
 }

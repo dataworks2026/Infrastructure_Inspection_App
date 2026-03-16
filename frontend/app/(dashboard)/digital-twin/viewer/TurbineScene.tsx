@@ -641,13 +641,18 @@ const DEMO_PINS: DamagePin[] = [
 /* ════════════════════════════════════════════════════════════════
    MAIN SCENE
    ════════════════════════════════════════════════════════════════ */
-export default function TurbineScene({ selectedPin, onSelectPin }: {
+export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition, cameraFov, controlsTarget, minDistance, maxDistance }: {
   selectedPin: string | null;
   onSelectPin: (id: string | null) => void;
+  cameraPosition?: [number, number, number];
+  cameraFov?: number;
+  controlsTarget?: [number, number, number];
+  minDistance?: number;
+  maxDistance?: number;
 }) {
   return (
     <Canvas
-      camera={{ position: [6, 4, 8], fov: 38 }}
+      camera={{ position: cameraPosition || [6, 4, 8], fov: cameraFov ?? 38 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       shadows
     >
@@ -718,10 +723,10 @@ export default function TurbineScene({ selectedPin, onSelectPin }: {
 
       <OrbitControls
         enablePan enableZoom enableRotate
-        minDistance={2} maxDistance={25}
+        minDistance={minDistance ?? 2} maxDistance={maxDistance ?? 25}
         minPolarAngle={0.1} maxPolarAngle={Math.PI / 2.05}
         autoRotate={!selectedPin} autoRotateSpeed={0.12}
-        target={[0, 0.3, 0]}
+        target={controlsTarget || [0, 0.3, 0]}
       />
     </Canvas>
   );
