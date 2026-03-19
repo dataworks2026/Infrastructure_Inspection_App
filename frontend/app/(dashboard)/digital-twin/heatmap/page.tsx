@@ -2,71 +2,77 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Flame, Wind, Waves, Building2, TrainFront, Info } from 'lucide-react';
+import { ArrowLeft, Flame, Waves, Info } from 'lucide-react';
 
-// Blade damage zones (zones along a turbine blade)
-const BLADE_ZONES = [
-  { id: 'root',     label: 'Root', start: 0,   end: 15 },
-  { id: 'inner',    label: 'Inner', start: 15,  end: 35 },
-  { id: 'mid',      label: 'Mid', start: 35,   end: 60 },
-  { id: 'outer',    label: 'Outer', start: 60,  end: 80 },
-  { id: 'tip',      label: 'Tip', start: 80,   end: 100 },
+// Coastal structure zones (vertical sections of a seawall / revetment)
+const STRUCTURE_ZONES = [
+  { id: 'foundation', label: 'Foundation', start: 0,   end: 15 },
+  { id: 'lower',      label: 'Lower',      start: 15,  end: 35 },
+  { id: 'mid',        label: 'Mid-Wall',    start: 35,  end: 60 },
+  { id: 'upper',      label: 'Upper',       start: 60,  end: 80 },
+  { id: 'cap',        label: 'Cap / Crown', start: 80,  end: 100 },
 ];
 
-const BLADE_EDGES = ['leading', 'surface', 'trailing'] as const;
+const STRUCTURE_FACES = ['seaward', 'surface', 'landward'] as const;
 
-// Demo damage data per zone
+const STRUCTURES = [
+  { id: 1, label: 'Seawall A' },
+  { id: 2, label: 'Timber Pier' },
+  { id: 3, label: 'Revetment B' },
+];
+
+// Demo damage data per zone — coastal defect types
 interface ZoneData { count: number; maxSeverity: string; types: string[] }
 
 const DEMO_DAMAGE_MAP: Record<string, ZoneData> = {
-  // Blade 1
-  'b1-root-leading':    { count: 0, maxSeverity: 'S0', types: [] },
-  'b1-root-surface':    { count: 1, maxSeverity: 'S1', types: ['Minor scratch'] },
-  'b1-root-trailing':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b1-inner-leading':   { count: 2, maxSeverity: 'S2', types: ['Leading edge erosion', 'Pitting'] },
-  'b1-inner-surface':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b1-inner-trailing':  { count: 0, maxSeverity: 'S0', types: [] },
-  'b1-mid-leading':     { count: 3, maxSeverity: 'S3', types: ['Deep erosion', 'Crack initiation', 'Delamination'] },
-  'b1-mid-surface':     { count: 1, maxSeverity: 'S2', types: ['Surface crack'] },
-  'b1-mid-trailing':    { count: 1, maxSeverity: 'S2', types: ['Trailing edge split'] },
-  'b1-outer-leading':   { count: 2, maxSeverity: 'S3', types: ['Severe erosion', 'Material loss'] },
-  'b1-outer-surface':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b1-outer-trailing':  { count: 0, maxSeverity: 'S0', types: [] },
-  'b1-tip-leading':     { count: 1, maxSeverity: 'S4', types: ['Lightning strike damage'] },
-  'b1-tip-surface':     { count: 1, maxSeverity: 'S3', types: ['Structural crack'] },
-  'b1-tip-trailing':    { count: 0, maxSeverity: 'S0', types: [] },
-  // Blade 2
-  'b2-root-leading':    { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-root-surface':    { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-root-trailing':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-inner-leading':   { count: 1, maxSeverity: 'S1', types: ['Light erosion'] },
-  'b2-inner-surface':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-inner-trailing':  { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-mid-leading':     { count: 1, maxSeverity: 'S2', types: ['Moderate erosion'] },
-  'b2-mid-surface':     { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-mid-trailing':    { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-outer-leading':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-outer-surface':   { count: 1, maxSeverity: 'S1', types: ['Surface blemish'] },
-  'b2-outer-trailing':  { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-tip-leading':     { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-tip-surface':     { count: 0, maxSeverity: 'S0', types: [] },
-  'b2-tip-trailing':    { count: 0, maxSeverity: 'S0', types: [] },
-  // Blade 3
-  'b3-root-leading':    { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-root-surface':    { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-root-trailing':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-inner-leading':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-inner-surface':   { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-inner-trailing':  { count: 1, maxSeverity: 'S1', types: ['Minor crack'] },
-  'b3-mid-leading':     { count: 1, maxSeverity: 'S2', types: ['Erosion patch'] },
-  'b3-mid-surface':     { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-mid-trailing':    { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-outer-leading':   { count: 1, maxSeverity: 'S2', types: ['Leading edge erosion'] },
-  'b3-outer-surface':   { count: 1, maxSeverity: 'S2', types: ['Coating damage'] },
-  'b3-outer-trailing':  { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-tip-leading':     { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-tip-surface':     { count: 0, maxSeverity: 'S0', types: [] },
-  'b3-tip-trailing':    { count: 0, maxSeverity: 'S0', types: [] },
+  // Seawall A
+  's1-foundation-seaward':  { count: 2, maxSeverity: 'S3', types: ['Toe undermining', 'Scour erosion'] },
+  's1-foundation-surface':  { count: 1, maxSeverity: 'S2', types: ['Concrete spalling'] },
+  's1-foundation-landward': { count: 0, maxSeverity: 'S0', types: [] },
+  's1-lower-seaward':       { count: 3, maxSeverity: 'S3', types: ['Wave impact erosion', 'Rebar exposure', 'Biological growth'] },
+  's1-lower-surface':       { count: 1, maxSeverity: 'S1', types: ['Hairline crack'] },
+  's1-lower-landward':      { count: 0, maxSeverity: 'S0', types: [] },
+  's1-mid-seaward':         { count: 2, maxSeverity: 'S2', types: ['Surface erosion', 'Joint separation'] },
+  's1-mid-surface':         { count: 1, maxSeverity: 'S2', types: ['Lateral cracking'] },
+  's1-mid-landward':        { count: 0, maxSeverity: 'S0', types: [] },
+  's1-upper-seaward':       { count: 1, maxSeverity: 'S1', types: ['Minor pitting'] },
+  's1-upper-surface':       { count: 0, maxSeverity: 'S0', types: [] },
+  's1-upper-landward':      { count: 0, maxSeverity: 'S0', types: [] },
+  's1-cap-seaward':         { count: 1, maxSeverity: 'S4', types: ['Cap displacement'] },
+  's1-cap-surface':         { count: 1, maxSeverity: 'S3', types: ['Structural crack'] },
+  's1-cap-landward':        { count: 0, maxSeverity: 'S0', types: [] },
+  // Timber Pier
+  's2-foundation-seaward':  { count: 1, maxSeverity: 'S2', types: ['Pile bearing loss'] },
+  's2-foundation-surface':  { count: 0, maxSeverity: 'S0', types: [] },
+  's2-foundation-landward': { count: 0, maxSeverity: 'S0', types: [] },
+  's2-lower-seaward':       { count: 1, maxSeverity: 'S1', types: ['Minor marine borer damage'] },
+  's2-lower-surface':       { count: 0, maxSeverity: 'S0', types: [] },
+  's2-lower-landward':      { count: 0, maxSeverity: 'S0', types: [] },
+  's2-mid-seaward':         { count: 1, maxSeverity: 'S2', types: ['Timber rot'] },
+  's2-mid-surface':         { count: 0, maxSeverity: 'S0', types: [] },
+  's2-mid-landward':        { count: 0, maxSeverity: 'S0', types: [] },
+  's2-upper-seaward':       { count: 0, maxSeverity: 'S0', types: [] },
+  's2-upper-surface':       { count: 1, maxSeverity: 'S1', types: ['Deck plank splitting'] },
+  's2-upper-landward':      { count: 0, maxSeverity: 'S0', types: [] },
+  's2-cap-seaward':         { count: 0, maxSeverity: 'S0', types: [] },
+  's2-cap-surface':         { count: 0, maxSeverity: 'S0', types: [] },
+  's2-cap-landward':        { count: 0, maxSeverity: 'S0', types: [] },
+  // Revetment B
+  's3-foundation-seaward':  { count: 0, maxSeverity: 'S0', types: [] },
+  's3-foundation-surface':  { count: 0, maxSeverity: 'S0', types: [] },
+  's3-foundation-landward': { count: 0, maxSeverity: 'S0', types: [] },
+  's3-lower-seaward':       { count: 0, maxSeverity: 'S0', types: [] },
+  's3-lower-surface':       { count: 0, maxSeverity: 'S0', types: [] },
+  's3-lower-landward':      { count: 1, maxSeverity: 'S1', types: ['Filter fabric exposure'] },
+  's3-mid-seaward':         { count: 1, maxSeverity: 'S2', types: ['Armor stone displacement'] },
+  's3-mid-surface':         { count: 0, maxSeverity: 'S0', types: [] },
+  's3-mid-landward':        { count: 0, maxSeverity: 'S0', types: [] },
+  's3-upper-seaward':       { count: 1, maxSeverity: 'S2', types: ['Riprap settlement'] },
+  's3-upper-surface':       { count: 1, maxSeverity: 'S2', types: ['Vegetation overgrowth'] },
+  's3-upper-landward':      { count: 0, maxSeverity: 'S0', types: [] },
+  's3-cap-seaward':         { count: 0, maxSeverity: 'S0', types: [] },
+  's3-cap-surface':         { count: 0, maxSeverity: 'S0', types: [] },
+  's3-cap-landward':        { count: 0, maxSeverity: 'S0', types: [] },
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -82,21 +88,21 @@ function getHeatColor(severity: string): string {
 }
 
 export default function HeatmapPage() {
-  const [selectedBlade, setSelectedBlade] = useState(1);
+  const [selectedStructure, setSelectedStructure] = useState(1);
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
 
-  const bladeKey = `b${selectedBlade}`;
+  const structureKey = `s${selectedStructure}`;
   const hoveredData = hoveredZone ? DEMO_DAMAGE_MAP[hoveredZone] : null;
   const selectedData = selectedZone ? DEMO_DAMAGE_MAP[selectedZone] : null;
 
-  // Stats for selected blade
-  const bladeStats = useMemo(() => {
+  // Stats for selected structure
+  const structureStats = useMemo(() => {
     let totalDamage = 0;
     let worstSev = 'S0';
     const sevOrder = ['S0', 'S1', 'S2', 'S3', 'S4'];
     Object.entries(DEMO_DAMAGE_MAP).forEach(([key, val]) => {
-      if (key.startsWith(bladeKey)) {
+      if (key.startsWith(structureKey)) {
         totalDamage += val.count;
         if (sevOrder.indexOf(val.maxSeverity) > sevOrder.indexOf(worstSev)) {
           worstSev = val.maxSeverity;
@@ -104,7 +110,9 @@ export default function HeatmapPage() {
       }
     });
     return { totalDamage, worstSev };
-  }, [bladeKey]);
+  }, [structureKey]);
+
+  const currentStructure = STRUCTURES.find(s => s.id === selectedStructure)!;
 
   return (
     <div>
@@ -122,21 +130,21 @@ export default function HeatmapPage() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-slate-800">Damage Heatmap</h1>
-              <p className="text-[10px] text-mira-muted">Blade damage density visualization</p>
+              <p className="text-[10px] text-mira-muted">Coastal structure damage density visualization</p>
             </div>
           </div>
         </div>
 
-        {/* Blade selector */}
+        {/* Structure selector */}
         <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-          {[1, 2, 3].map(b => (
-            <button key={b} onClick={() => { setSelectedBlade(b); setSelectedZone(null); }}
+          {STRUCTURES.map(s => (
+            <button key={s.id} onClick={() => { setSelectedStructure(s.id); setSelectedZone(null); }}
               className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                selectedBlade === b
+                selectedStructure === s.id
                   ? 'bg-white text-slate-800 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}>
-              Blade {b}
+              {s.label}
             </button>
           ))}
         </div>
@@ -146,12 +154,12 @@ export default function HeatmapPage() {
         {/* Heatmap grid */}
         <div className="col-span-8">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-card p-6">
-            {/* Blade diagram header */}
+            {/* Structure diagram header */}
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-bold text-slate-700">Blade {selectedBlade} — Damage Distribution</h2>
+                <h2 className="text-sm font-bold text-slate-700">{currentStructure.label} — Damage Distribution</h2>
                 <p className="text-[10px] text-mira-faint mt-0.5">
-                  {bladeStats.totalDamage} total detections · Worst: {bladeStats.worstSev} ({SEVERITY_LABELS[bladeStats.worstSev]})
+                  {structureStats.totalDamage} total detections · Worst: {structureStats.worstSev} ({SEVERITY_LABELS[structureStats.worstSev]})
                 </p>
               </div>
               <div className="flex items-center gap-1 text-[9px] text-mira-faint">
@@ -159,31 +167,31 @@ export default function HeatmapPage() {
               </div>
             </div>
 
-            {/* SVG Blade heatmap */}
+            {/* Heatmap grid */}
             <div className="relative">
               {/* Axis labels */}
               <div className="flex items-center mb-1 ml-20">
-                {BLADE_ZONES.map(z => (
+                {STRUCTURE_ZONES.map(z => (
                   <div key={z.id} className="flex-1 text-center text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                     {z.label}
                   </div>
                 ))}
               </div>
               <div className="flex items-center text-[8px] text-mira-faint mb-3 ml-20">
-                {BLADE_ZONES.map(z => (
+                {STRUCTURE_ZONES.map(z => (
                   <div key={z.id} className="flex-1 text-center">
                     {z.start}–{z.end}%
                   </div>
                 ))}
               </div>
 
-              {/* Heatmap grid */}
-              {BLADE_EDGES.map(edge => (
-                <div key={edge} className="flex items-center mb-1.5">
-                  <div className="w-20 text-right pr-3 text-[10px] font-semibold text-slate-500 capitalize">{edge}</div>
+              {/* Heatmap cells */}
+              {STRUCTURE_FACES.map(face => (
+                <div key={face} className="flex items-center mb-1.5">
+                  <div className="w-20 text-right pr-3 text-[10px] font-semibold text-slate-500 capitalize">{face}</div>
                   <div className="flex-1 flex gap-1.5">
-                    {BLADE_ZONES.map(zone => {
-                      const key = `${bladeKey}-${zone.id}-${edge}`;
+                    {STRUCTURE_ZONES.map(zone => {
+                      const key = `${structureKey}-${zone.id}-${face}`;
                       const data = DEMO_DAMAGE_MAP[key] || { count: 0, maxSeverity: 'S0', types: [] };
                       const color = getHeatColor(data.maxSeverity);
                       const isHovered = hoveredZone === key;
@@ -224,19 +232,18 @@ export default function HeatmapPage() {
                 </div>
               ))}
 
-              {/* Blade shape outline SVG */}
+              {/* Structure cross-section diagram */}
               <div className="mt-4 ml-20">
                 <svg viewBox="0 0 500 30" className="w-full h-8">
                   <defs>
-                    <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <linearGradient id="wallGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                       <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.3" />
                       <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.1" />
                     </linearGradient>
                   </defs>
-                  <path d="M0,15 Q10,5 30,8 L470,4 Q500,3 500,15 Q500,27 470,26 L30,22 Q10,25 0,15Z"
-                    fill="url(#bladeGrad)" stroke="#94a3b8" strokeWidth="0.5" />
-                  <text x="250" y="18" textAnchor="middle" fontSize="8" fill="#94a3b8" fontWeight="bold">
-                    ← Root — Blade Span — Tip →
+                  <rect x="0" y="4" width="500" height="22" rx="4" fill="url(#wallGrad)" stroke="#94a3b8" strokeWidth="0.5" />
+                  <text x="250" y="19" textAnchor="middle" fontSize="8" fill="#94a3b8" fontWeight="bold">
+                    ← Foundation — Structure Elevation — Cap →
                   </text>
                 </svg>
               </div>
@@ -265,7 +272,7 @@ export default function HeatmapPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-4 h-4 rounded" style={{ background: getHeatColor(selectedData.maxSeverity) }} />
                   <span className="text-sm font-bold text-slate-800 capitalize">
-                    {selectedZone.replace(`${bladeKey}-`, '').replace('-', ' · ')}
+                    {selectedZone.replace(`${structureKey}-`, '').replace('-', ' · ')}
                   </span>
                 </div>
                 <div className="space-y-2 mb-4">
@@ -296,34 +303,34 @@ export default function HeatmapPage() {
               </div>
             ) : (
               <div className="text-center py-6">
-                <Flame size={24} className="mx-auto text-slate-300 mb-2" />
+                <Waves size={24} className="mx-auto text-slate-300 mb-2" />
                 <p className="text-xs text-mira-muted">Click a heatmap cell to see details</p>
               </div>
             )}
           </div>
 
-          {/* Overall blade stats */}
+          {/* Overall structure stats */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-card p-5">
-            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-3">Blade {selectedBlade} Summary</h3>
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-3">{currentStructure.label} Summary</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-mira-muted">Total Detections</span>
-                <span className="text-lg font-bold text-slate-800">{bladeStats.totalDamage}</span>
+                <span className="text-lg font-bold text-slate-800">{structureStats.totalDamage}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-mira-muted">Worst Severity</span>
                 <span className="text-sm font-bold px-2 py-0.5 rounded-md" style={{
-                  color: getHeatColor(bladeStats.worstSev),
-                  background: getHeatColor(bladeStats.worstSev) + '20',
+                  color: getHeatColor(structureStats.worstSev),
+                  background: getHeatColor(structureStats.worstSev) + '20',
                 }}>
-                  {bladeStats.worstSev} {SEVERITY_LABELS[bladeStats.worstSev]}
+                  {structureStats.worstSev} {SEVERITY_LABELS[structureStats.worstSev]}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-mira-muted">Hotspot</span>
                 <span className="text-xs font-semibold text-red-600">
-                  {selectedBlade === 1 ? 'Mid-Outer Leading Edge' :
-                   selectedBlade === 2 ? 'Mid Leading Edge' : 'Outer Leading Edge'}
+                  {selectedStructure === 1 ? 'Lower Seaward Face' :
+                   selectedStructure === 2 ? 'Mid Seaward Face' : 'Upper Seaward Face'}
                 </span>
               </div>
 
@@ -333,7 +340,7 @@ export default function HeatmapPage() {
                 <div className="flex gap-0.5 rounded-lg overflow-hidden h-3">
                   {Object.entries(SEVERITY_COLORS).map(([sev, color]) => {
                     const count = Object.entries(DEMO_DAMAGE_MAP)
-                      .filter(([k, v]) => k.startsWith(bladeKey) && v.maxSeverity === sev && v.count > 0).length;
+                      .filter(([k, v]) => k.startsWith(structureKey) && v.maxSeverity === sev && v.count > 0).length;
                     if (count === 0 && sev !== 'S0') return null;
                     return (
                       <div key={sev} className="h-full transition-all" style={{

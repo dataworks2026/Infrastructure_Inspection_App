@@ -4,25 +4,25 @@ import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, GitCompareArrows, Upload, CalendarDays, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
 
-// Demo comparison data
+// Demo comparison data — coastal infrastructure
 const DEMO_COMPARISONS = [
   {
     id: '1',
-    label: 'Blade 1 — Leading Edge',
+    label: 'Seawall A — North Face',
     before: { date: 'Jan 2025', detections: 1, severity: 'S1' },
     after: { date: 'Jun 2025', detections: 3, severity: 'S3' },
     status: 'worsened',
   },
   {
     id: '2',
-    label: 'Blade 2 — Root Section',
+    label: 'Timber Pier — Pile Cluster 3',
     before: { date: 'Jan 2025', detections: 2, severity: 'S2' },
     after: { date: 'Jun 2025', detections: 2, severity: 'S2' },
     status: 'stable',
   },
   {
     id: '3',
-    label: 'Blade 3 — Tip Area',
+    label: 'Revetment B — Toe Section',
     before: { date: 'Jan 2025', detections: 0, severity: 'S0' },
     after: { date: 'Jun 2025', detections: 1, severity: 'S2' },
     status: 'new',
@@ -115,7 +115,7 @@ export default function ComparePage() {
     <defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#1e293b"/><stop offset="100%" style="stop-color:#334155"/></linearGradient></defs>
     <rect width="800" height="600" fill="url(#g1)"/>
     <text x="400" y="280" text-anchor="middle" fill="#64748b" font-size="18" font-family="sans-serif">January 2025 Inspection</text>
-    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Blade surface - minimal wear</text>
+    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Seawall surface — minimal wear</text>
     <circle cx="350" cy="400" r="15" fill="none" stroke="#65a30d" stroke-width="2" stroke-dasharray="4"/><text x="350" y="405" text-anchor="middle" fill="#65a30d" font-size="10" font-family="sans-serif">S1</text>
   </svg>`);
 
@@ -123,7 +123,7 @@ export default function ComparePage() {
     <defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0f172a"/><stop offset="100%" style="stop-color:#1e293b"/></linearGradient></defs>
     <rect width="800" height="600" fill="url(#g2)"/>
     <text x="400" y="280" text-anchor="middle" fill="#64748b" font-size="18" font-family="sans-serif">June 2025 Inspection</text>
-    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Blade surface - damage progression</text>
+    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Seawall surface — damage progression</text>
     <circle cx="350" cy="400" r="15" fill="none" stroke="#dc2626" stroke-width="2"/><text x="350" y="405" text-anchor="middle" fill="#dc2626" font-size="10" font-family="sans-serif">S3</text>
     <circle cx="450" cy="350" r="12" fill="none" stroke="#d97706" stroke-width="2"/><text x="450" y="355" text-anchor="middle" fill="#d97706" font-size="10" font-family="sans-serif">S2</text>
     <circle cx="300" cy="450" r="10" fill="none" stroke="#d97706" stroke-width="2"/><text x="300" y="455" text-anchor="middle" fill="#d97706" font-size="10" font-family="sans-serif">S2</text>

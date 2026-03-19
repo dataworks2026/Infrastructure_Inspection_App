@@ -67,9 +67,9 @@ export default function DigitalTwinPage() {
             </div>
           </div>
           <p className="text-sm text-slate-300 max-w-2xl mt-4 leading-relaxed">
-            Explore your infrastructure assets through interactive 3D models, damage heatmaps,
+            Explore your coastal infrastructure through interactive 3D models, damage heatmaps,
             and temporal comparison tools. Track how damage evolves between inspections and
-            prioritize maintenance across your entire fleet.
+            prioritize maintenance across your entire portfolio.
           </p>
 
           {/* Asset type pills */}
