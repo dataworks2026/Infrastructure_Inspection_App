@@ -248,31 +248,17 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileO
 
           <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             {!isCollapsed ? (
-              <div className="px-3 mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
-                  Digital Twin
-                </p>
-                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide"
-                  style={{ background: 'rgba(147,197,253,0.12)', color: '#93C5FD' }}>
-                  Soon
-                </span>
-              </div>
+              <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+                Digital Twin
+              </p>
             ) : (
               <div className="mx-auto mb-2" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
             )}
             <div className="space-y-0.5">
-              {TWIN_ITEMS.map(({ label, icon: Icon }) => (
-                <div key={label} title={isCollapsed ? `${label} (coming soon)` : undefined}
-                  className="flex items-center gap-3 rounded-xl cursor-not-allowed select-none opacity-40"
-                  style={{
-                    padding: isCollapsed ? '10px 0' : '10px 12px',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                  }}>
-                  <Icon size={17} style={{ flexShrink: 0, color: '#5B8A78' }} />
-                  {!isCollapsed && (
-                    <span className="text-[13px] font-semibold truncate" style={{ color: '#5B8A78' }}>{label}</span>
-                  )}
-                </div>
+              {TWIN_ITEMS.map(({ href, label, icon }) => (
+                <NavLink key={href} href={href} label={label} icon={icon} collapsed={isCollapsed}
+                  small onClick={handleNavClick}
+                  active={pathname === href || (href !== '/digital-twin' && pathname.startsWith(href))} />
               ))}
             </div>
           </div>
