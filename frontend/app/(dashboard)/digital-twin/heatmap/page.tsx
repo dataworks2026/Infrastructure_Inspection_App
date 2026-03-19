@@ -243,7 +243,7 @@ export default function HeatmapPage() {
                   </defs>
                   <rect x="0" y="4" width="500" height="22" rx="4" fill="url(#wallGrad)" stroke="#94a3b8" strokeWidth="0.5" />
                   <text x="250" y="19" textAnchor="middle" fontSize="8" fill="#94a3b8" fontWeight="bold">
-                    ← Foundation — Structure Elevation — Cap →
+                    Foundation -- Structure Elevation -- Cap
                   </text>
                 </svg>
               </div>

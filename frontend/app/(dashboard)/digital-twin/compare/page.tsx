@@ -111,23 +111,23 @@ export default function ComparePage() {
   const [afterImage, setAfterImage] = useState<string | null>(null);
 
   // Use demo placeholder images (gradient overlays representing drone imagery)
-  const demoBeforeUrl = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
+  const demoBeforeUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
     <defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#1e293b"/><stop offset="100%" style="stop-color:#334155"/></linearGradient></defs>
     <rect width="800" height="600" fill="url(#g1)"/>
     <text x="400" y="280" text-anchor="middle" fill="#64748b" font-size="18" font-family="sans-serif">January 2025 Inspection</text>
-    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Seawall surface — minimal wear</text>
+    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Seawall surface - minimal wear</text>
     <circle cx="350" cy="400" r="15" fill="none" stroke="#65a30d" stroke-width="2" stroke-dasharray="4"/><text x="350" y="405" text-anchor="middle" fill="#65a30d" font-size="10" font-family="sans-serif">S1</text>
-  </svg>`);
+  </svg>`)}`;
 
-  const demoAfterUrl = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
+  const demoAfterUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
     <defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0f172a"/><stop offset="100%" style="stop-color:#1e293b"/></linearGradient></defs>
     <rect width="800" height="600" fill="url(#g2)"/>
     <text x="400" y="280" text-anchor="middle" fill="#64748b" font-size="18" font-family="sans-serif">June 2025 Inspection</text>
-    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Seawall surface — damage progression</text>
+    <text x="400" y="310" text-anchor="middle" fill="#475569" font-size="14" font-family="sans-serif">Seawall surface - damage progression</text>
     <circle cx="350" cy="400" r="15" fill="none" stroke="#dc2626" stroke-width="2"/><text x="350" y="405" text-anchor="middle" fill="#dc2626" font-size="10" font-family="sans-serif">S3</text>
     <circle cx="450" cy="350" r="12" fill="none" stroke="#d97706" stroke-width="2"/><text x="450" y="355" text-anchor="middle" fill="#d97706" font-size="10" font-family="sans-serif">S2</text>
     <circle cx="300" cy="450" r="10" fill="none" stroke="#d97706" stroke-width="2"/><text x="300" y="455" text-anchor="middle" fill="#d97706" font-size="10" font-family="sans-serif">S2</text>
-  </svg>`);
+  </svg>`)}`;
 
   return (
     <div className="h-[calc(100vh-48px)] flex flex-col -m-6">
@@ -212,12 +212,12 @@ export default function ComparePage() {
                       comp.status === 'new' ? 'bg-amber-50 text-amber-600' :
                       'bg-emerald-50 text-emerald-600'
                     }`}>
-                      {comp.status === 'worsened' ? '↑ Worsened' :
-                       comp.status === 'new' ? '⚡ New damage' :
-                       '✓ Stable'}
+                      {comp.status === 'worsened' ? 'Worsened' :
+                       comp.status === 'new' ? 'New damage' :
+                       'Stable'}
                     </span>
                     <span className="text-[9px] text-slate-400">
-                      {comp.before.detections} → {comp.after.detections} detections
+                      {comp.before.detections} to {comp.after.detections} detections
                     </span>
                   </div>
                 </button>
