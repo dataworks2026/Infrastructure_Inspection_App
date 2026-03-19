@@ -76,11 +76,11 @@ const DEMO_DAMAGE_MAP: Record<string, ZoneData> = {
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
-  S0: '#e2e8f0', S1: '#84cc16', S2: '#f59e0b', S3: '#ef4444', S4: '#a855f7',
+  S0: '#e2e8f0', S1: '#4CAF50', S2: '#E6A817', S3: '#FF7043', S4: '#B71C1C',
 };
 
 const SEVERITY_LABELS: Record<string, string> = {
-  S0: 'None', S1: 'Minor', S2: 'Moderate', S3: 'Severe', S4: 'Critical',
+  S0: 'None', S1: 'Minor', S2: 'Moderate', S3: 'Advanced', S4: 'Severe',
 };
 
 function getHeatColor(severity: string): string {

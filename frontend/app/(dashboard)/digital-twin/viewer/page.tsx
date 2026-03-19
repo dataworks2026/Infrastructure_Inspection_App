@@ -54,10 +54,10 @@ const INSPECTION_HISTORY = [
 
 const SEVERITY_COLORS: Record<string, { color: string; label: string; bg: string }> = {
   S0: { color: '#059669', label: 'None', bg: 'bg-emerald-500' },
-  S1: { color: '#65A30D', label: 'Minor', bg: 'bg-lime-500' },
-  S2: { color: '#D97706', label: 'Moderate', bg: 'bg-amber-500' },
-  S3: { color: '#DC2626', label: 'Severe', bg: 'bg-red-500' },
-  S4: { color: '#7C3AED', label: 'Critical', bg: 'bg-purple-500' },
+  S1: { color: '#4CAF50', label: 'Minor', bg: 'bg-emerald-500' },
+  S2: { color: '#E6A817', label: 'Moderate', bg: 'bg-amber-500' },
+  S3: { color: '#FF7043', label: 'Advanced', bg: 'bg-orange-500' },
+  S4: { color: '#B71C1C', label: 'Severe', bg: 'bg-red-500' },
 };
 
 const STRUCTURE_LABELS: Record<number, { label: string; color: string }> = {
