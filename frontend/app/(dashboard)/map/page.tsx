@@ -266,7 +266,7 @@ export default function MapPage() {
       <div data-tour="map-view" className="h-[calc(100vh-160px)] lg:h-[calc(100vh-120px)] flex flex-col -mb-10 relative rounded-xl overflow-hidden">
 
       {/* Floating top bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
+      <div className="absolute top-0 left-0 right-0 pointer-events-none" style={{ zIndex: 1000 }}>
         <div className="flex items-center justify-between px-3 sm:px-5 pt-3 sm:pt-4 pb-0 gap-2">
 
           {/* Title pill */}
@@ -474,14 +474,14 @@ export default function MapPage() {
 
         {/* Floating right panel */}
         <div
-          className={`absolute z-10 flex flex-col pointer-events-auto transition-all duration-300 ease-out
+          className={`absolute flex flex-col pointer-events-auto transition-all duration-300 ease-out
             bottom-0 left-0 right-0 lg:top-4 lg:right-4 lg:bottom-4 lg:left-auto
             ${showPanel
               ? 'translate-y-0 opacity-100'
               : 'translate-y-full lg:translate-y-0 lg:opacity-100 opacity-0 pointer-events-none lg:pointer-events-auto'
             }
           `}
-          style={{ maxHeight: '50vh' }}
+          style={{ maxHeight: '50vh', zIndex: 1000 }}
         >
           <style>{`
             @media (min-width: 1024px) {
