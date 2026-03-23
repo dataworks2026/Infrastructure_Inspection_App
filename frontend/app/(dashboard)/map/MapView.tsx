@@ -37,13 +37,16 @@ const ICON_SVG: Record<string, string> = {
 
 function createMarkerElement(infraType: string, color: string, isSelected: boolean, name?: string): HTMLElement {
   const size = isSelected ? 48 : 38;
+  const pinH = Math.round(size * 1.25);
   const el = document.createElement('div');
   el.className = 'mira-marker' + (isSelected ? ' mira-marker-selected' : '');
-  el.style.display = 'flex';
-  el.style.flexDirection = 'column';
-  el.style.alignItems = 'center';
+  // Fixed dimensions so Mapbox anchor calculates correctly
+  el.style.width = `${size}px`;
+  el.style.height = `${pinH}px`;
+  el.style.position = 'relative';
+  el.style.overflow = 'visible';
   const iconSvg = ICON_SVG[infraType] || ICON_SVG.pier;
-  const pinHtml = `<svg viewBox="0 0 48 60" width="${size}" height="${Math.round(size*1.25)}" xmlns="http://www.w3.org/2000/svg">
+  const pinHtml = `<svg viewBox="0 0 48 60" width="${size}" height="${pinH}" xmlns="http://www.w3.org/2000/svg" style="display:block">
     <defs>
       <filter id="ms-${infraType}" x="-40%" y="-20%" width="180%" height="160%">
         <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="${color}" flood-opacity="0.4"/>
@@ -55,7 +58,8 @@ function createMarkerElement(infraType: string, color: string, isSelected: boole
     <circle cx="24" cy="22" r="12" fill="white" opacity="0.95"/>
     <g transform="translate(12,12)">${iconSvg}</g>
   </svg>`;
-  const labelHtml = name ? `<div class="mira-label">${name}</div>` : '';
+  // Label positioned absolutely below the pin — doesn't affect anchor
+  const labelHtml = name ? `<div class="mira-label" style="position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:2px">${name}</div>` : '';
   el.innerHTML = pinHtml + labelHtml;
   return el;
 }
