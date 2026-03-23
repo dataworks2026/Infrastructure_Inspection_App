@@ -497,7 +497,7 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
         zoomControl
         scrollWheelZoom
       >
-        <LayersControl position="topright">
+        <LayersControl position="bottomright">
           <LayersControl.BaseLayer checked name="Satellite">
             <TileLayer
               attribution='&copy; <a href="https://www.esri.com">Esri</a>'
