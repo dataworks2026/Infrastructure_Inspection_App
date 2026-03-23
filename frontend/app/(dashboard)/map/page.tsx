@@ -146,6 +146,16 @@ export default function MapPage() {
   const selectedHealth = selected ? healthMap.get(selected.id) : null;
   const staleCount = staleAssetIds.size;
 
+  // Build asset health color map for markers
+  const assetHealthColors = useMemo(() => {
+    const map: Record<string, string> = {};
+    assets.forEach((a: Asset) => {
+      const h = healthMap.get(a.id);
+      map[a.id] = healthColor(h?.worst_severity ?? null);
+    });
+    return map;
+  }, [assets, healthMap]);
+
   return (
     <div>
       <div className="mb-4">
@@ -268,6 +278,7 @@ export default function MapPage() {
               infraConfig={INFRA_CONFIG}
               imagePoints={imagePoints}
               flyToCoords={flyToCoords}
+              assetHealthColors={assetHealthColors}
             />
           )}
         </div>

@@ -35,7 +35,7 @@ const ICON_SVG: Record<string, string> = {
   breakwater: '<rect x="9" y="4" width="6" height="10" rx="1" fill="white" opacity="0.9"/><circle cx="12" cy="6" r="2" fill="white" opacity="0.5"/><path d="M5 16q7-3 14 0" stroke="white" stroke-width="1.2" fill="none"/>',
 };
 
-function createMarkerElement(infraType: string, color: string, isSelected: boolean, name?: string): HTMLElement {
+function createMarkerElement(infraType: string, color: string, isSelected: boolean, name?: string, healthClr?: string): HTMLElement {
   const size = isSelected ? 48 : 38;
   const el = document.createElement('div');
   el.className = 'mira-marker' + (isSelected ? ' mira-marker-selected' : '');
@@ -53,6 +53,7 @@ function createMarkerElement(infraType: string, color: string, isSelected: boole
     <path d="M24 2C13 2 4 11 4 22c0 12 20 36 20 36s20-24 20-36C44 11 35 2 24 2z"
       fill="${color}" filter="url(#ms-${infraType})" stroke="white" stroke-width="${isSelected ? 2 : 1.5}" stroke-opacity="0.9"/>
     <circle cx="24" cy="22" r="12" fill="white" opacity="0.95"/>
+    ${healthClr ? `<circle cx="24" cy="22" r="14" fill="none" stroke="${healthClr}" stroke-width="2.5" opacity="0.85"/>` : ''}
     <g transform="translate(12,12)">${iconSvg}</g>
   </svg>`;
   const labelHtml = name ? `<div class="mira-label">${name}</div>` : '';
@@ -197,12 +198,13 @@ interface MapViewProps {
   assets: Asset[]; selectedAssetId: string | null; onSelectAsset: (id: string) => void;
   infraConfig: Record<string, { label: string; markerColor: string }>; imagePoints: ImageGpsPoint[];
   flyToCoords?: [number, number] | null;
+  assetHealthColors?: Record<string, string>; // assetId -> health color
 }
 
-const DEFAULT_CENTER: [number, number] = [-74.0155, 40.6900]; // [lng, lat] for Mapbox
+const DEFAULT_CENTER: [number, number] = [-74.0155, 40.6900];
 const DEFAULT_ZOOM = 15;
 
-function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoints, flyToCoords }: MapViewProps) {
+function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoints, flyToCoords, assetHealthColors }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
@@ -301,7 +303,8 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
       const label = infraConfig[asset.infrastructure_type]?.label ?? asset.infrastructure_type;
       const isSelected = asset.id === selectedAssetId;
 
-      const el = createMarkerElement(asset.infrastructure_type, color, isSelected, asset.name);
+      const hClr = assetHealthColors?.[asset.id];
+      const el = createMarkerElement(asset.infrastructure_type, color, isSelected, asset.name, hClr);
       el.addEventListener('click', (e) => { e.stopPropagation(); onSelectAsset(asset.id); });
 
       const popup = new mapboxgl.Popup({ offset: 25, closeButton: true, maxWidth: '300px' })
@@ -314,7 +317,7 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
 
       markersRef.current.set(asset.id, marker);
     });
-  }, [assets, selectedAssetId, onSelectAsset, infraConfig]);
+  }, [assets, selectedAssetId, onSelectAsset, infraConfig, assetHealthColors]);
 
   // Update image markers
   useEffect(() => {
