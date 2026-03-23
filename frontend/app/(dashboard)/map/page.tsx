@@ -22,7 +22,6 @@ const INFRA_CONFIG: Record<string, { label: string; icon: any; color: string; ma
   coastal: { label: 'Coastal Structure', icon: Waves, color: 'bg-cyan-500/15 text-cyan-300', markerColor: '#06B6D4', desc: 'Seawalls, revetments & bulkheads' },
   seawall: { label: 'Seawall', icon: Shield, color: 'bg-teal-500/15 text-teal-300', markerColor: '#14B8A6', desc: 'Vertical seawall barriers' },
   breakwater: { label: 'Breakwater', icon: Building2, color: 'bg-indigo-500/15 text-indigo-300', markerColor: '#6366F1', desc: 'Offshore breakwater structures' },
-  wind_turbine: { label: 'Wind Turbine', icon: Building2, color: 'bg-sky-500/15 text-sky-300', markerColor: '#0EA5E9', desc: 'Offshore wind turbines' },
 };
 
 const SEVERITY_OPTIONS = [

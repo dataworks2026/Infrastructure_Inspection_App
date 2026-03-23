@@ -24,7 +24,7 @@ function severityColor(sev: string | null): string {
 // ── Infrastructure marker colors ─────────────────────────────────────────────
 const MARKER_COLORS: Record<string, string> = {
   pier: '#3B82F6', coastal: '#06B6D4', seawall: '#14B8A6',
-  breakwater: '#6366F1', wind_turbine: '#0EA5E9',
+  breakwater: '#6366F1',
 };
 
 // ── SVG icon paths for marker pins ───────────────────────────────────────────
@@ -33,15 +33,17 @@ const ICON_SVG: Record<string, string> = {
   coastal: '<path d="M4 10q3-3 6 0t6 0M4 14q3-3 6 0t6 0" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
   seawall: '<rect x="4" y="6" width="16" height="5" rx="1" fill="white" opacity="0.9"/><rect x="4" y="13" width="7" height="5" rx="1" fill="white" opacity="0.7"/><rect x="13" y="13" width="7" height="5" rx="1" fill="white" opacity="0.7"/>',
   breakwater: '<rect x="9" y="4" width="6" height="10" rx="1" fill="white" opacity="0.9"/><circle cx="12" cy="6" r="2" fill="white" opacity="0.5"/><path d="M5 16q7-3 14 0" stroke="white" stroke-width="1.2" fill="none"/>',
-  wind_turbine: '<circle cx="12" cy="8" r="2" fill="white"/><path d="M12 10v8M8 18h8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>',
 };
 
-function createMarkerElement(infraType: string, color: string, isSelected: boolean): HTMLElement {
+function createMarkerElement(infraType: string, color: string, isSelected: boolean, name?: string): HTMLElement {
   const size = isSelected ? 48 : 38;
   const el = document.createElement('div');
   el.className = 'mira-marker' + (isSelected ? ' mira-marker-selected' : '');
+  el.style.display = 'flex';
+  el.style.flexDirection = 'column';
+  el.style.alignItems = 'center';
   const iconSvg = ICON_SVG[infraType] || ICON_SVG.pier;
-  el.innerHTML = `<svg viewBox="0 0 48 60" width="${size}" height="${Math.round(size*1.25)}" xmlns="http://www.w3.org/2000/svg">
+  const pinHtml = `<svg viewBox="0 0 48 60" width="${size}" height="${Math.round(size*1.25)}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <filter id="ms-${infraType}" x="-40%" y="-20%" width="180%" height="160%">
         <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="${color}" flood-opacity="0.4"/>
@@ -53,6 +55,8 @@ function createMarkerElement(infraType: string, color: string, isSelected: boole
     <circle cx="24" cy="22" r="12" fill="white" opacity="0.95"/>
     <g transform="translate(12,12)">${iconSvg}</g>
   </svg>`;
+  const labelHtml = name ? `<div class="mira-label">${name}</div>` : '';
+  el.innerHTML = pinHtml + labelHtml;
   return el;
 }
 
@@ -101,8 +105,17 @@ const MAP_STYLES = `
 
   /* Markers */
   .mira-marker { cursor: pointer; transition: transform .2s ease; }
-  .mira-marker:hover { transform: scale(1.12) translateY(-3px); }
+  .mira-marker:hover { transform: scale(1.08) translateY(-2px); }
   .mira-marker-selected { z-index: 10 !important; }
+  .mira-label {
+    margin-top: 2px; padding: 3px 8px; border-radius: 6px;
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 11px; font-weight: 700; color: #f1f5f9; white-space: nowrap;
+    font-family: 'Inter', system-ui, sans-serif; letter-spacing: -0.01em;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
   .mira-img-dot { cursor: pointer; transition: transform .15s ease; }
   .mira-img-dot:hover { transform: scale(1.5); }
 
@@ -130,25 +143,42 @@ const MAP_STYLES = `
   }
   .mp-link:hover { background: rgba(56,189,248,.14); color: #7dd3fc; }
 
-  /* Controls override */
-  .mapboxgl-ctrl-top-left { margin-top: 60px !important; }
-  .mapboxgl-ctrl-group { background: rgba(8,16,30,0.82) !important; border: 1px solid rgba(255,255,255,0.06) !important; border-radius: 14px !important; box-shadow: 0 8px 32px rgba(0,0,0,.45) !important; backdrop-filter: blur(20px); overflow: hidden; }
-  .mapboxgl-ctrl-group button { background: transparent !important; color: #cbd5e1 !important; width: 36px !important; height: 36px !important; border: none !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; }
-  .mapboxgl-ctrl-group button:hover { background: rgba(8,145,178,.2) !important; color: #38bdf8 !important; }
-  .mapboxgl-ctrl-group button:last-child { border-bottom: none !important; }
-  .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon { filter: invert(1) brightness(0.8); }
-  .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon { filter: none !important; }
-
-  .mapboxgl-ctrl-scale { background: rgba(8,16,30,.82) !important; color: #94a3b8 !important; border-color: rgba(148,163,184,.3) !important; font-size: 10px !important; font-weight: 600 !important; border-radius: 6px !important; backdrop-filter: blur(12px); padding: 1px 6px !important; }
-  .mapboxgl-ctrl-attrib { background: rgba(8,16,30,.5) !important; border-radius: 8px 0 0 0 !important; backdrop-filter: blur(8px); }
-  .mapboxgl-ctrl-attrib a { color: #64748b !important; }
-
-  /* Navigation compass styling */
-  .mapboxgl-ctrl-compass { position: relative; }
-  .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon {
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='12,2 14,10 12,9 10,10' fill='%23EF4444' opacity='0.95'/%3E%3Cpolygon points='12,22 14,14 12,15 10,14' fill='%23475569' opacity='0.7'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='white'/%3E%3C/svg%3E") !important;
-    background-size: 20px !important;
+  /* Controls override — match Governor's Island pill (black/40) */
+  .mapboxgl-ctrl-top-left { margin-top: 70px !important; margin-left: 4px !important; }
+  .mapboxgl-ctrl-group {
+    background: rgba(0,0,0,0.40) !important;
+    backdrop-filter: blur(40px) saturate(1.5) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4) !important;
+    overflow: hidden;
   }
+  .mapboxgl-ctrl-group button {
+    background: transparent !important; color: #e2e8f0 !important;
+    width: 36px !important; height: 36px !important;
+    border: none !important; border-bottom: 1px solid rgba(255,255,255,.06) !important;
+  }
+  .mapboxgl-ctrl-group button:hover { background: rgba(255,255,255,.08) !important; color: #38bdf8 !important; }
+  .mapboxgl-ctrl-group button:last-child { border-bottom: none !important; }
+  .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon { filter: invert(1) brightness(0.85); }
+
+  /* Compass — same size as +/- buttons */
+  .mapboxgl-ctrl-compass { width: 36px !important; height: 36px !important; }
+  .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon {
+    filter: none !important;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='rgba(255,255,255,0.15)' stroke-width='1'/%3E%3Cpolygon points='12,3 13.8,10 12,9 10.2,10' fill='%23EF4444' opacity='0.95'/%3E%3Cpolygon points='12,21 13.8,14 12,15 10.2,14' fill='%23475569' opacity='0.7'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='white'/%3E%3C/svg%3E") !important;
+    background-size: 24px !important;
+    background-position: center !important;
+  }
+
+  .mapboxgl-ctrl-scale {
+    background: rgba(0,0,0,0.40) !important; backdrop-filter: blur(40px) !important;
+    color: #94a3b8 !important; border-color: rgba(148,163,184,.3) !important;
+    font-size: 10px !important; font-weight: 600 !important; border-radius: 6px !important;
+    padding: 1px 6px !important; border: 1px solid rgba(255,255,255,0.08) !important;
+  }
+  .mapboxgl-ctrl-attrib { background: rgba(0,0,0,.3) !important; border-radius: 8px 0 0 0 !important; backdrop-filter: blur(8px); }
+  .mapboxgl-ctrl-attrib a { color: #64748b !important; }
 
   /* 3D buildings */
   .mapboxgl-canvas { outline: none; }
@@ -266,7 +296,7 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
       if (existing) {
         // Update position and element
         existing.setLngLat([asset.longitude, asset.latitude]);
-        const el = createMarkerElement(asset.infrastructure_type, color, isSelected);
+        const el = createMarkerElement(asset.infrastructure_type, color, isSelected, asset.name);
         el.addEventListener('click', (e) => { e.stopPropagation(); onSelectAsset(asset.id); });
         existing.getElement().replaceWith(el);
         // Mapbox doesn't support replaceWith on marker element easily, remove and re-add
@@ -274,7 +304,7 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
         markersRef.current.delete(asset.id);
       }
 
-      const el = createMarkerElement(asset.infrastructure_type, color, isSelected);
+      const el = createMarkerElement(asset.infrastructure_type, color, isSelected, asset.name);
       el.addEventListener('click', (e) => { e.stopPropagation(); onSelectAsset(asset.id); });
 
       const popup = new mapboxgl.Popup({ offset: 25, closeButton: true, maxWidth: '300px' })
