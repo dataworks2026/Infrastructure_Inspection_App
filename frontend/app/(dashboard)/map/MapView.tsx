@@ -506,8 +506,8 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Dark">
             <TileLayer
-              attribution='&copy; <a href="https://stadiamaps.com/">Stadia</a>'
-              url="https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Ocean">
@@ -524,8 +524,8 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
           </LayersControl.BaseLayer>
           <LayersControl.Overlay checked name="Road Labels">
             <TileLayer
-              attribution='&copy; <a href="https://stadiamaps.com/">Stadia</a>'
-              url="https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
               pane="overlayPane"
             />
           </LayersControl.Overlay>
