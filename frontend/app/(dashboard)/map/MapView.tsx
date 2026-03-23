@@ -104,8 +104,8 @@ const MAP_STYLES = `
   .mapboxgl-map { font-family: 'Inter', system-ui, sans-serif; }
 
   /* Markers */
-  .mira-marker { cursor: pointer; transition: transform .2s ease; }
-  .mira-marker:hover { transform: scale(1.08) translateY(-2px); }
+  .mira-marker { cursor: pointer; }
+  .mira-marker:hover { transform: scale(1.08) translateY(-2px); transition: transform .15s ease; }
   .mira-marker-selected { z-index: 10 !important; }
   .mira-label {
     margin-top: 2px; padding: 3px 8px; border-radius: 6px;
@@ -116,8 +116,8 @@ const MAP_STYLES = `
     text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   }
-  .mira-img-dot { cursor: pointer; transition: transform .15s ease; }
-  .mira-img-dot:hover { transform: scale(1.5); }
+  .mira-img-dot { cursor: pointer; }
+  .mira-img-dot:hover { transform: scale(1.5); transition: transform .15s ease; }
 
   /* Popup */
   .mapboxgl-popup-content {
