@@ -1,560 +1,370 @@
 'use client';
 
-import { useEffect, useRef, useMemo, memo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, LayersControl } from 'react-leaflet';
-import L from 'leaflet';
+import { useEffect, useRef, useMemo, memo, useCallback, useState } from 'react';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { Asset } from '@/types';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 export interface ImageGpsPoint {
-  id: string;
-  lat: number;
-  lon: number;
-  gps_accuracy_m?: number | null;
-  inspection_id: string;
-  inspection_name: string;
-  filename: string;
-  detection_count: number;
-  max_severity: string | null;
-  thumbnail_url: string;
+  id: string; lat: number; lon: number; gps_accuracy_m?: number | null;
+  inspection_id: string; inspection_name: string; filename: string;
+  detection_count: number; max_severity: string | null; thumbnail_url: string;
 }
 
-// ── Icon caches ──────────────────────────────────────────────────────────────
-const assetIconCache = new Map<string, L.DivIcon>();
-const imageIconCache = new Map<string, L.DivIcon>();
-
-// ── Maritime icon paths (24×24 viewBox, uses CSS currentColor) ───────────────
-const ICON_PATHS: Record<string, string> = {
-  pier: `
-    <line x1="3" y1="7" x2="21" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    <rect x="2" y="9.5" width="20" height="3" rx="1.2" fill="currentColor"/>
-    <rect x="4"   y="12.5" width="2.8" height="7.5" rx="1.4" fill="currentColor" opacity="0.85"/>
-    <rect x="10.5" y="12.5" width="2.8" height="7.5" rx="1.4" fill="currentColor" opacity="0.85"/>
-    <rect x="17"  y="12.5" width="2.8" height="7.5" rx="1.4" fill="currentColor" opacity="0.85"/>
-    <line x1="4.5" y1="7" x2="4.5" y2="9.5" stroke="currentColor" stroke-width="1.5"/>
-    <line x1="12"  y1="7" x2="12"  y2="9.5" stroke="currentColor" stroke-width="1.5"/>
-    <line x1="19.5" y1="7" x2="19.5" y2="9.5" stroke="currentColor" stroke-width="1.5"/>
-    <path d="M2 22 Q6 20.5 10 22 Q14 23.5 18 22 Q20.5 21.2 22 22"
-          stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.5"/>`,
-
-  anchor: `
-    <circle cx="12" cy="5.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/>
-    <line x1="7.5" y1="5.5" x2="16.5" y2="5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    <line x1="12" y1="8"  x2="12" y2="20"  stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-    <line x1="5"  y1="12" x2="19" y2="12"  stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
-    <path d="M5  12 C3.5 16.5 5.5 20.5 9  20.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <path d="M19 12 C20.5 16.5 18.5 20.5 15 20.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <path d="M9 20.5 Q12 22 15 20.5" stroke="currentColor" stroke-width="2" fill="none"/>`,
-
-  coastal: `
-    <path d="M2 9  Q5 6  8 9  Q11 12 14 9  Q17 6  20 9  Q21.5 10.5 22.5 10"
-          stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-    <path d="M2 15 Q5 12 8 15 Q11 18 14 15 Q17 12 20 15 Q21.5 16.5 22.5 16"
-          stroke="currentColor" stroke-width="2"   fill="none" stroke-linecap="round" opacity="0.75"/>
-    <rect x="2" y="20" width="20" height="3" rx="1.2" fill="currentColor" opacity="0.8"/>`,
-
-  breakwater: `
-    <rect x="9.5" y="4"  width="5" height="12" rx="1" fill="currentColor"/>
-    <rect x="7.5" y="2.5" width="9" height="3.5" rx="1" fill="currentColor"/>
-    <circle cx="12" cy="4.5" r="1.8" fill="white" opacity="0.9"/>
-    <line x1="7.5" y1="4" x2="3.5" y2="1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
-    <line x1="16.5" y1="4" x2="20.5" y2="1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
-    <line x1="7.5" y1="6.5" x2="4" y2="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
-    <line x1="16.5" y1="6.5" x2="20" y2="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
-    <path d="M5 16 Q12 13.5 19 16" stroke="currentColor" stroke-width="1.5" fill="none"/>
-    <path d="M3 21 Q7.5 19 12 21 Q16.5 19 21 21" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.5"/>`,
-
-  seawall: `
-    <rect x="2"    y="5"  width="10" height="6" rx="1.2" fill="currentColor" opacity="0.9"/>
-    <rect x="13.5" y="5"  width="8.5" height="6" rx="1.2" fill="currentColor" opacity="0.9"/>
-    <rect x="2"    y="12.5" width="6.5" height="6" rx="1.2" fill="currentColor" opacity="0.75"/>
-    <rect x="9.5"  y="12.5" width="6.5" height="6" rx="1.2" fill="currentColor" opacity="0.75"/>
-    <rect x="17"   y="12.5" width="5"   height="6" rx="1.2" fill="currentColor" opacity="0.75"/>
-    <rect x="2"    y="20"   width="20"  height="3" rx="1.2" fill="currentColor" opacity="0.5"/>`,
-};
-
-function getIconPath(infraType: string): string {
-  if (infraType === 'pier')       return ICON_PATHS.pier;
-  if (infraType === 'coastal')    return ICON_PATHS.coastal;
-  if (infraType === 'seawall')    return ICON_PATHS.seawall;
-  if (infraType === 'breakwater') return ICON_PATHS.breakwater;
-  return ICON_PATHS.anchor;
-}
-
-function buildPinSvg(
-  color: string, darkColor: string, infraType: string, size: number, selected: boolean,
-): string {
-  const uid  = `${infraType}-${color.replace('#', '')}-${selected ? 's' : 'n'}`;
-  const h    = Math.round(size * 1.375);
-  const cx   = 24;
-  const cy   = 24;
-  const r    = 22;
-  const iconPath = getIconPath(infraType);
-
-  const pulse = selected ? `
-    <circle cx="${cx}" cy="${cy}" r="${r + 6}" fill="${color}" opacity="0">
-      <animate attributeName="r"       values="${r+4};${r+16};${r+4}" dur="2.2s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" values="0.22;0;0.22"            dur="2.2s" repeatCount="indefinite"/>
-    </circle>` : '';
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 66" width="${size}" height="${h}">
-  <defs>
-    <linearGradient id="pg-${uid}" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%"   stop-color="${color}"     stop-opacity="1"/>
-      <stop offset="100%" stop-color="${darkColor}"  stop-opacity="1"/>
-    </linearGradient>
-    <filter id="ps-${uid}" x="-50%" y="-30%" width="200%" height="180%">
-      <feDropShadow dx="0" dy="${selected ? 5 : 3}" stdDeviation="${selected ? 6 : 4}"
-                    flood-color="${darkColor}" flood-opacity="${selected ? 0.55 : 0.35}"/>
-    </filter>
-  </defs>
-  ${pulse}
-  <path d="M24 2 C12.4 2 3 11.4 3 23 C3 34 24 64 24 64 C24 64 45 34 45 23 C45 11.4 35.6 2 24 2 Z"
-        fill="url(#pg-${uid})" filter="url(#ps-${uid})"
-        stroke="white" stroke-width="${selected ? 2.2 : 1.6}" stroke-opacity="0.9"/>
-  <circle cx="${cx}" cy="${cy}" r="15" fill="white" opacity="0.97"/>
-  <g transform="translate(12,12)" color="${color}">${iconPath}</g>
-</svg>`;
-}
-
-function darken(hex: string, pct = 0.28): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const f = 1 - pct;
-  const r = Math.round(((n >> 16) & 255) * f);
-  const g = Math.round(((n >> 8)  & 255) * f);
-  const b = Math.round((n         & 255) * f);
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-}
-
-function getAssetIcon(color: string, isSelected: boolean, infraType: string): L.DivIcon {
-  const key = `${infraType}-${color}-${isSelected ? 's' : 'n'}`;
-  const cached = assetIconCache.get(key);
-  if (cached) return cached;
-
-  const size = isSelected ? 58 : 46;
-  const h    = Math.round(size * 1.375);
-  const svg  = buildPinSvg(color, darken(color), infraType, size, isSelected);
-
-  const icon = L.divIcon({
-    html: svg,
-    className: 'pin-marker',
-    iconSize:   [size, h],
-    iconAnchor: [size / 2, h],
-    popupAnchor: [0, -h + 8],
-  });
-  assetIconCache.set(key, icon);
-  return icon;
-}
-
+// ── Severity colors ──────────────────────────────────────────────────────────
 function severityColor(sev: string | null): string {
   const s = (sev === 'S0' || sev === '0') ? 'S1' : sev;
-  if (s === 'S4') return '#B71C1C';
-  if (s === 'S3') return '#EF4444';
-  if (s === 'S2') return '#F59E0B';
-  if (s === 'S1') return '#EAB308';
+  if (s === 'S4') return '#B71C1C'; if (s === 'S3') return '#EF4444';
+  if (s === 'S2') return '#F59E0B'; if (s === 'S1') return '#EAB308';
   return '#38BDF8';
 }
 
-function getImageIcon(sev: string | null): L.DivIcon {
-  const key = `img-${sev ?? 'none'}`;
-  const cached = imageIconCache.get(key);
-  if (cached) return cached;
+// ── Infrastructure marker colors ─────────────────────────────────────────────
+const MARKER_COLORS: Record<string, string> = {
+  pier: '#3B82F6', coastal: '#06B6D4', seawall: '#14B8A6',
+  breakwater: '#6366F1', wind_turbine: '#0EA5E9',
+};
 
-  const c   = severityColor(sev);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="18" height="18">
-    <circle cx="10" cy="10" r="8"  fill="${c}" opacity="0.18" stroke="${c}" stroke-width="1.5"/>
-    <circle cx="10" cy="10" r="4.5" fill="${c}" stroke="white" stroke-width="1.8"/>
-    <circle cx="10" cy="10" r="1.8" fill="white"/>
+// ── SVG icon paths for marker pins ───────────────────────────────────────────
+const ICON_SVG: Record<string, string> = {
+  pier: '<path d="M6 4h12M7 6h10v2H7zM8 8v6M12 8v6M16 8v6" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+  coastal: '<path d="M4 10q3-3 6 0t6 0M4 14q3-3 6 0t6 0" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+  seawall: '<rect x="4" y="6" width="16" height="5" rx="1" fill="white" opacity="0.9"/><rect x="4" y="13" width="7" height="5" rx="1" fill="white" opacity="0.7"/><rect x="13" y="13" width="7" height="5" rx="1" fill="white" opacity="0.7"/>',
+  breakwater: '<rect x="9" y="4" width="6" height="10" rx="1" fill="white" opacity="0.9"/><circle cx="12" cy="6" r="2" fill="white" opacity="0.5"/><path d="M5 16q7-3 14 0" stroke="white" stroke-width="1.2" fill="none"/>',
+  wind_turbine: '<circle cx="12" cy="8" r="2" fill="white"/><path d="M12 10v8M8 18h8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>',
+};
+
+function createMarkerElement(infraType: string, color: string, isSelected: boolean): HTMLElement {
+  const size = isSelected ? 48 : 38;
+  const el = document.createElement('div');
+  el.className = 'mira-marker' + (isSelected ? ' mira-marker-selected' : '');
+  const iconSvg = ICON_SVG[infraType] || ICON_SVG.pier;
+  el.innerHTML = `<svg viewBox="0 0 48 60" width="${size}" height="${Math.round(size*1.25)}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="ms-${infraType}" x="-40%" y="-20%" width="180%" height="160%">
+        <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="${color}" flood-opacity="0.4"/>
+      </filter>
+    </defs>
+    ${isSelected ? `<circle cx="24" cy="24" r="22" fill="${color}" opacity="0.15"><animate attributeName="r" values="20;30;20" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.2;0;0.2" dur="2s" repeatCount="indefinite"/></circle>` : ''}
+    <path d="M24 2C13 2 4 11 4 22c0 12 20 36 20 36s20-24 20-36C44 11 35 2 24 2z"
+      fill="${color}" filter="url(#ms-${infraType})" stroke="white" stroke-width="${isSelected ? 2 : 1.5}" stroke-opacity="0.9"/>
+    <circle cx="24" cy="22" r="12" fill="white" opacity="0.95"/>
+    <g transform="translate(12,12)">${iconSvg}</g>
   </svg>`;
-
-  const icon = L.divIcon({
-    html: svg,
-    className: 'img-dot-marker',
-    iconSize:   [18, 18],
-    iconAnchor: [9, 9],
-    popupAnchor: [0, -12],
-  });
-  imageIconCache.set(key, icon);
-  return icon;
+  return el;
 }
 
-// ── Map behaviour helpers ─────────────────────────────────────────────────────
-function FlyToAsset({ asset }: { asset?: Asset }) {
-  const map = useMap();
-  useEffect(() => {
-    if (asset?.latitude && asset?.longitude) {
-      map.flyTo([asset.latitude, asset.longitude], 17, { duration: 1.4, easeLinearity: 0.2 });
-    }
-  }, [asset, map]);
-  return null;
+function createImageMarkerElement(sev: string | null): HTMLElement {
+  const c = severityColor(sev);
+  const el = document.createElement('div');
+  el.className = 'mira-img-dot';
+  el.innerHTML = `<svg viewBox="0 0 20 20" width="16" height="16"><circle cx="10" cy="10" r="7" fill="${c}" opacity="0.2" stroke="${c}" stroke-width="1.5"/><circle cx="10" cy="10" r="4" fill="${c}" stroke="white" stroke-width="1.5"/></svg>`;
+  return el;
 }
 
-function FlyToLocation({ coords }: { coords: [number, number] | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (coords) {
-      map.flyTo(coords, 17, { duration: 1.4, easeLinearity: 0.2 });
-    }
-  }, [coords, map]);
-  return null;
+// ── Popup HTML builders ──────────────────────────────────────────────────────
+function assetPopupHTML(asset: Asset, color: string, label: string, imageCount: number): string {
+  const statusColor = asset.status === 'active' ? '#4ade80' : '#fbbf24';
+  const statusBg = asset.status === 'active' ? 'rgba(34,197,94,.15)' : 'rgba(234,179,8,.15)';
+  return `<div class="mp-card">
+    <div class="mp-name">${asset.name}</div>
+    ${asset.location_name ? `<div class="mp-loc"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${asset.location_name}</div>` : ''}
+    <div class="mp-badges">
+      <span class="mp-badge" style="background:${color}22;color:${color};border:1px solid ${color}45">${label}</span>
+      <span class="mp-badge" style="background:${statusBg};color:${statusColor};border:1px solid ${statusColor}30">${asset.status}</span>
+    </div>
+    <div class="mp-stats">${asset.inspection_count} inspections · ${imageCount} images</div>
+    <div class="mp-coords">${asset.latitude?.toFixed(5)}, ${asset.longitude?.toFixed(5)}</div>
+    <a href="/assets/${asset.id}" class="mp-link">View Asset Details →</a>
+  </div>`;
 }
 
-function FitBounds({ assets, imagePoints }: { assets: Asset[]; imagePoints: ImageGpsPoint[] }) {
-  const map     = useMap();
-  const fitted  = useRef(false);
-  useEffect(() => {
-    if (fitted.current) return;
-    const coords: [number, number][] = [
-      ...assets.filter(a => a.latitude != null && a.longitude != null).map(a => [a.latitude!, a.longitude!] as [number, number]),
-      ...imagePoints.map(p => [p.lat, p.lon] as [number, number]),
-    ];
-    if (coords.length) {
-      map.fitBounds(L.latLngBounds(coords), { padding: [90, 90], maxZoom: 16 });
-      fitted.current = true;
-    }
-  }, [assets, imagePoints, map]);
-  return null;
+function imagePopupHTML(pt: ImageGpsPoint): string {
+  const c = severityColor(pt.max_severity);
+  return `<div class="mp-card">
+    <div class="mp-name">${pt.filename}</div>
+    <div class="mp-loc">${pt.inspection_name}</div>
+    <div class="mp-badges">
+      ${pt.max_severity ? `<span class="mp-badge" style="background:${c}22;color:${c};border:1px solid ${c}45">${pt.max_severity}</span>` : ''}
+      <span class="mp-badge" style="background:rgba(56,189,248,.12);color:#38bdf8;border:1px solid rgba(56,189,248,.25)">${pt.detection_count} detections</span>
+    </div>
+    ${pt.gps_accuracy_m != null ? `<div class="mp-stats">GPS ±${pt.gps_accuracy_m.toFixed(1)} m</div>` : ''}
+    <a href="/inspections/${pt.inspection_id}" class="mp-link">View Inspection →</a>
+  </div>`;
 }
 
-// ── Compass control ──────────────────────────────────────────────────────────
-function CompassControl() {
-  const map = useMap();
-  const addedRef = useRef(false);
-  useEffect(() => {
-    if (addedRef.current) return;
-    addedRef.current = true;
-    const CompassCtrl = L.Control.extend({
-      options: { position: 'topleft' as L.ControlPosition },
-      onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-compass-control');
-        container.innerHTML = `<svg viewBox="0 0 40 40" width="40" height="40">
-          <circle cx="20" cy="20" r="18" fill="rgba(8,16,30,0.94)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-          <polygon points="20,6 23,18 20,16 17,18" fill="#EF4444" stroke="white" stroke-width="0.5"/>
-          <polygon points="20,34 23,22 20,24 17,22" fill="#64748B" stroke="white" stroke-width="0.5"/>
-          <text x="20" y="8" text-anchor="middle" font-size="6" font-weight="700" fill="#EF4444" font-family="Inter,system-ui">N</text>
-          <circle cx="20" cy="20" r="2.5" fill="white" opacity="0.9"/>
-        </svg>`;
-        container.title = 'North';
-        container.style.cursor = 'pointer';
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.on(container, 'click', () => { map.setView(map.getCenter(), map.getZoom()); });
-        return container;
-      },
-    });
-    map.addControl(new CompassCtrl());
-  }, [map]);
-  return null;
-}
-
-// ── Scale control ────────────────────────────────────────────────────────────
-function ScaleControl() {
-  const map = useMap();
-  const addedRef = useRef(false);
-  useEffect(() => {
-    if (addedRef.current) return;
-    addedRef.current = true;
-    L.control.scale({ position: 'bottomleft', imperial: true, metric: true }).addTo(map);
-  }, [map]);
-  return null;
-}
-
-// ── Markers ───────────────────────────────────────────────────────────────────
-const AssetMarker = memo(function AssetMarker({
-  asset, isSelected, onSelect, markerColor, configLabel, infraType, imageCount,
-}: {
-  asset: Asset; isSelected: boolean; onSelect: () => void;
-  markerColor: string; configLabel: string; infraType: string; imageCount: number;
-}) {
-  const icon = getAssetIcon(markerColor, isSelected, infraType);
-  return (
-    <Marker position={[asset.latitude!, asset.longitude!]} icon={icon} eventHandlers={{ click: onSelect }}>
-      <Tooltip permanent direction="right" offset={[18, -20]} className="asset-label-tooltip">
-        <div className="at-inner">
-          <div className="at-name">{asset.name}</div>
-          <div className="at-coords">{asset.latitude?.toFixed(4)}, {asset.longitude?.toFixed(4)}</div>
-          <div className="at-stats">
-            {asset.inspection_count} insp. · {imageCount} img
-          </div>
-        </div>
-      </Tooltip>
-      <Popup>
-        <div className="asset-popup">
-          <div className="ap-name">{asset.name}</div>
-          {asset.location_name && (
-            <div className="ap-loc">
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                <circle cx="12" cy="10" r="3"/>
-              </svg>
-              {asset.location_name}
-            </div>
-          )}
-          <div className="ap-badges">
-            <span className="ap-badge" style={{ background: markerColor + '22', color: markerColor, border: `1px solid ${markerColor}45` }}>
-              {configLabel}
-            </span>
-            <span className="ap-badge" style={{
-              background: asset.status === 'active' ? 'rgba(34,197,94,.15)'  : 'rgba(234,179,8,.15)',
-              color:      asset.status === 'active' ? '#4ade80'              : '#fbbf24',
-              border:     `1px solid ${asset.status === 'active' ? 'rgba(34,197,94,.3)' : 'rgba(234,179,8,.3)'}`,
-            }}>
-              {asset.status}
-            </span>
-          </div>
-          <div className="ap-coords">
-            {asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
-            {' · '}{imageCount} image{imageCount !== 1 ? 's' : ''}
-            {' · '}{asset.latitude?.toFixed(5)}, {asset.longitude?.toFixed(5)}
-          </div>
-          <div className="ap-divider"/>
-          <a href={`/assets/${asset.id}`} className="ap-link">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-              <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-            </svg>
-            View Asset Details
-          </a>
-        </div>
-      </Popup>
-    </Marker>
-  );
-});
-
-const ImageMarker = memo(function ImageMarker({ point }: { point: ImageGpsPoint }) {
-  const icon  = getImageIcon(point.max_severity);
-  const color = severityColor(point.max_severity);
-  return (
-    <Marker position={[point.lat, point.lon]} icon={icon}>
-      <Popup>
-        <div className="asset-popup">
-          <div className="ap-name">{point.filename}</div>
-          <div className="ap-loc">{point.inspection_name}</div>
-          <div className="ap-badges">
-            {point.max_severity && (
-              <span className="ap-badge" style={{ background: color + '22', color, border: `1px solid ${color}45` }}>
-                {point.max_severity}
-              </span>
-            )}
-            <span className="ap-badge" style={{ background: 'rgba(56,189,248,.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,.25)' }}>
-              {point.detection_count} detection{point.detection_count !== 1 ? 's' : ''}
-            </span>
-          </div>
-          {point.gps_accuracy_m != null && <div className="ap-coords">GPS ±{point.gps_accuracy_m.toFixed(1)} m</div>}
-          <div className="ap-divider"/>
-          <a href={`/inspections/${point.inspection_id}`} className="ap-link">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-              <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-            </svg>
-            View Inspection
-          </a>
-        </div>
-      </Popup>
-    </Marker>
-  );
-});
-
-// ── CSS ───────────────────────────────────────────────────────────────────────
+// ── Styles ───────────────────────────────────────────────────────────────────
 const MAP_STYLES = `
-  .pin-marker,
-  .img-dot-marker        { background: none !important; border: none !important; }
-  .pin-marker svg        { transition: transform .2s ease; filter: drop-shadow(0 4px 8px rgba(0,0,0,.35)); overflow: visible; }
-  .pin-marker:hover svg  { transform: scale(1.12) translateY(-3px); }
-  .img-dot-marker svg    { transition: transform .15s ease; }
-  .img-dot-marker:hover svg { transform: scale(1.4); }
+  .mapboxgl-map { font-family: 'Inter', system-ui, sans-serif; }
 
-  .leaflet-container     { font-family: 'Inter', system-ui, sans-serif !important; background: #06101c; }
+  /* Markers */
+  .mira-marker { cursor: pointer; transition: transform .2s ease; }
+  .mira-marker:hover { transform: scale(1.12) translateY(-3px); }
+  .mira-marker-selected { z-index: 10 !important; }
+  .mira-img-dot { cursor: pointer; transition: transform .15s ease; }
+  .mira-img-dot:hover { transform: scale(1.5); }
 
-  /* Compass */
-  .leaflet-compass-control { border-radius: 50%; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,.4); }
-  .leaflet-compass-control:hover { transform: scale(1.08); transition: transform .15s ease; }
+  /* Popup */
+  .mapboxgl-popup-content {
+    background: rgba(8,16,30,0.97) !important; border-radius: 16px !important;
+    padding: 0 !important; box-shadow: 0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.07) !important;
+    backdrop-filter: blur(28px) saturate(1.4); color: white;
+  }
+  .mapboxgl-popup-tip { border-top-color: rgba(8,16,30,0.97) !important; }
+  .mapboxgl-popup-close-button { color: #64748b; font-size: 18px; padding: 4px 10px; }
+  .mapboxgl-popup-close-button:hover { color: white; background: transparent; }
 
-  /* Scale control */
-  .leaflet-control-scale-line {
-    background: rgba(8,16,30,.85) !important;
-    color: #94a3b8 !important;
-    border-color: rgba(148,163,184,.3) !important;
-    font-size: 10px !important;
-    font-weight: 600 !important;
-    backdrop-filter: blur(8px);
-    padding: 2px 8px !important;
-    border-radius: 4px !important;
+  .mp-card { padding: 16px 18px; min-width: 220px; }
+  .mp-name { font-size: 13px; font-weight: 700; color: #f1f5f9; }
+  .mp-loc { font-size: 10px; color: #64748b; display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+  .mp-badges { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+  .mp-badge { font-size: 10px; padding: 3px 9px; border-radius: 6px; font-weight: 600; }
+  .mp-stats { font-size: 10px; color: #94a3b8; margin-top: 8px; }
+  .mp-coords { font-size: 9px; color: #475569; margin-top: 4px; font-family: ui-monospace, monospace; }
+  .mp-link {
+    display: block; text-align: center; font-size: 11px; font-weight: 600; color: #38bdf8;
+    padding: 10px; margin: 12px -18px -16px -18px; background: rgba(56,189,248,.07);
+    text-decoration: none; transition: background .15s;
+  }
+  .mp-link:hover { background: rgba(56,189,248,.14); color: #7dd3fc; }
+
+  /* Controls override */
+  .mapboxgl-ctrl-group { background: rgba(8,16,30,0.82) !important; border: 1px solid rgba(255,255,255,0.06) !important; border-radius: 14px !important; box-shadow: 0 8px 32px rgba(0,0,0,.45) !important; backdrop-filter: blur(20px); overflow: hidden; }
+  .mapboxgl-ctrl-group button { background: transparent !important; color: #cbd5e1 !important; width: 36px !important; height: 36px !important; border: none !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; }
+  .mapboxgl-ctrl-group button:hover { background: rgba(8,145,178,.2) !important; color: #38bdf8 !important; }
+  .mapboxgl-ctrl-group button:last-child { border-bottom: none !important; }
+  .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon { filter: invert(1) brightness(0.8); }
+  .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon { filter: none !important; }
+
+  .mapboxgl-ctrl-scale { background: rgba(8,16,30,.82) !important; color: #94a3b8 !important; border-color: rgba(148,163,184,.3) !important; font-size: 10px !important; font-weight: 600 !important; border-radius: 6px !important; backdrop-filter: blur(12px); padding: 1px 6px !important; }
+  .mapboxgl-ctrl-attrib { background: rgba(8,16,30,.5) !important; border-radius: 8px 0 0 0 !important; backdrop-filter: blur(8px); }
+  .mapboxgl-ctrl-attrib a { color: #64748b !important; }
+
+  /* Navigation compass styling */
+  .mapboxgl-ctrl-compass { position: relative; }
+  .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='12,2 14,10 12,9 10,10' fill='%23EF4444' opacity='0.95'/%3E%3Cpolygon points='12,22 14,14 12,15 10,14' fill='%23475569' opacity='0.7'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='white'/%3E%3C/svg%3E") !important;
+    background-size: 20px !important;
   }
 
-  /* Popups */
-  .leaflet-popup-content-wrapper {
-    border-radius: 16px !important;
-    padding: 0 !important;
-    overflow: hidden;
-    background: rgba(8, 16, 30, 0.97) !important;
-    backdrop-filter: blur(28px) saturate(1.4);
-    box-shadow: 0 24px 64px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.07) !important;
-  }
-  .leaflet-popup-content { margin: 0 !important; width: auto !important; min-width: 240px; }
-  .leaflet-popup-tip-container { display: none; }
-
-  /* Zoom control */
-  .leaflet-control-zoom {
-    border: none !important;
-    border-radius: 12px !important;
-    overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0,0,0,.4) !important;
-  }
-  .leaflet-control-zoom a {
-    background: rgba(8,16,30,.94) !important;
-    color: #cbd5e1 !important;
-    border: none !important;
-    border-bottom: 1px solid rgba(255,255,255,.06) !important;
-    backdrop-filter: blur(12px);
-    width: 36px !important; height: 36px !important;
-    line-height: 36px !important; font-size: 18px !important; font-weight: 300 !important;
-  }
-  .leaflet-control-zoom a:hover { background: rgba(8,46,41,.95) !important; color: #38bdf8 !important; }
-
-  /* Layers control */
-  .leaflet-control-layers {
-    border: none !important; border-radius: 12px !important;
-    background: rgba(8,16,30,.94) !important;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 4px 20px rgba(0,0,0,.4) !important;
-    color: white !important;
-  }
-  .leaflet-control-layers-expanded { padding: 10px 16px !important; min-width: 140px; }
-  .leaflet-control-layers label    { color: #94a3b8 !important; font-size: 12px !important; line-height: 2 !important; }
-  .leaflet-control-layers-toggle   { width: 36px !important; height: 36px !important; }
-  .leaflet-control-attribution      {
-    background: rgba(8,16,30,.7) !important; color: #475569 !important;
-    font-size: 9px !important; border-radius: 8px 0 0 0 !important;
-  }
-  .leaflet-control-attribution a { color: #64748b !important; }
-
-  /* Popup content */
-  .asset-popup { padding: 16px 18px; color: white; }
-  .ap-name     { font-size: 13px; font-weight: 700; color: #f1f5f9; letter-spacing: -.01em; }
-  .ap-loc      { font-size: 10px; color: #64748b; display: flex; align-items: center; gap: 4px; margin-top: 3px; }
-  .ap-badges   { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
-  .ap-badge    { font-size: 10px; padding: 3px 9px; border-radius: 6px; font-weight: 600; }
-  .ap-coords   { font-size: 10px; color: #475569; margin-top: 8px; font-family: ui-monospace, monospace; }
-  .ap-divider  { height: 1px; background: linear-gradient(90deg, transparent, rgba(148,163,184,.12), transparent); margin: 12px -18px; }
-  .ap-link     {
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    font-size: 11px; font-weight: 600; color: #38bdf8;
-    padding: 9px; margin: 0 -18px -16px -18px;
-    background: rgba(56,189,248,.07);
-    transition: all .15s; text-decoration: none;
-  }
-  .ap-link:hover { background: rgba(56,189,248,.14); color: #7dd3fc; }
-
-  /* Permanent asset label tooltips */
-  .asset-label-tooltip {
-    background: rgba(8, 46, 41, 0.92) !important;
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(8, 145, 178, 0.3) !important;
-    border-radius: 10px !important;
-    padding: 0 !important;
-    box-shadow: 0 4px 16px rgba(0,0,0,.4) !important;
-    white-space: nowrap;
-  }
-  .asset-label-tooltip::before { border-right-color: rgba(8, 46, 41, 0.92) !important; }
-  .at-inner  { padding: 8px 12px; }
-  .at-name   { font-size: 12px; font-weight: 700; color: #E0F2FE; letter-spacing: -0.01em; }
-  .at-coords { font-size: 9px; color: #6B9A87; font-family: ui-monospace, monospace; margin-top: 2px; }
-  .at-stats  { font-size: 10px; color: #38BDF8; font-weight: 600; margin-top: 3px; }
+  /* 3D buildings */
+  .mapboxgl-canvas { outline: none; }
 `;
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Map styles (layers) ──────────────────────────────────────────────────────
+const MAP_LAYER_STYLES = {
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+  dark: 'mapbox://styles/mapbox/dark-v11',
+  streets: 'mapbox://styles/mapbox/streets-v12',
+  outdoors: 'mapbox://styles/mapbox/outdoors-v12',
+};
+
+// ── Main Component ───────────────────────────────────────────────────────────
 interface MapViewProps {
-  assets: Asset[];
-  selectedAssetId: string | null;
-  onSelectAsset: (id: string) => void;
-  infraConfig: Record<string, { label: string; markerColor: string }>;
-  imagePoints: ImageGpsPoint[];
+  assets: Asset[]; selectedAssetId: string | null; onSelectAsset: (id: string) => void;
+  infraConfig: Record<string, { label: string; markerColor: string }>; imagePoints: ImageGpsPoint[];
   flyToCoords?: [number, number] | null;
 }
 
-const DEFAULT_CENTER: [number, number] = [40.6900, -74.0155];
-const DEFAULT_ZOOM   = 15;
+const DEFAULT_CENTER: [number, number] = [-74.0155, 40.6900]; // [lng, lat] for Mapbox
+const DEFAULT_ZOOM = 15;
 
 function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoints, flyToCoords }: MapViewProps) {
-  const selectedAsset = useMemo(
-    () => assets.find(a => a.id === selectedAssetId),
-    [assets, selectedAssetId],
-  );
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const imageMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const [currentStyle, setCurrentStyle] = useState<keyof typeof MAP_LAYER_STYLES>('satellite');
+  const initRef = useRef(false);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainer.current || initRef.current) return;
+    initRef.current = true;
+
+    const map = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: MAP_LAYER_STYLES.satellite,
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
+      pitch: 45,
+      bearing: 0,
+      antialias: true,
+      attributionControl: true,
+    });
+
+    // Controls
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }), 'top-left');
+    map.addControl(new mapboxgl.ScaleControl({ unit: 'imperial' }), 'bottom-left');
+
+    // 3D buildings on load
+    map.on('style.load', () => {
+      const layers = map.getStyle()?.layers;
+      if (!layers) return;
+      // Add 3D building layer if available
+      const labelLayerId = layers.find(l => l.type === 'symbol' && (l.layout as any)?.['text-field'])?.id;
+      if (map.getSource('composite') && !map.getLayer('3d-buildings')) {
+        try {
+          map.addLayer({
+            id: '3d-buildings', source: 'composite', 'source-layer': 'building',
+            filter: ['==', 'extrude', 'true'], type: 'fill-extrusion', minzoom: 14,
+            paint: {
+              'fill-extrusion-color': '#082E29',
+              'fill-extrusion-height': ['get', 'height'],
+              'fill-extrusion-base': ['get', 'min_height'],
+              'fill-extrusion-opacity': 0.5,
+            },
+          }, labelLayerId);
+        } catch { /* style may not support buildings */ }
+      }
+    });
+
+    mapRef.current = map;
+
+    return () => { map.remove(); initRef.current = false; };
+  }, []);
+
+  // Fit bounds to assets on first load
+  const fittedRef = useRef(false);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || fittedRef.current) return;
+    const coords = [
+      ...assets.filter(a => a.latitude != null && a.longitude != null).map(a => [a.longitude!, a.latitude!] as [number, number]),
+      ...imagePoints.map(p => [p.lon, p.lat] as [number, number]),
+    ];
+    if (coords.length > 0) {
+      const bounds = coords.reduce((b, c) => b.extend(c as [number, number]), new mapboxgl.LngLatBounds(coords[0], coords[0]));
+      map.fitBounds(bounds, { padding: 80, maxZoom: 16, pitch: 45 });
+      fittedRef.current = true;
+    }
+  }, [assets, imagePoints]);
+
+  // Update asset markers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentIds = new Set(assets.map(a => a.id));
+    // Remove old markers
+    markersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) { marker.remove(); markersRef.current.delete(id); }
+    });
+
+    // Add/update markers
+    assets.forEach(asset => {
+      if (asset.latitude == null || asset.longitude == null) return;
+      const color = infraConfig[asset.infrastructure_type]?.markerColor ?? '#64748B';
+      const label = infraConfig[asset.infrastructure_type]?.label ?? asset.infrastructure_type;
+      const isSelected = asset.id === selectedAssetId;
+      const existing = markersRef.current.get(asset.id);
+
+      if (existing) {
+        // Update position and element
+        existing.setLngLat([asset.longitude, asset.latitude]);
+        const el = createMarkerElement(asset.infrastructure_type, color, isSelected);
+        el.addEventListener('click', (e) => { e.stopPropagation(); onSelectAsset(asset.id); });
+        existing.getElement().replaceWith(el);
+        // Mapbox doesn't support replaceWith on marker element easily, remove and re-add
+        existing.remove();
+        markersRef.current.delete(asset.id);
+      }
+
+      const el = createMarkerElement(asset.infrastructure_type, color, isSelected);
+      el.addEventListener('click', (e) => { e.stopPropagation(); onSelectAsset(asset.id); });
+
+      const popup = new mapboxgl.Popup({ offset: 25, closeButton: true, maxWidth: '300px' })
+        .setHTML(assetPopupHTML(asset, color, label, asset.image_count ?? 0));
+
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([asset.longitude, asset.latitude])
+        .setPopup(popup)
+        .addTo(map);
+
+      markersRef.current.set(asset.id, marker);
+    });
+  }, [assets, selectedAssetId, onSelectAsset, infraConfig]);
+
+  // Update image markers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Clear old
+    imageMarkersRef.current.forEach(m => m.remove());
+    imageMarkersRef.current.clear();
+
+    // Add new
+    imagePoints.forEach(pt => {
+      const el = createImageMarkerElement(pt.max_severity);
+      const popup = new mapboxgl.Popup({ offset: 12, closeButton: true, maxWidth: '280px' })
+        .setHTML(imagePopupHTML(pt));
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([pt.lon, pt.lat])
+        .setPopup(popup)
+        .addTo(map);
+      imageMarkersRef.current.set(pt.id, marker);
+    });
+  }, [imagePoints]);
+
+  // Fly to selected asset
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedAssetId) return;
+    const asset = assets.find(a => a.id === selectedAssetId);
+    if (asset?.latitude && asset?.longitude) {
+      map.flyTo({ center: [asset.longitude, asset.latitude], zoom: 17, pitch: 55, duration: 1400 });
+    }
+  }, [selectedAssetId, assets]);
+
+  // Fly to search coords
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !flyToCoords) return;
+    map.flyTo({ center: [flyToCoords[1], flyToCoords[0]], zoom: 17, pitch: 45, duration: 1400 });
+  }, [flyToCoords]);
+
+  // Style switcher
+  const switchStyle = useCallback((style: keyof typeof MAP_LAYER_STYLES) => {
+    const map = mapRef.current;
+    if (!map) return;
+    setCurrentStyle(style);
+    map.setStyle(MAP_LAYER_STYLES[style]);
+    // Re-add markers after style change
+    map.once('style.load', () => {
+      markersRef.current.forEach(m => m.addTo(map));
+      imageMarkersRef.current.forEach(m => m.addTo(map));
+    });
+  }, []);
 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: MAP_STYLES }} />
-      <MapContainer
-        center={DEFAULT_CENTER}
-        zoom={DEFAULT_ZOOM}
-        style={{ width: '100%', height: '100%' }}
-        zoomControl
-        scrollWheelZoom
-      >
-        <LayersControl position="bottomright">
-          <LayersControl.BaseLayer checked name="Satellite">
-            <TileLayer
-              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Dark">
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Ocean">
-            <TileLayer
-              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}"
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Streets">
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.Overlay checked name="Road Labels">
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
-              pane="overlayPane"
-            />
-          </LayersControl.Overlay>
-        </LayersControl>
+      <div ref={mapContainer} style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden' }} />
 
-        <CompassControl />
-        <ScaleControl />
-        <FitBounds assets={assets} imagePoints={imagePoints} />
-        <FlyToAsset asset={selectedAsset} />
-        <FlyToLocation coords={flyToCoords ?? null} />
-
-        {assets.map(asset => {
-          const cfg = infraConfig[asset.infrastructure_type];
-          return (
-            <AssetMarker
-              key={asset.id}
-              asset={asset}
-              isSelected={asset.id === selectedAssetId}
-              onSelect={() => onSelectAsset(asset.id)}
-              markerColor={cfg?.markerColor ?? '#64748B'}
-              configLabel={cfg?.label ?? asset.infrastructure_type}
-              infraType={asset.infrastructure_type}
-              imageCount={asset.image_count ?? 0}
-            />
-          );
-        })}
-
-        {imagePoints.map(pt => <ImageMarker key={pt.id} point={pt} />)}
-      </MapContainer>
+      {/* Style switcher - bottom right */}
+      <div style={{ position: 'absolute', bottom: 32, right: 12, zIndex: 5, display: 'flex', gap: 4 }}>
+        {(Object.keys(MAP_LAYER_STYLES) as Array<keyof typeof MAP_LAYER_STYLES>).map(key => (
+          <button
+            key={key}
+            onClick={() => switchStyle(key)}
+            style={{
+              padding: '5px 10px', fontSize: 10, fontWeight: 600, borderRadius: 8, cursor: 'pointer', border: 'none', transition: 'all .15s',
+              background: currentStyle === key ? 'rgba(8,145,178,0.4)' : 'rgba(8,16,30,0.75)',
+              color: currentStyle === key ? '#38bdf8' : '#94a3b8',
+              backdropFilter: 'blur(16px)',
+              boxShadow: currentStyle === key ? '0 0 12px rgba(8,145,178,0.3)' : '0 4px 12px rgba(0,0,0,.3)',
+              borderWidth: 1, borderStyle: 'solid',
+              borderColor: currentStyle === key ? 'rgba(56,189,248,0.3)' : 'rgba(255,255,255,0.06)',
+            }}
+          >
+            {key.charAt(0).toUpperCase() + key.slice(1)}
+          </button>
+        ))}
+      </div>
     </>
   );
 }

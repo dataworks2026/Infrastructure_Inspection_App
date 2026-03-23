@@ -6,6 +6,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+ARG NEXT_PUBLIC_MAPBOX_TOKEN
+ENV NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN
+
 RUN npm run build
 
 # ── Stage 2: Production runner ────────────────────────────────────────────────
