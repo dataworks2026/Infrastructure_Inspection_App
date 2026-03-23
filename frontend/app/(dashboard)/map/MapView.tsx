@@ -231,10 +231,21 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }), 'top-left');
     map.addControl(new mapboxgl.ScaleControl({ unit: 'imperial' }), 'bottom-left');
 
-    // 3D buildings on load
+    // On style load: hide POI labels, add 3D buildings
     map.on('style.load', () => {
       const layers = map.getStyle()?.layers;
       if (!layers) return;
+
+      // Hide POI / place labels so they don't clash with our markers
+      layers.forEach(layer => {
+        if (layer.type === 'symbol' && (
+          layer.id.includes('poi') || layer.id.includes('place') ||
+          layer.id.includes('transit') || layer.id.includes('airport')
+        )) {
+          map.setLayoutProperty(layer.id, 'visibility', 'none');
+        }
+      });
+
       // Add 3D building layer if available
       const labelLayerId = layers.find(l => l.type === 'symbol' && (l.layout as any)?.['text-field'])?.id;
       if (map.getSource('composite') && !map.getLayer('3d-buildings')) {
