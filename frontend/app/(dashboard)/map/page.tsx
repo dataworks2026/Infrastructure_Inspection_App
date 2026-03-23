@@ -290,7 +290,7 @@ export default function MapPage() {
           </div>
 
           {/* Search + Controls */}
-          <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto flex-shrink-0 lg:mr-[290px]">
 
             {/* Search bar */}
             <div ref={searchRef} className="relative hidden sm:block">
