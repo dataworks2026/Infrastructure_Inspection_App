@@ -53,8 +53,8 @@ function healthLabel(s: string | null): string {
 
 // Glass button style helper
 const glassBtn = (active: boolean) => active
-  ? 'bg-[#082E29]/80 backdrop-blur-2xl text-cyan-300 border-cyan-400/30 shadow-lg shadow-cyan-500/20'
-  : 'bg-[#0a1420]/70 backdrop-blur-2xl text-slate-200 border-white/10 shadow-lg hover:bg-[#082E29]/60 hover:text-white hover:border-cyan-400/20';
+  ? 'bg-black/40 backdrop-blur-2xl text-cyan-300 border-cyan-400/30 shadow-xl shadow-cyan-500/10'
+  : 'bg-black/40 backdrop-blur-2xl text-white/80 border-white/[0.08] shadow-xl hover:text-white hover:border-white/15';
 
 export default function MapPage() {
   const { data: assets = [], isLoading } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });

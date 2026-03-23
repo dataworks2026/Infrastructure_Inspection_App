@@ -131,6 +131,7 @@ const MAP_STYLES = `
   .mp-link:hover { background: rgba(56,189,248,.14); color: #7dd3fc; }
 
   /* Controls override */
+  .mapboxgl-ctrl-top-left { margin-top: 60px !important; }
   .mapboxgl-ctrl-group { background: rgba(8,16,30,0.82) !important; border: 1px solid rgba(255,255,255,0.06) !important; border-radius: 14px !important; box-shadow: 0 8px 32px rgba(0,0,0,.45) !important; backdrop-filter: blur(20px); overflow: hidden; }
   .mapboxgl-ctrl-group button { background: transparent !important; color: #cbd5e1 !important; width: 36px !important; height: 36px !important; border: none !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; }
   .mapboxgl-ctrl-group button:hover { background: rgba(8,145,178,.2) !important; color: #38bdf8 !important; }
