@@ -290,30 +290,16 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
     const map = mapRef.current;
     if (!map) return;
 
-    const currentIds = new Set(assets.map(a => a.id));
-    // Remove old markers
-    markersRef.current.forEach((marker, id) => {
-      if (!currentIds.has(id)) { marker.remove(); markersRef.current.delete(id); }
-    });
+    // Clear all existing markers to avoid orphaned DOM elements
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current.clear();
 
-    // Add/update markers
+    // Create markers
     assets.forEach(asset => {
       if (asset.latitude == null || asset.longitude == null) return;
       const color = infraConfig[asset.infrastructure_type]?.markerColor ?? '#64748B';
       const label = infraConfig[asset.infrastructure_type]?.label ?? asset.infrastructure_type;
       const isSelected = asset.id === selectedAssetId;
-      const existing = markersRef.current.get(asset.id);
-
-      if (existing) {
-        // Update position and element
-        existing.setLngLat([asset.longitude, asset.latitude]);
-        const el = createMarkerElement(asset.infrastructure_type, color, isSelected, asset.name);
-        el.addEventListener('click', (e) => { e.stopPropagation(); onSelectAsset(asset.id); });
-        existing.getElement().replaceWith(el);
-        // Mapbox doesn't support replaceWith on marker element easily, remove and re-add
-        existing.remove();
-        markersRef.current.delete(asset.id);
-      }
 
       const el = createMarkerElement(asset.infrastructure_type, color, isSelected, asset.name);
       el.addEventListener('click', (e) => { e.stopPropagation(); onSelectAsset(asset.id); });
