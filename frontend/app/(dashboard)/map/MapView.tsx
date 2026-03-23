@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo, memo } from 'react';
+import { useEffect, useRef, useMemo, memo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import { Asset } from '@/types';
@@ -84,23 +84,17 @@ function getIconPath(infraType: string): string {
   if (infraType === 'coastal')    return ICON_PATHS.coastal;
   if (infraType === 'seawall')    return ICON_PATHS.seawall;
   if (infraType === 'breakwater') return ICON_PATHS.breakwater;
-  return ICON_PATHS.anchor; // fallback
+  return ICON_PATHS.anchor;
 }
 
-// ── Build the large teardrop pin SVG ─────────────────────────────────────────
-// Pin is 48×66 (viewBox), scaled to `size` px wide.
 function buildPinSvg(
-  color: string,
-  darkColor: string,
-  infraType: string,
-  size: number,
-  selected: boolean,
+  color: string, darkColor: string, infraType: string, size: number, selected: boolean,
 ): string {
   const uid  = `${infraType}-${color.replace('#', '')}-${selected ? 's' : 'n'}`;
-  const h    = Math.round(size * 1.375);           // ~66/48 aspect
-  const cx   = 24;                                  // fixed viewBox coords
+  const h    = Math.round(size * 1.375);
+  const cx   = 24;
   const cy   = 24;
-  const r    = 22;                                  // pin circle radius in vb
+  const r    = 22;
   const iconPath = getIconPath(infraType);
 
   const pulse = selected ? `
@@ -120,32 +114,15 @@ function buildPinSvg(
                     flood-color="${darkColor}" flood-opacity="${selected ? 0.55 : 0.35}"/>
     </filter>
   </defs>
-
   ${pulse}
-
-  <!-- Teardrop pin body -->
-  <path d="M24 2
-           C12.4 2 3 11.4 3 23
-           C3 34 24 64 24 64
-           C24 64 45 34 45 23
-           C45 11.4 35.6 2 24 2 Z"
-        fill="url(#pg-${uid})"
-        filter="url(#ps-${uid})"
-        stroke="white"
-        stroke-width="${selected ? 2.2 : 1.6}"
-        stroke-opacity="0.9"/>
-
-  <!-- White disc background -->
+  <path d="M24 2 C12.4 2 3 11.4 3 23 C3 34 24 64 24 64 C24 64 45 34 45 23 C45 11.4 35.6 2 24 2 Z"
+        fill="url(#pg-${uid})" filter="url(#ps-${uid})"
+        stroke="white" stroke-width="${selected ? 2.2 : 1.6}" stroke-opacity="0.9"/>
   <circle cx="${cx}" cy="${cy}" r="15" fill="white" opacity="0.97"/>
-
-  <!-- Maritime icon (24×24 centered at 24,24 → translate 12,12) -->
-  <g transform="translate(12,12)" color="${color}">
-    ${iconPath}
-  </g>
+  <g transform="translate(12,12)" color="${color}">${iconPath}</g>
 </svg>`;
 }
 
-// ── Darker shade helper ───────────────────────────────────────────────────────
 function darken(hex: string, pct = 0.28): string {
   const n = parseInt(hex.replace('#', ''), 16);
   const f = 1 - pct;
@@ -175,7 +152,6 @@ function getAssetIcon(color: string, isSelected: boolean, infraType: string): L.
   return icon;
 }
 
-// ── Severity dot for inspection photo markers ─────────────────────────────────
 function severityColor(sev: string | null): string {
   const s = (sev === 'S0' || sev === '0') ? 'S1' : sev;
   if (s === 'S4') return '#B71C1C';
@@ -219,6 +195,16 @@ function FlyToAsset({ asset }: { asset?: Asset }) {
   return null;
 }
 
+function FlyToLocation({ coords }: { coords: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords) {
+      map.flyTo(coords, 17, { duration: 1.4, easeLinearity: 0.2 });
+    }
+  }, [coords, map]);
+  return null;
+}
+
 function FitBounds({ assets, imagePoints }: { assets: Asset[]; imagePoints: ImageGpsPoint[] }) {
   const map     = useMap();
   const fitted  = useRef(false);
@@ -236,6 +222,48 @@ function FitBounds({ assets, imagePoints }: { assets: Asset[]; imagePoints: Imag
   return null;
 }
 
+// ── Compass control ──────────────────────────────────────────────────────────
+function CompassControl() {
+  const map = useMap();
+  const addedRef = useRef(false);
+  useEffect(() => {
+    if (addedRef.current) return;
+    addedRef.current = true;
+    const CompassCtrl = L.Control.extend({
+      options: { position: 'topleft' as L.ControlPosition },
+      onAdd() {
+        const container = L.DomUtil.create('div', 'leaflet-compass-control');
+        container.innerHTML = `<svg viewBox="0 0 40 40" width="40" height="40">
+          <circle cx="20" cy="20" r="18" fill="rgba(8,16,30,0.94)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+          <polygon points="20,6 23,18 20,16 17,18" fill="#EF4444" stroke="white" stroke-width="0.5"/>
+          <polygon points="20,34 23,22 20,24 17,22" fill="#64748B" stroke="white" stroke-width="0.5"/>
+          <text x="20" y="8" text-anchor="middle" font-size="6" font-weight="700" fill="#EF4444" font-family="Inter,system-ui">N</text>
+          <circle cx="20" cy="20" r="2.5" fill="white" opacity="0.9"/>
+        </svg>`;
+        container.title = 'North';
+        container.style.cursor = 'pointer';
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.on(container, 'click', () => { map.setView(map.getCenter(), map.getZoom()); });
+        return container;
+      },
+    });
+    map.addControl(new CompassCtrl());
+  }, [map]);
+  return null;
+}
+
+// ── Scale control ────────────────────────────────────────────────────────────
+function ScaleControl() {
+  const map = useMap();
+  const addedRef = useRef(false);
+  useEffect(() => {
+    if (addedRef.current) return;
+    addedRef.current = true;
+    L.control.scale({ position: 'bottomleft', imperial: true, metric: true }).addTo(map);
+  }, [map]);
+  return null;
+}
+
 // ── Markers ───────────────────────────────────────────────────────────────────
 const AssetMarker = memo(function AssetMarker({
   asset, isSelected, onSelect, markerColor, configLabel, infraType, imageCount,
@@ -249,7 +277,7 @@ const AssetMarker = memo(function AssetMarker({
       <Tooltip permanent direction="right" offset={[18, -20]} className="asset-label-tooltip">
         <div className="at-inner">
           <div className="at-name">{asset.name}</div>
-          <div className="at-coords">{asset.latitude?.toFixed(4)}°, {asset.longitude?.toFixed(4)}°</div>
+          <div className="at-coords">{asset.latitude?.toFixed(4)}, {asset.longitude?.toFixed(4)}</div>
           <div className="at-stats">
             {asset.inspection_count} insp. · {imageCount} img
           </div>
@@ -282,7 +310,7 @@ const AssetMarker = memo(function AssetMarker({
           <div className="ap-coords">
             {asset.inspection_count} inspection{asset.inspection_count !== 1 ? 's' : ''}
             {' · '}{imageCount} image{imageCount !== 1 ? 's' : ''}
-            {' · '}{asset.latitude?.toFixed(5)}°, {asset.longitude?.toFixed(5)}°
+            {' · '}{asset.latitude?.toFixed(5)}, {asset.longitude?.toFixed(5)}
           </div>
           <div className="ap-divider"/>
           <a href={`/assets/${asset.id}`} className="ap-link">
@@ -342,6 +370,22 @@ const MAP_STYLES = `
   .img-dot-marker:hover svg { transform: scale(1.4); }
 
   .leaflet-container     { font-family: 'Inter', system-ui, sans-serif !important; background: #06101c; }
+
+  /* Compass */
+  .leaflet-compass-control { border-radius: 50%; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+  .leaflet-compass-control:hover { transform: scale(1.08); transition: transform .15s ease; }
+
+  /* Scale control */
+  .leaflet-control-scale-line {
+    background: rgba(8,16,30,.85) !important;
+    color: #94a3b8 !important;
+    border-color: rgba(148,163,184,.3) !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    backdrop-filter: blur(8px);
+    padding: 2px 8px !important;
+    border-radius: 4px !important;
+  }
 
   /* Popups */
   .leaflet-popup-content-wrapper {
@@ -431,12 +475,13 @@ interface MapViewProps {
   onSelectAsset: (id: string) => void;
   infraConfig: Record<string, { label: string; markerColor: string }>;
   imagePoints: ImageGpsPoint[];
+  flyToCoords?: [number, number] | null;
 }
 
 const DEFAULT_CENTER: [number, number] = [40.6900, -74.0155];
 const DEFAULT_ZOOM   = 15;
 
-function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoints }: MapViewProps) {
+function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoints, flyToCoords }: MapViewProps) {
   const selectedAsset = useMemo(
     () => assets.find(a => a.id === selectedAssetId),
     [assets, selectedAssetId],
@@ -471,16 +516,26 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
               url="https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}"
             />
           </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Light">
+          <LayersControl.BaseLayer name="Streets">
             <TileLayer
-              attribution='&copy; <a href="https://stadiamaps.com/">Stadia</a>'
-              url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           </LayersControl.BaseLayer>
+          <LayersControl.Overlay checked name="Road Labels">
+            <TileLayer
+              attribution='&copy; <a href="https://stadiamaps.com/">Stadia</a>'
+              url="https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}{r}.png"
+              pane="overlayPane"
+            />
+          </LayersControl.Overlay>
         </LayersControl>
 
+        <CompassControl />
+        <ScaleControl />
         <FitBounds assets={assets} imagePoints={imagePoints} />
         <FlyToAsset asset={selectedAsset} />
+        <FlyToLocation coords={flyToCoords ?? null} />
 
         {assets.map(asset => {
           const cfg = infraConfig[asset.infrastructure_type];
