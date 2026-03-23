@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { assetsApi } from '@/lib/api';
+import { assetsApi, dashboardApi } from '@/lib/api';
 import { Asset, InfrastructureType } from '@/types';
 import {
   Building2, Plus, MapPin, X, Navigation, ChevronDown, ArrowRight,
@@ -72,6 +72,7 @@ export default function AssetsPage() {
   const queryClient = useQueryClient();
 
   const { data: assets = [], isLoading } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
+  const { data: defectData } = useQuery({ queryKey: ['defect-summary'], queryFn: dashboardApi.defectSummary });
 
   const typeMap = useMemo(() => Object.fromEntries(INFRA_TYPES.map(t => [t.value, t])), []);
 
@@ -295,6 +296,54 @@ export default function AssetsPage() {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Defect Summary ── */}
+      {defectData && defectData.damage_types?.length > 0 && (
+        <div className="mt-8 bg-white rounded-xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '2px solid #0891B2' }}>
+            <h2 className="text-lg font-bold" style={{ color: TEAL }}>Defect Summary</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Summary of all {defectData.total_annotations} annotations across {defectData.inspected_images} inspected images.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: '#1E3A5F', color: 'white' }}>
+                  <th className="text-left px-5 py-3 font-bold text-[13px]">Damage Type</th>
+                  <th className="text-center px-4 py-3 font-bold text-[13px]">1 - Minor</th>
+                  <th className="text-center px-4 py-3 font-bold text-[13px]">2 - Moderate</th>
+                  <th className="text-center px-4 py-3 font-bold text-[13px]">3 - Advanced</th>
+                  <th className="text-center px-4 py-3 font-bold text-[13px]">4 - Severe</th>
+                  <th className="text-center px-4 py-3 font-bold text-[13px]">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {defectData.damage_types.map((row: any, i: number) => (
+                  <tr key={row.damage_type} style={{ background: i % 2 === 0 ? '#F0F8F4' : 'white', borderBottom: '1px solid #EDF6F0' }}>
+                    <td className="px-5 py-3 font-bold" style={{ color: '#0891B2' }}>{row.damage_type}</td>
+                    <td className="text-center px-4 py-3 font-semibold" style={{ color: row.S1 > 0 ? '#4CAF50' : '#CBD5D0' }}>{row.S1 || '-'}</td>
+                    <td className="text-center px-4 py-3 font-semibold" style={{ color: row.S2 > 0 ? '#E6A817' : '#CBD5D0' }}>{row.S2 || '-'}</td>
+                    <td className="text-center px-4 py-3 font-semibold" style={{ color: row.S3 > 0 ? '#FF7043' : '#CBD5D0' }}>{row.S3 || '-'}</td>
+                    <td className="text-center px-4 py-3 font-semibold" style={{ color: row.S4 > 0 ? '#B71C1C' : '#CBD5D0' }}>{row.S4 || '-'}</td>
+                    <td className="text-center px-4 py-3 font-black" style={{ color: TEAL }}>{row.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#1E3A5F', color: 'white' }}>
+                  <td className="px-5 py-3 font-bold text-[13px]">TOTAL</td>
+                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S1}</td>
+                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S2}</td>
+                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S3}</td>
+                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S4}</td>
+                  <td className="text-center px-4 py-3 font-black">{defectData.totals.total}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -100,6 +100,97 @@ async def upload_images(
     return ImageUploadResponse(uploaded=len(uploaded), images=uploaded)
 
 
+@router.post(
+    "/inspections/{inspection_id}/images/upload-pdf",
+    response_model=ImageUploadResponse,
+)
+async def upload_pdf(
+    inspection_id: str,
+    file: UploadFile = File(...),
+    component_type: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Extract images from a PDF and upload them as inspection images."""
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+
+    inspection = db.query(Inspection).filter(
+        Inspection.id == inspection_id,
+        Inspection.organization_id == current_user.organization_id,
+    ).first()
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    import fitz  # PyMuPDF
+
+    pdf_bytes = await file.read()
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    uploaded: List[ImageUploadItem] = []
+    img_index = 0
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        image_list = page.get_images(full=True)
+
+        for img_info in image_list:
+            xref = img_info[0]
+            base_image = doc.extract_image(xref)
+            if not base_image:
+                continue
+
+            img_bytes = base_image["image"]
+            img_ext = base_image.get("ext", "png")
+            if img_ext not in ("jpeg", "jpg", "png", "tiff", "webp"):
+                img_ext = "png"
+
+            # Skip tiny images (icons, logos) — less than 10 KB
+            if len(img_bytes) < 10_000:
+                continue
+
+            file_id = str(uuid.uuid4())
+            ext = f".{img_ext}"
+            if ext == ".jpeg":
+                ext = ".jpg"
+            rel_path = f"inspections/{inspection_id}/{file_id}{ext}"
+            abs_path = os.path.join(settings.STORAGE_BASE_PATH, rel_path)
+            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+
+            async with aiofiles.open(abs_path, "wb") as f:
+                await f.write(img_bytes)
+
+            content_type = f"image/{img_ext}"
+            if img_ext == "jpg":
+                content_type = "image/jpeg"
+
+            orig_name = f"{os.path.splitext(file.filename)[0]}_p{page_num + 1}_img{img_index + 1}{ext}"
+
+            img = Image(
+                id=file_id,
+                inspection_id=inspection_id,
+                organization_id=current_user.organization_id,
+                filename=orig_name,
+                original_filename=orig_name,
+                stored_path=rel_path,
+                file_size_bytes=len(img_bytes),
+                content_type=content_type,
+                component_type=component_type,
+                analysis_status="queued",
+            )
+            db.add(img)
+            uploaded.append(ImageUploadItem(id=file_id, filename=orig_name, status="queued"))
+            img_index += 1
+
+    doc.close()
+
+    if not uploaded:
+        raise HTTPException(status_code=400, detail="No images found in the PDF")
+
+    db.commit()
+    return ImageUploadResponse(uploaded=len(uploaded), images=uploaded)
+
+
 @router.get(
     "/inspections/{inspection_id}/images",
     response_model=List[ImageRecord],

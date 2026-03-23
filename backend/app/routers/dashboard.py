@@ -10,6 +10,66 @@ from app.models.detection import Detection
 
 router = APIRouter()
 
+
+@router.get("/defect-summary")
+def get_defect_summary(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Return defect counts grouped by damage_type and severity for the org."""
+    org_id = current_user.organization_id
+
+    rows = (
+        db.query(
+            Detection.damage_type,
+            Detection.severity,
+            func.count(Detection.id).label("cnt"),
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .filter(
+            Image.organization_id == org_id,
+            Detection.damage_type.isnot(None),
+            Detection.severity.isnot(None),
+        )
+        .group_by(Detection.damage_type, Detection.severity)
+        .all()
+    )
+
+    total_images = (
+        db.query(func.count(Image.id.distinct()))
+        .join(Detection, Detection.image_id == Image.id)
+        .filter(Image.organization_id == org_id)
+        .scalar() or 0
+    )
+
+    # Build {damage_type: {S1: n, S2: n, ...}}
+    summary: dict = {}
+    grand_total = 0
+    for r in rows:
+        dt = r.damage_type
+        sev = r.severity
+        if dt not in summary:
+            summary[dt] = {"S1": 0, "S2": 0, "S3": 0, "S4": 0, "total": 0}
+        summary[dt][sev] = summary[dt].get(sev, 0) + r.cnt
+        summary[dt]["total"] += r.cnt
+        grand_total += r.cnt
+
+    # Sort by total desc
+    sorted_items = sorted(summary.items(), key=lambda x: -x[1]["total"])
+
+    return {
+        "damage_types": [
+            {"damage_type": dt, **counts} for dt, counts in sorted_items
+        ],
+        "totals": {
+            "S1": sum(v["S1"] for v in summary.values()),
+            "S2": sum(v["S2"] for v in summary.values()),
+            "S3": sum(v["S3"] for v in summary.values()),
+            "S4": sum(v["S4"] for v in summary.values()),
+            "total": grand_total,
+        },
+        "inspected_images": total_images,
+        "total_annotations": grand_total,
+    }
+
+
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 

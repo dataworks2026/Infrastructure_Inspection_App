@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { assetsApi, inspectionsApi, imagesApi, analysisApi } from '@/lib/api';
 import { useDropzone } from 'react-dropzone';
-import { Upload, CheckCircle, AlertCircle, X, ImageIcon, ArrowRight } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, ImageIcon, ArrowRight, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 const TEAL = '#082E29';
@@ -23,7 +23,10 @@ export default function UploadPage() {
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.tiff'] },
+    accept: {
+      'image/*': ['.jpg', '.jpeg', '.png', '.tiff'],
+      'application/pdf': ['.pdf'],
+    },
     onDrop: (accepted) => setFiles(prev => [...prev, ...accepted]),
   });
 
@@ -37,14 +40,29 @@ export default function UploadPage() {
     try {
       const inspection = await inspectionsApi.create({ asset_id: assetId, name: inspectionName });
 
-      const BATCH_SIZE = 5;
+      const imageFiles = files.filter(f => f.type !== 'application/pdf');
+      const pdfFiles = files.filter(f => f.type === 'application/pdf');
+
       const allImages: any[] = [];
-      const totalBatches = Math.ceil(files.length / BATCH_SIZE);
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+
+      // Upload PDFs first (extract images server-side)
+      if (pdfFiles.length > 0) {
+        for (let i = 0; i < pdfFiles.length; i++) {
+          setProgressLabel(`Extracting images from PDF ${i + 1} of ${pdfFiles.length}...`);
+          setProgress(5 + Math.round(((i + 1) / (pdfFiles.length + 1)) * 15));
+          const pdfResult = await imagesApi.uploadPdf(inspection.id, pdfFiles[i]);
+          allImages.push(...pdfResult.images);
+        }
+      }
+
+      // Upload regular images in batches
+      const BATCH_SIZE = 5;
+      const totalBatches = Math.ceil(imageFiles.length / BATCH_SIZE);
+      for (let i = 0; i < imageFiles.length; i += BATCH_SIZE) {
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         setProgressLabel(`Uploading batch ${batchNum} of ${totalBatches}...`);
-        setProgress(5 + Math.round((batchNum / totalBatches) * 35));
-        const batch = files.slice(i, i + BATCH_SIZE);
+        setProgress(20 + Math.round((batchNum / totalBatches) * 20));
+        const batch = imageFiles.slice(i, i + BATCH_SIZE);
         const batchResult = await imagesApi.upload(inspection.id, batch);
         allImages.push(...batchResult.images);
       }
@@ -224,8 +242,9 @@ export default function UploadPage() {
             <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
               <Upload size={26} style={{ color: TEAL }} />
             </div>
-            <p className="text-base font-medium text-slate-700">Drag & drop images here, or click to select</p>
-            <p className="text-sm text-slate-400 mt-1">JPEG, PNG, TIFF supported</p>
+            <p className="text-base font-medium text-slate-700">Drag & drop files here, or click to select</p>
+            <p className="text-sm text-slate-400 mt-1">JPEG, PNG, TIFF, and PDF supported</p>
+            <p className="text-xs text-slate-400 mt-0.5">PDFs will have their images extracted automatically</p>
           </div>
 
           {files.length > 0 && (
@@ -233,8 +252,9 @@ export default function UploadPage() {
               {files.map((f, i) => (
                 <div key={i} className="flex items-center justify-between text-sm rounded-lg px-3.5 py-2.5" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
                   <div className="flex items-center gap-2">
-                    <ImageIcon size={16} className="text-slate-400" />
+                    {f.type === 'application/pdf' ? <FileText size={16} className="text-red-400" /> : <ImageIcon size={16} className="text-slate-400" />}
                     <span className="text-slate-700 font-medium">{f.name}</span>
+                    {f.type === 'application/pdf' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-500 border border-red-200">PDF</span>}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
@@ -259,7 +279,7 @@ export default function UploadPage() {
           className="px-8 py-2.5 rounded-xl text-base font-bold transition-all hover:opacity-90 shadow-sm disabled:opacity-50"
           style={{ background: TEAL, color: BLUE }}
           disabled={files.length === 0}>
-          Upload & Analyse {files.length > 0 ? `(${files.length} image${files.length !== 1 ? 's' : ''})` : ''}
+          Upload & Analyse {files.length > 0 ? `(${files.length} file${files.length !== 1 ? 's' : ''})` : ''}
         </button>
       </form>
     </div>

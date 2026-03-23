@@ -35,6 +35,7 @@ export const authApi = {
 // Dashboard
 export const dashboardApi = {
   overview: () => api.get<DashboardOverview>('/dashboard/overview').then(r => r.data),
+  defectSummary: () => api.get('/dashboard/defect-summary').then(r => r.data),
 };
 
 // Assets
@@ -64,6 +65,13 @@ export const imagesApi = {
     files.forEach(f => form.append('files', f));
     if (componentType) form.append('component_type', componentType);
     return api.post(`/inspections/${inspectionId}/images/upload`, form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+  },
+  uploadPdf: (inspectionId: string, file: File, componentType?: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (componentType) form.append('component_type', componentType);
+    return api.post(`/inspections/${inspectionId}/images/upload-pdf`, form,
       { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
   },
   list: (inspectionId: string) =>

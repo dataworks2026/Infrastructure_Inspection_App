@@ -303,6 +303,20 @@ export default function DashboardPage() {
               View all <ArrowRight size={10} />
             </Link>
           </div>
+          {/* Severity Legend */}
+          <div className="flex items-center gap-3 px-4 py-2 flex-shrink-0" style={{ background: '#FAFCFB', borderBottom: '1px solid #EDF6F0' }}>
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#9AB8AD' }}>Severity:</span>
+            {(['S1', 'S2', 'S3', 'S4'] as const).map(k => {
+              const s = SEV[k];
+              return (
+                <span key={k} className="inline-flex items-center gap-1 text-[9px] font-semibold">
+                  <span className="w-[7px] h-[7px] rounded-full flex-shrink-0" style={{ background: s.color }} />
+                  <span style={{ color: s.color }}>{k}</span>
+                  <span style={{ color: '#9AB8AD' }}>{s.label}</span>
+                </span>
+              );
+            })}
+          </div>
           {assetHealth.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2 flex-1">
               <Building2 size={26} style={{ color: '#C8E6D4' }} />
@@ -350,6 +364,9 @@ export default function DashboardPage() {
             <p className="text-[11px] font-semibold" style={{ color: '#6B9A87' }}>
               Governor&apos;s Island, NY
             </p>
+            <p className="text-[9px] font-medium" style={{ color: '#9AB8AD' }}>
+              Source: NOAA CO-OPS &amp; NDBC Buoys
+            </p>
             {sensorEnv ? (
               <div className="grid grid-cols-2 gap-2 flex-1">
                 <EnvPill icon={<Waves size={15} style={{ color: '#0891B2' }} />}
@@ -376,7 +393,7 @@ export default function DashboardPage() {
       <div className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
         <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: '1px solid #EDF6F0' }}>
           <div className="flex items-center gap-2">
-            <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>Digital Twin</h2>
+            <h2 className="text-[12px] font-black uppercase tracking-wider" style={{ color: '#6B9A87' }}>3D Viewer / Model</h2>
             <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
               style={{ background: '#EDE9FE', color: '#7C3AED', border: '1px solid #DDD6FE' }}>
               <Box size={8} />
