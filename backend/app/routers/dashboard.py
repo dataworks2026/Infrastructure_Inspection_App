@@ -11,63 +11,93 @@ from app.models.detection import Detection
 router = APIRouter()
 
 
+def _norm_sev(sev: str) -> str:
+    """Normalize S0/0 → S1, plain digits → S-prefixed."""
+    if sev in ("S0", "0"):
+        return "S1"
+    _map = {"1": "S1", "2": "S2", "3": "S3", "4": "S4"}
+    return _map.get(sev, sev)
+
+
 @router.get("/defect-summary")
 def get_defect_summary(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Return defect counts grouped by damage_type and severity for the org."""
+    """Return defect counts grouped by asset, damage_type, and severity."""
     org_id = current_user.organization_id
 
     rows = (
         db.query(
+            Asset.id.label("asset_id"),
+            Asset.name.label("asset_name"),
             Detection.damage_type,
             Detection.severity,
             func.count(Detection.id).label("cnt"),
         )
         .join(Image, Detection.image_id == Image.id)
+        .join(Inspection, Image.inspection_id == Inspection.id)
+        .join(Asset, Inspection.asset_id == Asset.id)
         .filter(
             Image.organization_id == org_id,
             Detection.damage_type.isnot(None),
             Detection.severity.isnot(None),
         )
-        .group_by(Detection.damage_type, Detection.severity)
+        .group_by(Asset.id, Asset.name, Detection.damage_type, Detection.severity)
         .all()
     )
 
-    total_images = (
-        db.query(func.count(Image.id.distinct()))
+    # Count inspected images per asset
+    img_rows = (
+        db.query(
+            Asset.id.label("asset_id"),
+            func.count(Image.id.distinct()).label("img_count"),
+        )
+        .join(Inspection, Asset.id == Inspection.asset_id)
+        .join(Image, Image.inspection_id == Inspection.id)
         .join(Detection, Detection.image_id == Image.id)
-        .filter(Image.organization_id == org_id)
-        .scalar() or 0
+        .filter(Asset.organization_id == org_id)
+        .group_by(Asset.id)
+        .all()
     )
+    img_counts = {r.asset_id: r.img_count for r in img_rows}
 
-    # Build {damage_type: {S1: n, S2: n, ...}}
-    summary: dict = {}
-    grand_total = 0
+    # Build per-asset summaries
+    assets: dict = {}  # asset_id -> {name, damage_types: {dt: {S1..S4, total}}, totals, ...}
     for r in rows:
+        aid = r.asset_id
+        if aid not in assets:
+            assets[aid] = {"asset_id": aid, "asset_name": r.asset_name, "summary": {}}
+        summary = assets[aid]["summary"]
         dt = r.damage_type
-        sev = r.severity
+        sev = _norm_sev(r.severity)
+        if sev not in ("S1", "S2", "S3", "S4"):
+            continue
         if dt not in summary:
             summary[dt] = {"S1": 0, "S2": 0, "S3": 0, "S4": 0, "total": 0}
-        summary[dt][sev] = summary[dt].get(sev, 0) + r.cnt
+        summary[dt][sev] += r.cnt
         summary[dt]["total"] += r.cnt
-        grand_total += r.cnt
 
-    # Sort by total desc
-    sorted_items = sorted(summary.items(), key=lambda x: -x[1]["total"])
+    result = []
+    for aid, data in assets.items():
+        summary = data["summary"]
+        sorted_items = sorted(summary.items(), key=lambda x: -x[1]["total"])
+        grand_total = sum(v["total"] for v in summary.values())
+        result.append({
+            "asset_id": data["asset_id"],
+            "asset_name": data["asset_name"],
+            "damage_types": [{"damage_type": dt, **counts} for dt, counts in sorted_items],
+            "totals": {
+                "S1": sum(v["S1"] for v in summary.values()),
+                "S2": sum(v["S2"] for v in summary.values()),
+                "S3": sum(v["S3"] for v in summary.values()),
+                "S4": sum(v["S4"] for v in summary.values()),
+                "total": grand_total,
+            },
+            "inspected_images": img_counts.get(aid, 0),
+            "total_annotations": grand_total,
+        })
 
-    return {
-        "damage_types": [
-            {"damage_type": dt, **counts} for dt, counts in sorted_items
-        ],
-        "totals": {
-            "S1": sum(v["S1"] for v in summary.values()),
-            "S2": sum(v["S2"] for v in summary.values()),
-            "S3": sum(v["S3"] for v in summary.values()),
-            "S4": sum(v["S4"] for v in summary.values()),
-            "total": grand_total,
-        },
-        "inspected_images": total_images,
-        "total_annotations": grand_total,
-    }
+    # Sort by total annotations desc
+    result.sort(key=lambda x: -x["total_annotations"])
+    return {"assets": result}
 
 
 @router.get("/overview")

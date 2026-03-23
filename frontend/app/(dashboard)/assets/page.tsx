@@ -299,13 +299,13 @@ export default function AssetsPage() {
         </div>
       )}
 
-      {/* ── Defect Summary ── */}
-      {defectData && defectData.damage_types?.length > 0 && (
-        <div className="mt-8 bg-white rounded-xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
+      {/* ── Defect Summary (per asset) ── */}
+      {defectData?.assets?.map((assetSummary: any) => (
+        <div key={assetSummary.asset_id} className="mt-8 bg-white rounded-xl shadow-sm overflow-hidden" style={{ border: '1px solid #C8E6D4' }}>
           <div className="px-5 py-4" style={{ borderBottom: '2px solid #0891B2' }}>
-            <h2 className="text-lg font-bold" style={{ color: TEAL }}>Defect Summary</h2>
+            <h2 className="text-lg font-bold" style={{ color: TEAL }}>Defect Summary — {assetSummary.asset_name}</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Summary of all {defectData.total_annotations} annotations across {defectData.inspected_images} inspected images.
+              Summary of all {assetSummary.total_annotations} annotations across {assetSummary.inspected_images} inspected images.
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -321,7 +321,7 @@ export default function AssetsPage() {
                 </tr>
               </thead>
               <tbody>
-                {defectData.damage_types.map((row: any, i: number) => (
+                {assetSummary.damage_types.map((row: any, i: number) => (
                   <tr key={row.damage_type} style={{ background: i % 2 === 0 ? '#F0F8F4' : 'white', borderBottom: '1px solid #EDF6F0' }}>
                     <td className="px-5 py-3 font-bold" style={{ color: '#0891B2' }}>{row.damage_type}</td>
                     <td className="text-center px-4 py-3 font-semibold" style={{ color: row.S1 > 0 ? '#4CAF50' : '#CBD5D0' }}>{row.S1 || '-'}</td>
@@ -335,17 +335,17 @@ export default function AssetsPage() {
               <tfoot>
                 <tr style={{ background: '#1E3A5F', color: 'white' }}>
                   <td className="px-5 py-3 font-bold text-[13px]">TOTAL</td>
-                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S1}</td>
-                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S2}</td>
-                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S3}</td>
-                  <td className="text-center px-4 py-3 font-bold">{defectData.totals.S4}</td>
-                  <td className="text-center px-4 py-3 font-black">{defectData.totals.total}</td>
+                  <td className="text-center px-4 py-3 font-bold">{assetSummary.totals.S1}</td>
+                  <td className="text-center px-4 py-3 font-bold">{assetSummary.totals.S2}</td>
+                  <td className="text-center px-4 py-3 font-bold">{assetSummary.totals.S3}</td>
+                  <td className="text-center px-4 py-3 font-bold">{assetSummary.totals.S4}</td>
+                  <td className="text-center px-4 py-3 font-black">{assetSummary.totals.total}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
