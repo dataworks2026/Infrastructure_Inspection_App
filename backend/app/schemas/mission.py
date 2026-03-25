@@ -195,6 +195,10 @@ class MissionListResponse(BaseModel):
 class MissionStatusResponse(BaseModel):
     id: str
     status: str
+    total_photos: Optional[int] = None
+    photos_uploaded: Optional[int] = None
+    photos_analyzed: Optional[int] = None
+    odm_status: Optional[str] = None
 
 
 # ── Telemetry ──────────────────────────────────────────────────────────

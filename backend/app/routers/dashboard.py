@@ -7,6 +7,8 @@ from app.models.asset import Asset
 from app.models.inspection import Inspection
 from app.models.image import Image
 from app.models.detection import Detection
+from app.models.mission import Mission
+from app.models.telemetry_point import TelemetryPoint
 
 router = APIRouter()
 
@@ -320,3 +322,59 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         "severity_breakdown":     severity_breakdown,
         "fleet_health_pct":       fleet_health_pct,
     }
+
+
+# ── P1-18: Live missions for GCS dashboard ───────────────────────────
+
+@router.get("/live-missions")
+def get_live_missions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return in-progress/paused missions with latest telemetry for live drone markers."""
+    org_id = current_user.organization_id
+
+    missions = db.query(Mission).filter(
+        Mission.organization_id == org_id,
+        Mission.status.in_(["in_progress", "paused"]),
+    ).all()
+
+    results = []
+    for m in missions:
+        latest = (
+            db.query(TelemetryPoint)
+            .filter(TelemetryPoint.mission_id == m.id)
+            .order_by(TelemetryPoint.timestamp.desc())
+            .first()
+        )
+
+        entry = {
+            "mission_id": m.id,
+            "mission_name": m.name,
+            "asset_id": m.asset_id,
+            "status": m.status,
+            "drone_model": m.drone_model,
+            "total_photos": m.total_photos,
+            "photos_uploaded": m.photos_uploaded,
+            "actual_start": m.actual_start.isoformat() if m.actual_start else None,
+        }
+
+        if latest:
+            entry["telemetry"] = {
+                "latitude": latest.latitude,
+                "longitude": latest.longitude,
+                "altitude_agl": latest.altitude_agl,
+                "heading_deg": latest.heading_deg,
+                "speed_ms": latest.speed_ms,
+                "battery_pct": latest.battery_pct,
+                "battery_voltage": latest.battery_voltage,
+                "gps_satellites": latest.gps_satellites,
+                "flight_mode": latest.flight_mode,
+                "timestamp": latest.timestamp.isoformat() if latest.timestamp else None,
+            }
+        else:
+            entry["telemetry"] = None
+
+        results.append(entry)
+
+    return {"live_missions": results, "count": len(results)}
