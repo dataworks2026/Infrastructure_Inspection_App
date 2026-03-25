@@ -42,6 +42,13 @@ class Image(Base):
     annotation_status   = Column(String(20), nullable=False, default="not_started")
     num_annotations     = Column(Integer, nullable=False, default=0)
 
+    # GCS mission linkage
+    mission_id          = Column(String(36), ForeignKey("missions.id"), nullable=True)
+    camera_lens         = Column(String(50), nullable=True)         # zoom/wide/thermal/laser_rangefinder
+    altitude_agl_m      = Column(Float, nullable=True)
+    drone_heading_deg   = Column(Float, nullable=True)
+    gimbal_pitch_deg    = Column(Float, nullable=True)
+
     domain_metadata     = Column(JSONB, nullable=True, default=dict)
     component_type      = Column(String, nullable=True)   # legacy field
 

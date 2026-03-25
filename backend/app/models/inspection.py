@@ -24,6 +24,9 @@ class Inspection(Base):
     inspection_method       = Column(String(50), nullable=True, default="manual")
     inspection_purpose      = Column(String(50), nullable=True)
 
+    # GCS mission linkage
+    mission_id              = Column(String(36), ForeignKey("missions.id"), nullable=True)
+
     triggered_by_risk_id    = Column(String(36), nullable=True)
     equipment_model         = Column(String(100), nullable=True)
     equipment_serial        = Column(String(100), nullable=True)

@@ -12,6 +12,13 @@ from app.models.asset import Asset
 from app.models.asset_segment import AssetSegment
 from app.models.inspection import Inspection
 
+# GCS / Mission Layer
+from app.models.mission import Mission
+from app.models.mission_waypoint import MissionWaypoint
+from app.models.telemetry_point import TelemetryPoint
+from app.models.flight_log import FlightLog
+from app.models.thermal_capture import ThermalCapture
+
 # Image & Detection Layer
 from app.models.image import Image
 from app.models.detection import Detection
