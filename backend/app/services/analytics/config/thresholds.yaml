@@ -1,0 +1,106 @@
+# Each asset_type has its own independent config block.
+# To add a new asset type (e.g. wind), just add a new block.
+# Core logic never needs to change — only this file.
+
+# Priority weights must add up to 1.0 across all four
+# components: current_severity, deterioration_rate,
+# anomaly_flag, historical_max_severity.
+
+# historical_decay_lambda controls how fast old severity
+# history fades when computing historical_max_severity:
+#   0.5 = ~60% weight loss per year (default, moderate)
+#   1.0 = faster decay (recent data dominates more)
+#   0.2 = slower decay (historical data stays influential)
+
+# TTI (Time to Intervention):
+#   tti_critical_threshold → severity level that triggers intervention
+#   tti_min_rate_per_year  → minimum worsening rate to attempt TTI
+#                            projection. Assets below this are stable.
+
+
+pier:
+  anomaly_jump_threshold: 2
+  anomaly_std_multiplier: 1.5
+  historical_decay_lambda: 0.5
+  priority_weights:
+    current_severity:        0.40
+    deterioration_rate:      0.30
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 4
+  tti_min_rate_per_year: 0.1
+
+coastal:
+  anomaly_jump_threshold: 2
+  anomaly_std_multiplier: 1.5
+  historical_decay_lambda: 0.5
+  priority_weights:
+    current_severity:        0.40
+    deterioration_rate:      0.30
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 4
+  tti_min_rate_per_year: 0.1
+
+bridge:
+  anomaly_jump_threshold: 1
+  anomaly_std_multiplier: 1.0
+  historical_decay_lambda: 0.5
+  priority_weights:
+    current_severity:        0.45
+    deterioration_rate:      0.25
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 3    # bridges intervene earlier — at severity 3
+  tti_min_rate_per_year: 0.05
+
+breakwater:
+  anomaly_jump_threshold: 2
+  anomaly_std_multiplier: 2.0
+  historical_decay_lambda: 0.5
+  priority_weights:
+    current_severity:        0.40
+    deterioration_rate:      0.30
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 4
+  tti_min_rate_per_year: 0.1
+
+offshore:
+  anomaly_jump_threshold: 1
+  anomaly_std_multiplier: 1.0
+  historical_decay_lambda: 0.4
+  priority_weights:
+    current_severity:        0.45
+    deterioration_rate:      0.25
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 3
+  tti_min_rate_per_year: 0.05
+
+pipeline:
+  anomaly_jump_threshold: 1
+  anomaly_std_multiplier: 1.0
+  historical_decay_lambda: 0.5
+  priority_weights:
+    current_severity:        0.40
+    deterioration_rate:      0.30
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 3
+  tti_min_rate_per_year: 0.05
+
+# ============================================================
+# DEFAULT — fallback for any unknown asset type
+# ============================================================
+default:
+  anomaly_jump_threshold: 2
+  anomaly_std_multiplier: 2.0
+  historical_decay_lambda: 0.5
+  priority_weights:
+    current_severity:        0.40
+    deterioration_rate:      0.30
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 4
+  tti_min_rate_per_year: 0.1
