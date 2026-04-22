@@ -16,12 +16,12 @@
 import os
 import yaml
 import pandas as pd
-from src.data_loader   import load_data
-from src.preprocessor  import preprocess
-from src.deterioration import calculate_deterioration
-from src.anomaly       import detect_anomalies
-from src.priority      import calculate_priority
-from src.tti           import calculate_tti
+from app.services.analytics.data_loader   import load_data
+from app.services.analytics.preprocessor  import preprocess
+from app.services.analytics.deterioration import calculate_deterioration
+from app.services.analytics.anomaly       import detect_anomalies
+from app.services.analytics.priority      import calculate_priority
+from app.services.analytics.tti           import calculate_tti
 
 
 def run_pipeline(
