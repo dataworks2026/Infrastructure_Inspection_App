@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation } from 'lucide-react';
 import { InfrastructureType } from '@/types';
+import AnalyticsPanel from './AnalyticsPanel';
 
 const PRESET_LOCATIONS = [
   { name: 'Hornsea Wind Farm, UK',       lat: 53.885,  lng: 1.791 },
@@ -269,6 +270,9 @@ export default function AssetDetailPage() {
           </form>
         )}
       </div>
+
+      {/* Predictive analytics panel */}
+      <AnalyticsPanel assetId={assetId} />
 
       {/* Inspections list */}
       <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card">

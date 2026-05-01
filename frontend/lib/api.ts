@@ -2,7 +2,9 @@ import axios from 'axios';
 import { getToken, clearAuth } from './auth';
 import type {
   AuthToken, Asset, Inspection, ImageRecord,
-  AnalysisResult, DashboardOverview
+  AnalysisResult, DashboardOverview,
+  PredictiveAssetResult, PredictiveRunDetail,
+  PredictiveRunSummary, PredictiveRunTriggerResponse,
 } from '@/types';
 
 const api = axios.create({ baseURL: '/api/v1' });
@@ -102,6 +104,20 @@ export const analysisApi = {
     api.get(`/images/${imageId}/detections`).then(r => r.data),
   getAllDetections: (inspectionId: string) =>
     api.get<Record<string, any>>(`/inspections/${inspectionId}/all-detections`).then(r => r.data),
+};
+
+// Predictive Analytics (deterioration / anomaly / priority / TTI)
+export const predictiveApi = {
+  runAnalysis: () =>
+    api.post<PredictiveRunTriggerResponse>('/predictive/run').then(r => r.data),
+  getLatest: () =>
+    api.get<PredictiveRunDetail>('/predictive/latest').then(r => r.data),
+  getRuns: () =>
+    api.get<PredictiveRunSummary[]>('/predictive/runs').then(r => r.data),
+  getRun: (runId: string) =>
+    api.get<PredictiveRunDetail>(`/predictive/runs/${runId}`).then(r => r.data),
+  getAssetAnalytics: (assetId: string) =>
+    api.get<PredictiveAssetResult>(`/predictive/assets/${assetId}`).then(r => r.data),
 };
 
 export default api;
