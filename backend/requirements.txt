@@ -19,3 +19,13 @@ email-validator>=2.1.0
 bcrypt>=4.0.1
 httpx>=0.27.0
 PyMuPDF>=1.24.0
+
+# Predictive analytics dependencies (consumed by
+# app.services.analytics.* — deterioration, anomaly, priority,
+# tti, engine, and data_adapter).
+pandas>=2.0.0
+scipy>=1.11.0
+PyYAML>=6.0
+
+# Testing
+pytest>=8.0

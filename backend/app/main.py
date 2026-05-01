@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.database import engine, Base
 from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
-from app.routers import missions, telemetry, flight_logs, odm, thermal
+from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive
 import app.models  # noqa: ensure all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -36,6 +36,7 @@ app.include_router(telemetry.router, prefix="/api/v1/telemetry", tags=["telemetr
 app.include_router(flight_logs.router, prefix="/api/v1/flight-logs", tags=["flight-logs"])
 app.include_router(odm.router, prefix="/api/v1/odm", tags=["odm"])
 app.include_router(thermal.router, prefix="/api/v1/thermal", tags=["thermal"])
+app.include_router(predictive.router, prefix="/api/v1/predictive", tags=["predictive"])
 
 @app.get("/health")
 async def health():

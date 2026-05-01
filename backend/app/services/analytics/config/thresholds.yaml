@@ -90,6 +90,26 @@ pipeline:
   tti_critical_threshold: 3
   tti_min_rate_per_year: 0.05
 
+# Wind turbine failures are high-consequence (repair cost, downtime,
+# safety) so this block uses the sensitive profile also applied to
+# bridges and offshore assets: a single-level severity jump is enough
+# to flag an anomaly, intervention is projected at severity 3 rather
+# than 4, and even a low deterioration rate (0.05/year) is considered
+# projectable for TTI.
+# Key name must match assets.infrastructure_type verbatim — the main
+# app stores this as 'wind_turbine' (see app/routers/assets.py).
+wind_turbine:
+  anomaly_jump_threshold: 1
+  anomaly_std_multiplier: 1.0
+  historical_decay_lambda: 0.5
+  priority_weights:
+    current_severity:        0.45
+    deterioration_rate:      0.25
+    anomaly_flag:            0.15
+    historical_max_severity: 0.15
+  tti_critical_threshold: 3
+  tti_min_rate_per_year: 0.05
+
 # ============================================================
 # DEFAULT — fallback for any unknown asset type
 # ============================================================
