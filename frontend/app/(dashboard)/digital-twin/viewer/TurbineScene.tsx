@@ -641,7 +641,7 @@ const DEMO_PINS: DamagePin[] = [
 /* ════════════════════════════════════════════════════════════════
    MAIN SCENE
    ════════════════════════════════════════════════════════════════ */
-export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition, cameraFov, controlsTarget, minDistance, maxDistance }: {
+export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition, cameraFov, controlsTarget, minDistance, maxDistance, pins }: {
   selectedPin: string | null;
   onSelectPin: (id: string | null) => void;
   cameraPosition?: [number, number, number];
@@ -649,6 +649,7 @@ export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition,
   controlsTarget?: [number, number, number];
   minDistance?: number;
   maxDistance?: number;
+  pins?: DamagePin[];
 }) {
   return (
     <Canvas
@@ -709,8 +710,8 @@ export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition,
           <meshStandardMaterial color="#6a6560" roughness={0.6} metalness={0.6} />
         </mesh>
 
-        {/* Damage pins */}
-        {DEMO_PINS.map(pin => (
+        {/* Damage pins — real mission data when available, demo fallback */}
+        {(pins ?? DEMO_PINS).map(pin => (
           <Pin key={pin.id} pin={pin} isSelected={pin.id === selectedPin}
             onSelect={() => onSelectPin(pin.id === selectedPin ? null : pin.id)} />
         ))}
