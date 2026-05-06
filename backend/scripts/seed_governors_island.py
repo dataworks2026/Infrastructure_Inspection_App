@@ -120,7 +120,7 @@ def seed():
 
         existing_insp = db.query(Inspection).filter(
             Inspection.asset_id == primary_asset.id,
-            Inspection.description == "Governor's Island demo inspection",
+            Inspection.name == "Governor's Island demo inspection",
         ).first()
 
         if not existing_insp:
@@ -131,7 +131,7 @@ def seed():
                 created_by=user.id,
                 status="completed",
                 inspection_date=now - timedelta(days=3),
-                description="Governor's Island demo inspection",
+                name="Governor's Island demo inspection",
             )
             db.add(insp)
             db.flush()
