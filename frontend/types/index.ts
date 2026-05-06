@@ -172,3 +172,78 @@ export interface AuthToken {
   organization_id?: string;
   organization_name?: string;
 }
+
+// ── Predictive Analytics ────────────────────────────────────
+// Shape of responses from /api/v1/predictive/*. Field names match
+// the backend Pydantic schemas (app/schemas/predictive.py) which
+// in turn mirror the engine's V2 output DataFrame.
+
+export type PredictivePriorityLabel =
+  | 'Critical' | 'High' | 'Medium' | 'Low' | 'Minimal';
+
+export type PredictiveTrendDirection =
+  | 'accelerating' | 'worsening' | 'stable' | 'improving' | 'fluctuating';
+
+export type PredictiveTtiLabel =
+  | 'Immediate' | 'Near-term' | 'Medium-term' | 'Long-term' | 'Not applicable';
+
+export type PredictiveRunStatus = 'running' | 'completed' | 'failed';
+
+export interface SeverityHistoryPoint {
+  date: string;       // 'YYYY-MM-DD'
+  severity: number;   // 1..4
+}
+
+export interface PredictiveAnalyticsReason {
+  reason_code: string;          // e.g. 'deterioration' | 'anomaly' | 'tti' | 'current_severity'
+  reason_category?: string;     // e.g. 'trend' | 'anomaly' | 'projection' | 'severity'
+  reason_text: string;
+  weight?: number;              // 0..1, null for informational reasons (e.g. TTI)
+  display_order?: number;
+}
+
+export interface PredictiveAssetResult {
+  asset_id: string;
+  asset_name: string;
+  asset_type?: string;
+  priority_rank: number;
+  priority_score: number;
+  priority_label: PredictivePriorityLabel;
+  latest_severity: number;          // 1..4
+  trend_direction: PredictiveTrendDirection;
+  severity_change_rate: number;     // per year
+  acceleration: boolean;
+  has_anomaly: boolean;
+  anomaly_reason?: string;
+  tti_days?: number;
+  tti_label: PredictiveTtiLabel;
+  tti_note: string;
+  // Chronological severity timeline for sparkline rendering;
+  // empty list when the run was older than the history feature.
+  severity_history: SeverityHistoryPoint[];
+  // Per-component breakdown of how the score was reached.
+  // Empty list for runs that pre-date reason persistence.
+  reasons: PredictiveAnalyticsReason[];
+}
+
+export interface PredictiveRunTriggerResponse {
+  run_id: string;
+  status: PredictiveRunStatus;
+  total_items_analyzed: number;
+  message: string;
+}
+
+export interface PredictiveRunSummary {
+  id: string;
+  status: PredictiveRunStatus;
+  created_at: string;                // ISO 8601
+  completed_at?: string;
+  total_items_analyzed: number;
+  processing_time_ms?: number;
+  engine_version: string;
+  schema_version: string;
+}
+
+export interface PredictiveRunDetail extends PredictiveRunSummary {
+  results: PredictiveAssetResult[];
+}

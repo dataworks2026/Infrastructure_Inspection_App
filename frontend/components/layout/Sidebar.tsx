@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText,
   LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
-  Settings, Search, HelpCircle, X, Activity,
+  Settings, Search, HelpCircle, X, Activity, TrendingDown,
 } from 'lucide-react';
 import { clearAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/app/providers';
@@ -16,6 +16,7 @@ const BRAND = '#0891B2';
 
 const NAV_ITEMS = [
   { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
+  { href: '/analytics',   label: 'Analytics',   icon: TrendingDown,    tourId: 'nav-analytics' },
   { href: '/assets',      label: 'Assets',      icon: Building2,       tourId: 'nav-assets' },
   { href: '/map',         label: 'Map',         icon: Map,             tourId: 'nav-map' },
   { href: '/inspections', label: 'Inspections', icon: ClipboardList,   tourId: 'nav-inspections' },
