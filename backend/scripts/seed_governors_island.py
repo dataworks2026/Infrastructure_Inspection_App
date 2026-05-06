@@ -225,8 +225,6 @@ def seed():
             lat, lon = live_asset.latitude, live_asset.longitude
             for i in range(5):
                 tp = TelemetryPoint(
-                    id=str(uuid.uuid4()),
-                    organization_id=org_id,
                     mission_id=live_mission.id,
                     timestamp=now - timedelta(seconds=(4 - i) * 30),
                     latitude=lat + i * 0.00005,
