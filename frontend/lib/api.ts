@@ -38,6 +38,16 @@ export const authApi = {
 export const dashboardApi = {
   overview: () => api.get<DashboardOverview>('/dashboard/overview').then(r => r.data),
   defectSummary: () => api.get('/dashboard/defect-summary').then(r => r.data),
+  getLiveMissions: () => api.get<{ live_missions: LiveMission[]; count: number }>('/dashboard/live-missions').then(r => r.data),
+};
+
+// Missions (GCS)
+export const missionsApi = {
+  list: (params?: { asset_id?: string; status?: string }) =>
+    api.get<{ missions: Mission[]; total: number }>('/missions', { params }).then(r => r.data),
+  get: (id: string) => api.get<Mission>(`/missions/${id}`).then(r => r.data),
+  getImages: (id: string) => api.get(`/missions/${id}/images`).then(r => r.data),
+  getDetections: (id: string) => api.get<MissionDetection[]>(`/missions/${id}/detections`).then(r => r.data),
 };
 
 // Assets
@@ -121,3 +131,57 @@ export const predictiveApi = {
 };
 
 export default api;
+
+// ── GCS types (inline — avoids circular dep with types/index.ts) ──────
+
+export interface Mission {
+  id: string;
+  asset_id: string;
+  inspection_id?: string;
+  name: string;
+  status: string;
+  routine_type: string;
+  drone_model?: string;
+  total_photos: number;
+  photos_uploaded: number;
+  photos_analyzed: number;
+  actual_start?: string;
+  actual_end?: string;
+  odm_status?: string;
+  waypoints?: unknown[];
+  created_at?: string;
+}
+
+export interface MissionDetection {
+  id: string;
+  image_id: string;
+  label: string;
+  confidence: number;
+  severity?: string;
+  latitude?: number;
+  longitude?: number;
+  bbox?: number[];
+}
+
+export interface LiveMissionTelemetry {
+  latitude?: number;
+  longitude?: number;
+  altitude_agl?: number;
+  heading_deg?: number;
+  speed_ms?: number;
+  battery_pct?: number;
+  flight_mode?: string;
+  timestamp?: string;
+}
+
+export interface LiveMission {
+  mission_id: string;
+  mission_name: string;
+  asset_id: string;
+  status: string;
+  drone_model?: string;
+  total_photos: number;
+  photos_uploaded: number;
+  actual_start?: string;
+  telemetry: LiveMissionTelemetry | null;
+}

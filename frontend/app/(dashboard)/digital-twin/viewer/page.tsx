@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { missionsApi, type MissionDetection } from '@/lib/api';
 import {
   ArrowLeft, Building2, AlertTriangle, RotateCw, MousePointer, Layers,
   Calendar, Activity, Thermometer, Wind, Droplets, Eye, EyeOff,
@@ -88,7 +91,55 @@ function getHealthLabel(score: number): { label: string; color: string } {
 /* ═══════════════════════════════════════════════
    MAIN PAGE COMPONENT
    ═══════════════════════════════════════════════ */
+// 3D positions for real detections — spread across structures
+const STRUCTURE_POSITIONS: [number, number, number][] = [
+  [-0.08, 0.5, -0.5],   // seawall
+  [5.0, 0.0, 0.0],      // revetment
+  [-4.0, 0.4, -2.5],    // pier
+];
+
+function detectionsToScenePins(detections: MissionDetection[]) {
+  return detections.map((d, i) => ({
+    id: d.id,
+    position: STRUCTURE_POSITIONS[i % 3] as [number, number, number],
+    label: d.label,
+    severity: d.severity ?? 'S2',
+    confidence: d.confidence,
+    bladeId: i % 3,
+    zone: `Mission detection · ${d.label}`,
+  }));
+}
+
 export default function ViewerPage() {
+  const searchParams = useSearchParams();
+  const missionId = searchParams.get('missionId');
+
+  const { data: detectionsData } = useQuery({
+    queryKey: ['mission-detections', missionId],
+    queryFn: () => missionsApi.getDetections(missionId!),
+    enabled: !!missionId,
+    staleTime: 60_000,
+  });
+
+  const activePins = useMemo(() => {
+    if (!missionId || !detectionsData?.length) return DEMO_PINS;
+    return detectionsData.map((d, i) => ({
+      id: d.id,
+      label: d.label,
+      severity: d.severity ?? 'S2',
+      confidence: d.confidence,
+      structure: i % 3,
+      zone: `Mission · ${d.label}`,
+      firstSeen: new Date().toISOString().slice(0, 10),
+      trend: 'stable' as const,
+    }));
+  }, [missionId, detectionsData]);
+
+  const scene3dPins = useMemo(() => {
+    if (!missionId || !detectionsData?.length) return undefined;
+    return detectionsToScenePins(detectionsData);
+  }, [missionId, detectionsData]);
+
   const [selectedPin, setSelectedPin] = useState<string | null>(null);
   const [filterStructure, setFilterStructure] = useState<number | null>(null);
   const [rightTab, setRightTab] = useState<'detections' | 'timeline' | 'environment'>('detections');
@@ -96,26 +147,26 @@ export default function ViewerPage() {
   const [expandedInspection, setExpandedInspection] = useState<string | null>(INSPECTION_HISTORY[0].id);
 
   const filteredPins = filterStructure !== null
-    ? DEMO_PINS.filter(p => p.structure === filterStructure)
-    : DEMO_PINS;
+    ? activePins.filter(p => p.structure === filterStructure)
+    : activePins;
 
-  const selectedDamage = DEMO_PINS.find(p => p.id === selectedPin);
+  const selectedDamage = activePins.find(p => p.id === selectedPin);
 
-  const severityDist = useMemo(() => DEMO_PINS.reduce((acc, p) => {
+  const severityDist = useMemo(() => activePins.reduce((acc, p) => {
     acc[p.severity] = (acc[p.severity] || 0) + 1;
     return acc;
-  }, {} as Record<string, number>), []);
+  }, {} as Record<string, number>), [activePins]);
 
-  const structureDist = useMemo(() => DEMO_PINS.reduce((acc, p) => {
+  const structureDist = useMemo(() => activePins.reduce((acc, p) => {
     acc[p.structure] = (acc[p.structure] || 0) + 1;
     return acc;
-  }, {} as Record<number, number>), []);
+  }, {} as Record<number, number>), [activePins]);
 
-  const healthScore = useMemo(() => computeHealthScore(DEMO_PINS), []);
+  const healthScore = useMemo(() => computeHealthScore(activePins), [activePins]);
   const healthInfo = getHealthLabel(healthScore);
 
-  const criticalCount = DEMO_PINS.filter(p => p.severity === 'S4').length;
-  const worseningCount = DEMO_PINS.filter(p => p.trend === 'worsening').length;
+  const criticalCount = activePins.filter(p => p.severity === 'S4').length;
+  const worseningCount = activePins.filter(p => p.trend === 'worsening').length;
 
   return (
     <div className="h-[calc(100vh-48px)] flex flex-col -m-6">
@@ -184,7 +235,7 @@ export default function ViewerPage() {
       {/* ═══ MAIN 3D VIEWER ═══ */}
       <div className="flex-1 relative">
         <div className="absolute inset-0">
-          <TurbineScene selectedPin={selectedPin} onSelectPin={setSelectedPin} />
+          <TurbineScene selectedPin={selectedPin} onSelectPin={setSelectedPin} pins={scene3dPins} />
         </div>
 
         {/* ═══ LEFT: LAYER CONTROLS + MINI MAP ═══ */}
@@ -196,7 +247,7 @@ export default function ViewerPage() {
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Layers</span>
             </div>
             {[
-              { key: 'pins' as const, label: 'Damage Pins', count: DEMO_PINS.length },
+              { key: 'pins' as const, label: 'Damage Pins', count: activePins.length },
               { key: 'structures' as const, label: 'Structures', count: 4 },
               { key: 'zones' as const, label: 'Inspection Zones', count: 8 },
             ].map(layer => (
@@ -218,7 +269,7 @@ export default function ViewerPage() {
             {Object.entries(STRUCTURE_LABELS).map(([key, val]) => {
               const idx = Number(key);
               const count = structureDist[idx] || 0;
-              const structPins = DEMO_PINS.filter(p => p.structure === idx);
+              const structPins = activePins.filter(p => p.structure === idx);
               const structHealth = computeHealthScore(structPins);
               const sInfo = getHealthLabel(structHealth);
               return (
@@ -289,7 +340,7 @@ export default function ViewerPage() {
                       return (
                         <div key={sev} className="h-full rounded-full" style={{
                           background: config.color,
-                          width: `${(count / DEMO_PINS.length) * 100}%`,
+                          width: `${(count / activePins.length) * 100}%`,
                         }} title={`${sev}: ${count}`} />
                       );
                     })}
@@ -300,7 +351,7 @@ export default function ViewerPage() {
                       className={`text-[8px] font-bold px-2 py-0.5 rounded-md transition-all ${
                         filterStructure === null ? 'bg-white/15 text-white' : 'bg-white/5 text-slate-500 hover:bg-white/10'
                       }`}>
-                      All {DEMO_PINS.length}
+                      All {activePins.length}
                     </button>
                     {Object.entries(STRUCTURE_LABELS).map(([key, val]) => {
                       const idx = Number(key);
