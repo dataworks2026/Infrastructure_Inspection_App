@@ -576,6 +576,32 @@ def analyze_all_mission_images(
     }
 
 
+# ── GET /missions/{id}/detections — aggregate all detections for twin ──
+
+@router.get("/{mission_id}/detections")
+def get_mission_detections(
+    mission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    m = _get_mission_or_404(mission_id, db, current_user)
+    image_ids = [i.id for i in db.query(Image.id).filter(Image.mission_id == m.id).all()]
+    if not image_ids:
+        return []
+    detections = db.query(Detection).filter(Detection.image_id.in_(image_ids)).all()
+    return [
+        {
+            "id": d.id,
+            "image_id": d.image_id,
+            "label": d.damage_type or "Unknown defect",
+            "severity": d.severity or "S2",
+            "confidence": d.confidence_score or d.confidence or 0.0,
+            "bbox": d.bounding_box,
+        }
+        for d in detections
+    ]
+
+
 # ── P1-10: GET /missions/{id}/status ─────────────────────────────────
 
 @router.get("/{mission_id}/status")
