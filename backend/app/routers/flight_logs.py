@@ -120,6 +120,23 @@ def list_flight_logs(
     return [_log_to_response(log) for log in logs]
 
 
+# ── GET /flight-logs/mission/{mission_id}/export — PDF by mission ────
+
+@router.get("/mission/{mission_id}/export")
+def export_mission_flight_log(
+    mission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    log = db.query(FlightLog).filter(
+        FlightLog.mission_id == mission_id,
+        FlightLog.organization_id == current_user.organization_id,
+    ).order_by(FlightLog.created_at.desc()).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="No flight log found for this mission")
+    return _export_html(log, db)
+
+
 # ── GET /flight-logs/{id} ────────────────────────────────────────────
 
 @router.get("/{log_id}", response_model=FlightLogResponse)
@@ -137,7 +154,7 @@ def get_flight_log(
     return _log_to_response(log)
 
 
-# ── GET /flight-logs/{id}/export — PDF ───────────────────────────────
+# ── GET /flight-logs/{id}/export ─────────────────────────────────────
 
 @router.get("/{log_id}/export")
 def export_flight_log_pdf(
@@ -151,74 +168,67 @@ def export_flight_log_pdf(
     ).first()
     if not log:
         raise HTTPException(status_code=404, detail="Flight log not found")
+    return _export_html(log, db)
 
-    # Get mission + pilot info
+
+# ── shared export helper ──────────────────────────────────────────────
+
+def _export_html(log: FlightLog, db: Session) -> StreamingResponse:
     mission = db.query(Mission).filter(Mission.id == log.mission_id).first()
     pilot = db.query(User).filter(User.id == log.pilot_id).first() if log.pilot_id else None
+    pilot_name = (
+        (pilot.full_name if hasattr(pilot, 'full_name') else None) or
+        (pilot.email if pilot else None) or 'N/A'
+    )
 
-    # Build simple HTML report
-    html = f"""
-    <html><head><style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        h1 {{ color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 10px; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-        td, th {{ border: 1px solid #ccc; padding: 8px; text-align: left; }}
-        th {{ background: #f0f0f0; width: 200px; }}
-        .section {{ margin-top: 30px; }}
-        h2 {{ color: #2d3748; }}
-    </style></head><body>
-    <h1>Flight Log Report</h1>
-    <table>
-        <tr><th>Mission</th><td>{mission.name if mission else 'N/A'}</td></tr>
-        <tr><th>Pilot</th><td>{pilot.full_name if pilot and hasattr(pilot, 'full_name') else (pilot.email if pilot else 'N/A')}</td></tr>
-        <tr><th>Pilot Certificate</th><td>{log.pilot_certificate or 'N/A'}</td></tr>
-        <tr><th>Flight Date</th><td>{log.flight_date or 'N/A'}</td></tr>
-        <tr><th>Takeoff Time</th><td>{log.takeoff_time or 'N/A'}</td></tr>
-        <tr><th>Landing Time</th><td>{log.landing_time or 'N/A'}</td></tr>
-        <tr><th>Duration</th><td>{log.flight_duration_s or 'N/A'} seconds</td></tr>
-        <tr><th>Drone Model</th><td>{mission.drone_model if mission else 'N/A'}</td></tr>
-        <tr><th>Drone Serial</th><td>{mission.drone_serial if mission else 'N/A'}</td></tr>
-    </table>
-
-    <div class="section">
-    <h2>Flight Statistics</h2>
-    <table>
-        <tr><th>Max Altitude (AGL)</th><td>{log.max_altitude_agl_m or 'N/A'} m</td></tr>
-        <tr><th>Max Distance</th><td>{log.max_distance_m or 'N/A'} m</td></tr>
-        <tr><th>Max Speed</th><td>{log.max_speed_ms or 'N/A'} m/s</td></tr>
-    </table>
-    </div>
-
-    <div class="section">
-    <h2>Compliance</h2>
-    <table>
-        <tr><th>LAANC Status</th><td>{log.laanc_status or 'N/A'}</td></tr>
-        <tr><th>Airspace Class</th><td>{log.airspace_class or 'N/A'}</td></tr>
-    </table>
-    </div>
-
-    <div class="section">
-    <h2>Weather Conditions</h2>
-    <p>{log.weather_conditions or 'Not recorded'}</p>
-    </div>
-
-    <div class="section">
-    <h2>Notes</h2>
-    <p>{log.notes or 'None'}</p>
-    </div>
-
-    <div class="section">
-    <h2>Incidents</h2>
-    <p>{log.incidents or 'None reported'}</p>
-    </div>
-    </body></html>
-    """
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{{font-family:Arial,sans-serif;margin:40px;color:#1a202c}}
+h1{{color:#1a365d;border-bottom:2px solid #1a365d;padding-bottom:10px}}
+h2{{color:#2d3748;margin-top:0}}
+table{{width:100%;border-collapse:collapse;margin-top:12px}}
+td,th{{border:1px solid #e2e8f0;padding:8px 12px;text-align:left}}
+th{{background:#f7fafc;font-weight:600;width:200px}}
+.section{{margin-top:28px;padding:20px;border:1px solid #e2e8f0;border-radius:8px}}
+</style></head><body>
+<h1>Flight Log Report</h1>
+<div class="section">
+<h2>Mission Overview</h2>
+<table>
+<tr><th>Mission</th><td>{mission.name if mission else 'N/A'}</td></tr>
+<tr><th>Pilot</th><td>{pilot_name}</td></tr>
+<tr><th>Certificate #</th><td>{log.pilot_certificate or 'N/A'}</td></tr>
+<tr><th>Flight Date</th><td>{log.flight_date or 'N/A'}</td></tr>
+<tr><th>Takeoff</th><td>{log.takeoff_time or 'N/A'}</td></tr>
+<tr><th>Landing</th><td>{log.landing_time or 'N/A'}</td></tr>
+<tr><th>Duration</th><td>{f"{log.flight_duration_s} s" if log.flight_duration_s else 'N/A'}</td></tr>
+<tr><th>Drone</th><td>{getattr(mission, 'drone_model', None) or 'N/A'}</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>Flight Statistics</h2>
+<table>
+<tr><th>Max Altitude (AGL)</th><td>{f"{log.max_altitude_agl_m} m" if log.max_altitude_agl_m else 'N/A'}</td></tr>
+<tr><th>Max Distance</th><td>{f"{log.max_distance_m} m" if log.max_distance_m else 'N/A'}</td></tr>
+<tr><th>Max Speed</th><td>{f"{log.max_speed_ms} m/s" if log.max_speed_ms else 'N/A'}</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>Compliance</h2>
+<table>
+<tr><th>LAANC Status</th><td>{log.laanc_status or 'N/A'}</td></tr>
+<tr><th>Airspace Class</th><td>{log.airspace_class or 'N/A'}</td></tr>
+</table>
+</div>
+<div class="section"><h2>Weather</h2><p>{log.weather_conditions or 'Not recorded'}</p></div>
+<div class="section"><h2>Notes</h2><p>{log.notes or 'None'}</p></div>
+<div class="section"><h2>Incidents</h2><p>{log.incidents or 'None reported'}</p></div>
+</body></html>"""
 
     buf = BytesIO(html.encode("utf-8"))
+    filename = f"flight_report_{log.mission_id}.html"
     return StreamingResponse(
         buf,
         media_type="text/html",
-        headers={
-            "Content-Disposition": f'attachment; filename="flight_log_{log_id}.html"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

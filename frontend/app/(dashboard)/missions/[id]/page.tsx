@@ -1,12 +1,13 @@
 'use client';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Box, Camera, Clock, Cpu, CheckCircle2,
-  AlertCircle, Loader2, Play, Upload, Eye,
+  AlertCircle, Loader2, Play, Upload, Eye, FileDown,
 } from 'lucide-react';
-import { missionsApi, assetsApi } from '@/lib/api';
+import { missionsApi, assetsApi, flightLogsApi } from '@/lib/api';
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   planned:     { label: 'Planned',     color: '#6366F1', bg: '#EDE9FE', icon: Clock },
@@ -43,6 +44,22 @@ function Stat({ label, value }: { label: string; value: string | number | null |
 export default function MissionDetailPage() {
   const params = useParams();
   const missionId = params.id as string;
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownloadReport() {
+    setDownloading(true);
+    try {
+      const blob = await flightLogsApi.exportByMission(missionId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flight_report_${missionId}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const { data: mission, isLoading } = useQuery({
     queryKey: ['mission', missionId],
@@ -103,14 +120,25 @@ export default function MissionDetailPage() {
             </div>
           </div>
 
-          {isCompleted && (
-            <Link
-              href={`/digital-twin/viewer?missionId=${mission.id}&assetId=${mission.asset_id}`}
-              className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:shadow-lg transition-all hover:scale-105">
-              <Box size={16} />
-              Open in 3D Twin
-            </Link>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleDownloadReport}
+              disabled={downloading}
+              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:shadow transition-all disabled:opacity-50">
+              {downloading
+                ? <Loader2 size={15} className="animate-spin" />
+                : <FileDown size={15} />}
+              {downloading ? 'Downloading…' : 'Download Report'}
+            </button>
+            {isCompleted && (
+              <Link
+                href={`/digital-twin/viewer?missionId=${mission.id}&assetId=${mission.asset_id}`}
+                className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:shadow-lg transition-all hover:scale-105">
+                <Box size={16} />
+                Open in 3D Twin
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Stats grid */}

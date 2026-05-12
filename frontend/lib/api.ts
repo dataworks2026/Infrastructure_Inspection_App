@@ -130,6 +130,14 @@ export const predictiveApi = {
     api.get<PredictiveAssetResult>(`/predictive/assets/${assetId}`).then(r => r.data),
 };
 
+// Flight Logs
+export const flightLogsApi = {
+  listByMission: (missionId: string) =>
+    api.get(`/flight-logs?mission_id=${missionId}`).then(r => r.data),
+  exportByMission: (missionId: string) =>
+    api.get(`/flight-logs/mission/${missionId}/export`, { responseType: 'blob' }).then(r => r.data),
+};
+
 export default api;
 
 // ── GCS types (inline — avoids circular dep with types/index.ts) ──────
