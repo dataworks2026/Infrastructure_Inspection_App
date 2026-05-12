@@ -73,34 +73,43 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
 function InspectionCard({ insp, tint }: { insp: Inspection; tint: string }) {
   const date = insp.inspected_at || insp.created_at;
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8"
-      style={{ background: `linear-gradient(135deg, ${tint}22 0%, #0f172a 100%)` }}>
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-        style={{ background: tint + '30', border: `1px solid ${tint}50` }}>
-        <CalendarDays size={28} style={{ color: tint }} />
+    <div className="relative w-full h-full"
+      style={{ background: `linear-gradient(135deg, ${tint}18 0%, #0f172a 100%)` }}>
+      {/* Subtle center icon — decorative only */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-10">
+        <CalendarDays size={96} style={{ color: tint }} />
       </div>
-      <div className="text-center">
-        <p className="text-white font-bold text-lg">{insp.name}</p>
-        <p className="text-slate-400 text-sm mt-1">{new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-        <p className="text-slate-500 text-xs mt-2">{insp.image_count} image{insp.image_count !== 1 ? 's' : ''}</p>
-        <span className={`inline-block mt-2 text-xs font-semibold px-2.5 py-1 rounded-full ${
-          insp.status === 'completed' ? 'bg-emerald-900/50 text-emerald-400' :
-          insp.status === 'pending' ? 'bg-amber-900/50 text-amber-400' :
-          'bg-slate-700 text-slate-400'
-        }`}>{insp.status}</span>
+      {/* Info bar pinned to bottom */}
+      <div className="absolute bottom-0 left-0 right-0 px-5 py-4"
+        style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.95) 70%, transparent)' }}>
+        <p className="text-white font-bold text-base leading-tight truncate">{insp.name}</p>
+        <p className="text-slate-300 text-sm mt-0.5">
+          {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+        </p>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-slate-400 text-xs">{insp.image_count} image{insp.image_count !== 1 ? 's' : ''}</span>
+          <span className="text-slate-600 text-xs">·</span>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+            insp.status === 'completed' ? 'bg-emerald-900/60 text-emerald-400' :
+            insp.status === 'pending'   ? 'bg-amber-900/60 text-amber-400' :
+            'bg-slate-700 text-slate-400'
+          }`}>{insp.status}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-function EmptyCard({ label, tint }: { label: string; tint: string }) {
+function EmptyCard({ label }: { label: string; tint: string }) {
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-8"
-      style={{ background: `linear-gradient(135deg, #1e293b 0%, #0f172a 100%)` }}>
-      <div className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-600 flex items-center justify-center">
-        <CalendarDays size={20} className="text-slate-600" />
+    <div className="relative w-full h-full flex items-center justify-center"
+      style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' }}>
+      <div className="flex flex-col items-center gap-3 opacity-40">
+        <div className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-500 flex items-center justify-center">
+          <CalendarDays size={20} className="text-slate-500" />
+        </div>
+        <p className="text-slate-400 text-sm font-medium">{label}</p>
       </div>
-      <p className="text-slate-500 text-sm font-medium">{label}</p>
     </div>
   );
 }
