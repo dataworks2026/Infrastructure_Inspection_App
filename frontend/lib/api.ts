@@ -48,6 +48,7 @@ export const missionsApi = {
   get: (id: string) => api.get<Mission>(`/missions/${id}`).then(r => r.data),
   getImages: (id: string) => api.get(`/missions/${id}/images`).then(r => r.data),
   getDetections: (id: string) => api.get<MissionDetection[]>(`/missions/${id}/detections`).then(r => r.data),
+  getThermalOverlay: (id: string) => api.get<ThermalOverlay>(`/missions/${id}/thermal-overlay`).then(r => r.data),
 };
 
 // Assets
@@ -180,6 +181,17 @@ export interface LiveMissionTelemetry {
   battery_pct?: number;
   flight_mode?: string;
   timestamp?: string;
+}
+
+export interface ThermalOverlay {
+  mission_id: string;
+  has_thermal: boolean;
+  captures_count: number;
+  temp_min_c?: number | null;
+  temp_max_c?: number | null;
+  avg_temp_c?: number | null;
+  hotspot_count?: number;
+  heatmap_paths?: (string | null)[];
 }
 
 export interface LiveMission {

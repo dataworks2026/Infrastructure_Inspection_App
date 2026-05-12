@@ -641,7 +641,23 @@ const DEMO_PINS: DamagePin[] = [
 /* ════════════════════════════════════════════════════════════════
    MAIN SCENE
    ════════════════════════════════════════════════════════════════ */
-export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition, cameraFov, controlsTarget, minDistance, maxDistance, pins }: {
+const THERMAL_COLORS = ['#3b82f6', '#06b6d4', '#22d3ee', '#86efac', '#fbbf24', '#f97316', '#ef4444'];
+function severityToThermalColor(severity: string): string {
+  const idx: Record<string, number> = { S0: 0, S1: 1, S2: 3, S3: 5, S4: 6 };
+  return THERMAL_COLORS[idx[severity] ?? 3];
+}
+
+function ThermalSphere({ pin }: { pin: DamagePin }) {
+  const color = severityToThermalColor(pin.severity);
+  return (
+    <mesh position={pin.position}>
+      <sphereGeometry args={[0.18, 12, 12]} />
+      <meshStandardMaterial color={color} transparent opacity={0.55} emissive={color} emissiveIntensity={0.4} />
+    </mesh>
+  );
+}
+
+export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition, cameraFov, controlsTarget, minDistance, maxDistance, pins, showThermal }: {
   selectedPin: string | null;
   onSelectPin: (id: string | null) => void;
   cameraPosition?: [number, number, number];
@@ -650,6 +666,7 @@ export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition,
   minDistance?: number;
   maxDistance?: number;
   pins?: DamagePin[];
+  showThermal?: boolean;
 }) {
   return (
     <Canvas
@@ -714,6 +731,11 @@ export default function TurbineScene({ selectedPin, onSelectPin, cameraPosition,
         {(pins ?? DEMO_PINS).map(pin => (
           <Pin key={pin.id} pin={pin} isSelected={pin.id === selectedPin}
             onSelect={() => onSelectPin(pin.id === selectedPin ? null : pin.id)} />
+        ))}
+
+        {/* Thermal overlay — glow spheres at pin positions */}
+        {showThermal && (pins ?? DEMO_PINS).map(pin => (
+          <ThermalSphere key={`thermal-${pin.id}`} pin={pin} />
         ))}
       </group>
 

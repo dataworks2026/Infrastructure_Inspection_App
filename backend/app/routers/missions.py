@@ -15,6 +15,7 @@ from app.models.inspection import Inspection
 from app.models.image import Image
 from app.models.asset import Asset
 from app.models.detection import Detection
+from app.models.thermal_capture import ThermalCapture
 from app.schemas.mission import (
     MissionCreate, MissionUpdate, MissionResponse, MissionListResponse,
     MissionStatusResponse, WaypointCreate, WaypointResponse,
@@ -600,6 +601,41 @@ def get_mission_detections(
         }
         for d in detections
     ]
+
+
+# ── P9-12: GET /missions/{id}/thermal-overlay ────────────────────────
+
+@router.get("/{mission_id}/thermal-overlay")
+def get_thermal_overlay(
+    mission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    m = _get_mission_or_404(mission_id, db, current_user)
+    captures = db.query(ThermalCapture).filter(
+        ThermalCapture.mission_id == m.id,
+    ).all()
+
+    if not captures:
+        return {"mission_id": mission_id, "has_thermal": False, "captures_count": 0}
+
+    temps = [c.avg_temp_c for c in captures if c.avg_temp_c is not None]
+    mins  = [c.min_temp_c for c in captures if c.min_temp_c is not None]
+    maxes = [c.max_temp_c for c in captures if c.max_temp_c is not None]
+
+    return {
+        "mission_id": mission_id,
+        "has_thermal": True,
+        "captures_count": len(captures),
+        "temp_min_c": min(mins) if mins else None,
+        "temp_max_c": max(maxes) if maxes else None,
+        "avg_temp_c": sum(temps) / len(temps) if temps else None,
+        "hotspot_count": sum(1 for c in captures if c.max_temp_c and c.max_temp_c > 35),
+        "heatmap_paths": [
+            f"/storage/{c.heatmap_path}" if c.heatmap_path else None
+            for c in captures[:5]
+        ],
+    }
 
 
 # ── P1-10: GET /missions/{id}/status ─────────────────────────────────

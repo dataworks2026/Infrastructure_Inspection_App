@@ -10,7 +10,7 @@ import {
   ArrowLeft, Building2, AlertTriangle, RotateCw, MousePointer, Layers,
   Calendar, Activity, Thermometer, Wind, Droplets, Eye, EyeOff,
   ChevronDown, ChevronRight, MapPin, Clock, TrendingDown, TrendingUp,
-  Shield, Gauge, FileText, Camera, Download, Share2, Maximize2,
+  Shield, Gauge, FileText, Camera, Download, Share2, Maximize2, Flame,
 } from 'lucide-react';
 
 const TurbineScene = dynamic(() => import('./TurbineScene'), { ssr: false, loading: () => (
@@ -121,6 +121,13 @@ export default function ViewerPage() {
     staleTime: 60_000,
   });
 
+  const { data: thermalData } = useQuery({
+    queryKey: ['mission-thermal', missionId],
+    queryFn: () => missionsApi.getThermalOverlay(missionId!),
+    enabled: !!missionId,
+    staleTime: 300_000,
+  });
+
   const activePins = useMemo(() => {
     if (!missionId || !detectionsData?.length) return DEMO_PINS;
     return detectionsData.map((d, i) => ({
@@ -143,7 +150,7 @@ export default function ViewerPage() {
   const [selectedPin, setSelectedPin] = useState<string | null>(null);
   const [filterStructure, setFilterStructure] = useState<number | null>(null);
   const [rightTab, setRightTab] = useState<'detections' | 'timeline' | 'environment'>('detections');
-  const [showLayers, setShowLayers] = useState({ pins: true, structures: true, zones: true });
+  const [showLayers, setShowLayers] = useState({ pins: true, structures: true, zones: true, thermal: false });
   const [expandedInspection, setExpandedInspection] = useState<string | null>(INSPECTION_HISTORY[0].id);
 
   const filteredPins = filterStructure !== null
@@ -235,7 +242,12 @@ export default function ViewerPage() {
       {/* ═══ MAIN 3D VIEWER ═══ */}
       <div className="flex-1 relative">
         <div className="absolute inset-0">
-          <TurbineScene selectedPin={selectedPin} onSelectPin={setSelectedPin} pins={scene3dPins} />
+          <TurbineScene
+            selectedPin={selectedPin}
+            onSelectPin={setSelectedPin}
+            pins={scene3dPins}
+            showThermal={showLayers.thermal}
+          />
         </div>
 
         {/* ═══ LEFT: LAYER CONTROLS + MINI MAP ═══ */}
@@ -261,6 +273,27 @@ export default function ViewerPage() {
                 <span className="text-[9px] text-slate-500">{layer.count}</span>
               </button>
             ))}
+            {/* Thermal layer toggle — only shown when missionId present */}
+            {missionId && (
+              <button
+                onClick={() => setShowLayers(prev => ({ ...prev, thermal: !prev.thermal }))}
+                className="w-full flex items-center justify-between py-1.5 px-1 rounded hover:bg-white/5 transition-all">
+                <div className="flex items-center gap-2">
+                  <Flame size={10} className={showLayers.thermal ? 'text-orange-400' : 'text-slate-600'} />
+                  <span className={`text-[10px] font-medium ${showLayers.thermal ? 'text-orange-300' : 'text-slate-600'}`}>
+                    Thermal
+                  </span>
+                  {thermalData?.has_thermal && (
+                    <span className="text-[7px] font-bold bg-orange-500/20 text-orange-400 px-1 py-0.5 rounded">
+                      {thermalData.captures_count}
+                    </span>
+                  )}
+                </div>
+                {showLayers.thermal
+                  ? <Eye size={10} className="text-orange-400" />
+                  : <EyeOff size={10} className="text-slate-600" />}
+              </button>
+            )}
           </div>
 
           {/* Structure health breakdown */}
@@ -286,6 +319,34 @@ export default function ViewerPage() {
               );
             })}
           </div>
+
+          {/* Thermal legend — shown when thermal layer is active */}
+          {showLayers.thermal && (
+            <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Flame size={10} className="text-orange-400" />
+                <span className="text-[9px] font-bold text-orange-300 uppercase tracking-wider">Thermal</span>
+              </div>
+              <div className="h-2 rounded-full" style={{
+                background: 'linear-gradient(to right, #3b82f6, #22d3ee, #86efac, #fbbf24, #ef4444)',
+              }} />
+              <div className="flex justify-between mt-1">
+                <span className="text-[8px] text-blue-400 font-bold">Cool</span>
+                <span className="text-[8px] text-red-400 font-bold">Hot</span>
+              </div>
+              {thermalData?.has_thermal ? (
+                <div className="mt-2 space-y-0.5">
+                  {thermalData.temp_min_c != null && <p className="text-[8px] text-slate-400">Min: {thermalData.temp_min_c.toFixed(1)}°C</p>}
+                  {thermalData.temp_max_c != null && <p className="text-[8px] text-slate-400">Max: {thermalData.temp_max_c.toFixed(1)}°C</p>}
+                  {thermalData.hotspot_count != null && thermalData.hotspot_count > 0 && (
+                    <p className="text-[8px] text-orange-400 font-bold">{thermalData.hotspot_count} hotspot{thermalData.hotspot_count !== 1 ? 's' : ''} &gt;35°C</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[8px] text-slate-500 mt-1">No thermal data for this mission</p>
+              )}
+            </div>
+          )}
 
           {/* Environmental conditions (like RCOAST) */}
           <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-3">
