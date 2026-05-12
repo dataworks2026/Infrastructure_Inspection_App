@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     WIND_TURBINE_MODEL_PATH: str = "./ml_models/wind_turbine/best.pt"
     COASTAL_MODEL_PATH: str = "./ml_models/coastal/coastal_best.pt"
     OPENAI_API_KEY: Optional[str] = None
+    SENTRY_DSN: Optional[str] = None
 
     class Config:
         env_file = ".env"

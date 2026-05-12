@@ -8,6 +8,33 @@ from app.routers import auth, assets, inspections, images, analysis, dashboard, 
 from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive
 import app.models  # noqa: ensure all models are registered
 
+# ── Sentry — init before app startup, skip if no DSN configured ──────
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+    def _strip_pii(event: dict, hint: dict) -> dict:
+        # Remove email and password fields from all request bodies
+        request = event.get("request", {})
+        data = request.get("data", {})
+        if isinstance(data, dict):
+            for key in ("email", "password", "token", "authorization"):
+                data.pop(key, None)
+        user = event.get("user", {})
+        if isinstance(user, dict):
+            user.pop("email", None)
+            user.pop("ip_address", None)
+        return event
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        integrations=[FastApiIntegration(), SqlalchemyIntegration()],
+        traces_sample_rate=0.1,
+        before_send=_strip_pii,
+        send_default_pii=False,
+    )
+
 Base.metadata.create_all(bind=engine)
 os.makedirs(settings.STORAGE_BASE_PATH, exist_ok=True)
 
