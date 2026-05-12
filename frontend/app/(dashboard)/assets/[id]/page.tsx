@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { assetsApi, inspectionsApi } from '@/lib/api';
+import { assetsApi, inspectionsApi, missionsApi } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation } from 'lucide-react';
+import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation, Box, CheckCircle2 } from 'lucide-react';
 import { InfrastructureType } from '@/types';
 import AnalyticsPanel from './AnalyticsPanel';
 
@@ -45,6 +45,12 @@ export default function AssetDetailPage() {
     queryKey: ['inspections', { asset_id: assetId }],
     queryFn: () => inspectionsApi.list({ asset_id: assetId }),
   });
+
+  const { data: missionsData } = useQuery({
+    queryKey: ['missions', { asset_id: assetId }],
+    queryFn: () => missionsApi.list({ asset_id: assetId }),
+  });
+  const missions = missionsData?.missions ?? [];
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => assetsApi.update(assetId, data),
@@ -302,6 +308,56 @@ export default function AssetDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Twin Updates */}
+      {missions.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <Box size={16} className="text-violet-500" />
+              Twin Updates ({missions.length})
+            </h2>
+            <Link href={`/digital-twin/viewer?assetId=${assetId}`}
+              className="text-sm font-semibold text-sky-600 hover:text-sky-800 transition-colors">
+              Open 3D Twin →
+            </Link>
+          </div>
+          <p className="text-sm text-slate-400 mb-3">Drone missions that contributed data to the digital twin.</p>
+          <div className="space-y-2">
+            {missions.map((m: any) => (
+              <div key={m.id}
+                className="flex items-center justify-between py-3 px-4 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+                <div className="min-w-0 flex-1">
+                  <Link href={`/missions/${m.id}`}
+                    className="text-base font-medium text-slate-700 hover:text-sky-600 transition-colors truncate block">
+                    {m.name}
+                  </Link>
+                  <p className="text-sm text-slate-400 mt-0.5">
+                    {m.routine_type?.replace('_', ' ')}
+                    {m.actual_start && ` · ${new Date(m.actual_start).toLocaleDateString()}`}
+                    {m.photos_uploaded > 0 && ` · ${m.photos_uploaded} photos`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                  <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
+                    m.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                    m.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
+                    m.status === 'uploading' ? 'bg-blue-50 text-blue-700' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>{m.status.replace('_', ' ')}</span>
+                  {m.status === 'completed' && (
+                    <Link href={`/digital-twin/viewer?missionId=${m.id}&assetId=${assetId}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-2.5 py-1 rounded-lg transition-colors">
+                      <CheckCircle2 size={12} />
+                      View in Twin
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
