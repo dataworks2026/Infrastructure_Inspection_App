@@ -1,5 +1,8 @@
-import re, uuid as _uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+import re
+import uuid as _uuid
+from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user
 from app.core.security import hash_password, verify_password, create_access_token
@@ -8,6 +11,7 @@ from app.models.organization import Organization
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse, UserResponse, UpdateMeRequest
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _make_slug(email: str) -> str:
@@ -17,29 +21,31 @@ def _make_slug(email: str) -> str:
 
 
 @router.post("/register", response_model=TokenResponse)
-def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == request.email).first():
+@limiter.limit("5/minute")
+@limiter.limit("20/hour")
+def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # ── Auto-create an organization for the new user ─────────────────────
-    slug = _make_slug(request.email)
+    slug = _make_slug(body.email)
     if db.query(Organization).filter(Organization.slug == slug).first():
         slug = f"{slug}-{_uuid.uuid4().hex[:6]}"
 
     org = Organization(
-        name=request.organization_name,
+        name=body.organization_name,
         slug=slug,
     )
     db.add(org)
     db.flush()  # get org.organization_id before committing
 
     user = User(
-        email=request.email,
-        hashed_password=hash_password(request.password),
-        full_name=request.full_name,
+        email=body.email,
+        hashed_password=hash_password(body.password),
+        full_name=body.full_name,
         role="analyst",
         organization_id=org.organization_id,
-        organization=request.organization_name,  # keep legacy field in sync
+        organization=body.organization_name,  # keep legacy field in sync
     )
     db.add(user)
     db.commit()
@@ -54,9 +60,11 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     )
 
 @router.post("/login", response_model=TokenResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user or not verify_password(request.password, user.hashed_password):
+@limiter.limit("5/minute")
+@limiter.limit("20/hour")
+def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     org = db.query(Organization).filter(Organization.organization_id == user.organization_id).first() if user.organization_id else None
     token = create_access_token({"sub": user.id})

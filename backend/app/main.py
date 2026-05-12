@@ -2,11 +2,16 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.database import engine, Base
 from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
 from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive
 import app.models  # noqa: ensure all models are registered
+
+limiter = Limiter(key_func=get_remote_address)
 
 # ── Sentry — init before app startup, skip if no DSN configured ──────
 if settings.SENTRY_DSN:
@@ -39,6 +44,8 @@ Base.metadata.create_all(bind=engine)
 os.makedirs(settings.STORAGE_BASE_PATH, exist_ok=True)
 
 app = FastAPI(title="Mira Intel API", version="1.0.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
