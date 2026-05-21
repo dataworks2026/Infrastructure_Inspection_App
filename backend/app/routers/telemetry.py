@@ -9,8 +9,11 @@ from sqlalchemy import insert
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.mission import Mission
+from app.models.drone import Drone
 from app.models.telemetry_point import TelemetryPoint
 from app.schemas.mission import TelemetryBatchCreate, TelemetryPointSchema
+from app.schemas.gcs import LiveTelemetry, WsTelemetryMessage
+from app.services.ws_manager import telemetry_manager
 
 router = APIRouter()
 
@@ -23,6 +26,33 @@ def _get_mission_or_404(mission_id: str, db: Session, current_user: User) -> Mis
     if not m:
         raise HTTPException(status_code=404, detail="Mission not found")
     return m
+
+
+# ── SITL live telemetry push + WS fan-out ────────────────────────────
+
+@router.post("/live/{drone_id}", status_code=200)
+async def push_live_telemetry(
+    drone_id: str,
+    data: LiveTelemetry,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """SITL pushes LiveTelemetry here; server updates drone last_seen and fans out to WS."""
+    drone = db.query(Drone).filter(Drone.id == drone_id).first()
+    if not drone:
+        raise HTTPException(status_code=404, detail="Drone not found")
+
+    drone.battery_pct = data.battery.pct
+    drone.battery_voltage = data.battery.voltage
+    drone.battery_temp_c = data.battery.temp_c
+    drone.status = "flying"
+    import datetime as _dt
+    drone.last_seen_at = _dt.datetime.utcnow()
+    db.commit()
+
+    msg = WsTelemetryMessage(type="telemetry", drone_id=drone_id, data=data)
+    await telemetry_manager.broadcast(drone_id, msg.model_dump(by_alias=True))
+    return {"ok": True, "drone_id": drone_id}
 
 
 # ── P1-11: POST /telemetry/batch ─────────────────────────────────────
