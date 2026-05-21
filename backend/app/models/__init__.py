@@ -36,3 +36,10 @@ from app.models.v1_analytics_reason import V1AnalyticsReason
 # User Management Layer
 from app.models.user import User
 from app.models.audit_log import AuditLog
+
+# GCS Phase D Layer
+from app.models.drone import Drone
+from app.models.pilot import Pilot
+from app.models.alert import Alert
+from app.models.geofence import Geofence
+from app.models.mission_record import MissionRecord
