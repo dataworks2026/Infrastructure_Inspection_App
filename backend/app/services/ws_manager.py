@@ -31,7 +31,7 @@ class TelemetryWSManager:
         for ws in list(self._connections.get(drone_id, [])):
             try:
                 await ws.send_text(json.dumps(payload))
-            except Exception:
+            except Exception:  # WS closed/reset — mark for removal
                 dead.append(ws)
         for ws in dead:
             self.disconnect(drone_id, ws)
@@ -54,7 +54,7 @@ class AlertWSManager:
         for ws in list(self._connections):
             try:
                 await ws.send_text(json.dumps(payload))
-            except Exception:
+            except Exception:  # WS closed/reset — mark for removal
                 dead.append(ws)
         for ws in dead:
             self.disconnect(ws)
