@@ -10,7 +10,7 @@ from app.database import engine, Base
 from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
 from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive
 from app.routers import drones, fleet, pilots, geofences, alerts, mission_records
-import app.models  # noqa: ensure all models are registered
+import app.models  # noqa: F401
 
 limiter = Limiter(key_func=get_remote_address)
 

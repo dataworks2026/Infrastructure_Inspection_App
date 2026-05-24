@@ -37,7 +37,7 @@ def _to_read(d: Drone) -> DroneRead:
             pack=d.battery_pack or "",
         ),
         capabilities=DroneCapabilities(
-            lenses=[GcsCameraLens(l) for l in (d.capabilities_lenses or [])],
+            lenses=[GcsCameraLens(lens) for lens in (d.capabilities_lenses or [])],
             max_flight_time_min=d.capabilities_max_flight_time_min or 0.0,
             max_alt_agl=d.capabilities_max_alt_agl or 0.0,
         ),
@@ -87,7 +87,7 @@ def create_drone(
         battery_temp_c=payload.battery_temp_c,
         battery_cycles=payload.battery_cycles,
         battery_pack=payload.battery_pack,
-        capabilities_lenses=[l.value for l in (payload.capabilities_lenses or [])],
+        capabilities_lenses=[lens.value for lens in (payload.capabilities_lenses or [])],
         capabilities_max_flight_time_min=payload.capabilities_max_flight_time_min,
         capabilities_max_alt_agl=payload.capabilities_max_alt_agl,
     )
@@ -109,7 +109,7 @@ def update_drone(
         raise HTTPException(status_code=404, detail="Drone not found")
     update_data = payload.model_dump(exclude_none=True, by_alias=False)
     if "capabilities_lenses" in update_data:
-        update_data["capabilities_lenses"] = [l.value for l in update_data["capabilities_lenses"]]
+        update_data["capabilities_lenses"] = [lens.value for lens in update_data["capabilities_lenses"]]
     if "status" in update_data:
         update_data["status"] = update_data["status"].value
     for k, v in update_data.items():

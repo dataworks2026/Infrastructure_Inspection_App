@@ -38,7 +38,7 @@ def _drone_to_read(d: Drone) -> DroneRead:
             pack=d.battery_pack or "",
         ),
         capabilities=DroneCapabilities(
-            lenses=[GcsCameraLens(l) for l in (d.capabilities_lenses or [])],
+            lenses=[GcsCameraLens(lens) for lens in (d.capabilities_lenses or [])],
             max_flight_time_min=d.capabilities_max_flight_time_min or 0.0,
             max_alt_agl=d.capabilities_max_alt_agl or 0.0,
         ),
