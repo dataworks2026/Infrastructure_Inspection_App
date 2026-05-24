@@ -1,6 +1,5 @@
 """D-4: Drone fleet REST endpoints + /ws/drones/{id}/telemetry WebSocket."""
 from __future__ import annotations
-from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -11,7 +10,7 @@ from app.models.drone import Drone
 from app.models.user import User
 from app.schemas.gcs import (
     DroneCreate, DroneUpdate, DroneRead, DroneBattery, DroneCapabilities,
-    GcsCameraLens, DroneStatus, DroneModel, WsTelemetryMessage,
+    GcsCameraLens, DroneStatus, DroneModel,
 )
 from app.services.ws_manager import telemetry_manager
 

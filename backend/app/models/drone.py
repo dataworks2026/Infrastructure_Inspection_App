@@ -1,4 +1,3 @@
-import uuid
 from sqlalchemy import Column, String, Float, Integer, DateTime
 from sqlalchemy import JSON as JSONB
 from sqlalchemy.sql import func

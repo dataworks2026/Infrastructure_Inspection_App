@@ -12,7 +12,7 @@ from app.models.user import User
 from app.schemas.gcs import (
     AlertRead, AlertTone, AlertCategory, AlertAction,
     DroneRead, DroneBattery, DroneCapabilities, DroneStatus, DroneModel, GcsCameraLens,
-    FleetSnapshot, FleetMission, FleetKpis,
+    FleetSnapshot, FleetKpis,
 )
 from app.services.ws_manager import alert_manager
 

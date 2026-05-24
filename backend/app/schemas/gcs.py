@@ -2,7 +2,7 @@
 from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Tuple
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 
@@ -25,6 +25,14 @@ class RoutineId(str, Enum):
     PERIMETER   = "PERIMETER"
     CORRIDOR    = "CORRIDOR"
     MANUAL      = "MANUAL"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "RoutineId | None":
+        if isinstance(value, str):
+            for member in cls:
+                if member.value == value.upper():
+                    return member
+        return None
 
 
 # ── D-4: Drone enums ───────────────────────────────────────────────────────────

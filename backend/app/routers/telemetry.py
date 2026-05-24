@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -11,7 +11,7 @@ from app.models.user import User
 from app.models.mission import Mission
 from app.models.drone import Drone
 from app.models.telemetry_point import TelemetryPoint
-from app.schemas.mission import TelemetryBatchCreate, TelemetryPointSchema
+from app.schemas.mission import TelemetryBatchCreate
 from app.schemas.gcs import LiveTelemetry, WsTelemetryMessage
 from app.services.ws_manager import telemetry_manager
 
