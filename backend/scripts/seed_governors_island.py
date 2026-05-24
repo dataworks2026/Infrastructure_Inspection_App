@@ -408,9 +408,9 @@ def _seed_completed_mission(
 def seed():
     db = SessionLocal()
     try:
-        user = db.query(User).first()
+        user = db.query(User).filter(User.organization_id != None).first()  # noqa: E711
         if not user:
-            print("No user found — register first at POST /api/v1/auth/register")
+            print("No user with org found — register first at POST /api/v1/auth/register")
             return
 
         org_id = user.organization_id
