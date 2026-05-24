@@ -509,8 +509,6 @@ def seed():
             now = datetime.utcnow()
             for i in range(5):
                 tp = TelemetryPoint(
-                    id=str(uuid.uuid4()),
-                    organization_id=org_id,
                     mission_id=live_m.id,
                     timestamp=now - timedelta(seconds=(4 - i) * 30),
                     latitude=lat + i * 0.00005,
