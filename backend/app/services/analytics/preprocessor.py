@@ -41,13 +41,13 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
             f"Check input data for unexpected values."
         )
 
-    print(f"[preprocessor] Severity values mapped to numeric scale (1-4).")
+    print("[preprocessor] Severity values mapped to numeric scale (1-4).")
 
     #  Step 2: Parse inspection dates
     df['inspection_date'] = pd.to_datetime(df['inspection_date'])
-    print(f"[preprocessor] Inspection dates parsed successfully.")
+    print("[preprocessor] Inspection dates parsed successfully.")
 
-    # Step 3: Aggregate max severity per asset per date 
+    # Step 3: Aggregate max severity per asset per date
     # One inspection can have multiple detections at different
     # severity levels. We take the maximum as confirmed by client.
     agg_cols = ['asset_id', 'inspection_date']
@@ -71,25 +71,25 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
         f"{df_clean['asset_id'].nunique()} assets."
     )
 
-    # Step 4: Sort chronologically per asset 
+    # Step 4: Sort chronologically per asset
     df_clean = df_clean.sort_values(
         ['asset_id', 'inspection_date']
     ).reset_index(drop=True)
 
-    print(f"[preprocessor] Data sorted chronologically per asset.")
+    print("[preprocessor] Data sorted chronologically per asset.")
 
-    # Step 5: Add inspection sequence number per asset 
+    # Step 5: Add inspection sequence number per asset
     # Useful for deterioration rate calculations downstream
     df_clean['inspection_seq'] = df_clean.groupby('asset_id').cumcount() + 1
 
-    # Step 6: Final column ordering 
+    # Step 6: Final column ordering
     df_clean = df_clean[[
         'asset_id', 'asset_name', 'asset_type',
         'component_type', 'damage_type',
         'inspection_date', 'inspection_seq', 'severity_score'
     ]]
 
-    print(f"[preprocessor] Preprocessing complete.\n")
+    print("[preprocessor] Preprocessing complete.\n")
     _print_summary(df_clean)
 
     return df_clean

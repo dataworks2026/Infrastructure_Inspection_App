@@ -64,7 +64,7 @@ def test_post_run_succeeds_and_persists(db_session, test_org, client):
     )
     assert run.organization_id == test_org.organization_id
     assert run.engine_version  == "1.0"
-    assert run.schema_version  == "v2"
+    assert run.schema_version  == "v3"
     assert run.run_metadata is not None
     assert run.run_metadata.get("config_file") == "thresholds.yaml"
 

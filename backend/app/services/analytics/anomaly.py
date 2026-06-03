@@ -39,12 +39,12 @@ def detect_anomalies(
         dates      = group['inspection_date'].tolist()
         n          = len(scores)
 
-        # Get config for this asset type 
+        # Get config for this asset type
         asset_config   = config.get(asset_type, config.get('default', {}))
         jump_threshold = asset_config.get('anomaly_jump_threshold', 2)
         std_multiplier = asset_config.get('anomaly_std_multiplier', 2.0)
 
-        #  Calculate changes between inspections 
+        #  Calculate changes between inspections
         # Positive = worsening, Negative = improving, Zero = stable
         changes = [0] + [scores[i] - scores[i-1] for i in range(1, n)]
 
@@ -91,7 +91,7 @@ def detect_anomalies(
                 ))
                 continue
 
-            # Method 1: Absolute jump 
+            # Method 1: Absolute jump
             # Flag if severity jumps by jump_threshold or more
             if change >= jump_threshold:
                 anomaly_flag   = True
@@ -101,7 +101,7 @@ def detect_anomalies(
                     f"(threshold: {jump_threshold})"
                 )
 
-            # Method 2: Statistical jump 
+            # Method 2: Statistical jump
             # Only runs if we have enough history AND
             # the absolute method did not already flag it
             elif use_stat_method and std_change > 0 and change > stat_threshold:
@@ -136,7 +136,7 @@ def get_asset_anomaly_summary(anomaly_df: pd.DataFrame) -> pd.DataFrame:
     """
     records = []
     for asset_id, group in anomaly_df.groupby('asset_id'):
-        flagged = group[group['anomaly_flag'] == True]
+        flagged = group[group["anomaly_flag"]]
         records.append({
             'asset_id'          : asset_id,
             'asset_name'        : group['asset_name'].iloc[0],

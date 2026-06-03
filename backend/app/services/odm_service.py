@@ -1,10 +1,8 @@
 from __future__ import annotations
-import asyncio
 import os
 import shutil
 import subprocess
 import uuid
-from typing import Optional
 
 from sqlalchemy.orm import Session
 from app.models.mission import Mission

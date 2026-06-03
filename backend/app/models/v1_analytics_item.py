@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, ForeignKey
 from sqlalchemy import JSON as JSONB
-from sqlalchemy.sql import func
+from datetime import datetime
 from app.database import Base
 
 class V1AnalyticsItem(Base):
@@ -27,5 +27,5 @@ class V1AnalyticsItem(Base):
     component            = Column(String(100), nullable=True)
     location_description = Column(Text, nullable=True)
 
-    created_at           = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at           = Column(DateTime, default=datetime.utcnow, nullable=False)
     item_metadata        = Column(JSONB, nullable=True, default=dict)

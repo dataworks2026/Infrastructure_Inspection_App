@@ -1,0 +1,13 @@
+FROM node:20-alpine
+WORKDIR /app
+
+# Install dependencies at build time so they land in the image layer.
+# The /app/node_modules anonymous volume in docker-compose.dev.yml
+# preserves this layer across restarts even though the host directory
+# is mounted over /app.
+COPY package.json package-lock.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000

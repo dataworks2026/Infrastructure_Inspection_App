@@ -48,11 +48,12 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install ruff
-          # Install without heavy ML deps (torch/ultralytics) for CI speed
-          pip install fastapi uvicorn pydantic pydantic-settings sqlalchemy \
-            psycopg2-binary python-jose passlib pillow numpy aiofiles \
-            email-validator bcrypt httpx python-dotenv python-multipart \
-            pandas scipy PyYAML pytest pytest-asyncio httpx sentry-sdk
+          # Install from requirements.txt but skip torch/torchvision/ultralytics/
+          # opencv — they are heavy, need GPU drivers, and are not exercised by
+          # the analytics or API test suites. Everything else (including lightgbm
+          # and scikit-learn for the M2 forecast pipeline) installs normally.
+          grep -v -E "^(torch|torchvision|ultralytics|opencv)" requirements.txt \
+            | pip install -r /dev/stdin
 
       - name: Lint (ruff)
         run: ruff check app/ --select E,F,W --ignore E501

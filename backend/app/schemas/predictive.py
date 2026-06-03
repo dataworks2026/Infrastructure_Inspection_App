@@ -91,6 +91,14 @@ class PredictiveAssetResult(BaseModel):
     # the item happens to have no reasons attached.
     reasons              : List[PredictiveAnalyticsReason] = []
 
+    # V3 — M2 LightGBM forecast columns.
+    # None when the model file is absent (graceful degradation) or
+    # when the asset has insufficient inspection history.
+    forecast_severity_next : Optional[int] = None   # 1..4
+    forecast_confidence    : Optional[str] = None   # High | Medium | Low
+    forecast_horizon_days  : Optional[int] = None   # days to next inspection
+    forecast_note          : Optional[str] = None   # plain-language summary
+
     class Config:
         from_attributes = True
 

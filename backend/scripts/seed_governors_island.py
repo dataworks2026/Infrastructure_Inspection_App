@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Seed script: Governor's Island + Brooklyn Army Terminal infrastructure assets
 and ready-to-fly GCS demo missions.

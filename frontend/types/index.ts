@@ -224,6 +224,12 @@ export interface PredictiveAssetResult {
   // Per-component breakdown of how the score was reached.
   // Empty list for runs that pre-date reason persistence.
   reasons: PredictiveAnalyticsReason[];
+  // V3 — M2 LightGBM forecast fields.
+  // null when the model file is absent or the asset has < 2 inspections.
+  forecast_severity_next?: number | null;   // 1..4
+  forecast_confidence?: string | null;      // High | Medium | Low
+  forecast_horizon_days?: number | null;    // days to next inspection
+  forecast_note?: string | null;            // plain-language summary
 }
 
 export interface PredictiveRunTriggerResponse {

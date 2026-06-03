@@ -56,6 +56,17 @@ V2_OUTPUT_COLUMNS = [
     "tti_note",
 ]
 
+# Four new forecast columns added in V3. Appended after V2 so all
+# existing callers that only care about V2 fields are unaffected.
+V3_FORECAST_COLUMNS = [
+    "forecast_severity_next",
+    "forecast_confidence",
+    "forecast_horizon_days",
+    "forecast_note",
+]
+
+V3_OUTPUT_COLUMNS = V2_OUTPUT_COLUMNS + V3_FORECAST_COLUMNS
+
 
 def run_pipeline(
     input_filepath  : str,
@@ -164,12 +175,18 @@ def run_pipeline_from_dataframe(
 
     # ── Step 0: Short-circuit on empty input ──────────────
     # Orgs with no analysed inspections (new account, nothing to
-    # process yet) must not crash the pipeline. Return the V2 schema
+    # process yet) must not crash the pipeline. Return the V3 schema
     # with zero rows so downstream callers can iterate or serialise
     # without checks of their own.
     if df is None or len(df) == 0:
-        print("[engine] Input DataFrame is empty — returning empty V2 output.")
-        return pd.DataFrame(columns=V2_OUTPUT_COLUMNS)
+        print("[engine] Input DataFrame is empty — returning empty V3 output.")
+        return pd.DataFrame(columns=V3_OUTPUT_COLUMNS)
+
+    # Save a reference to the original input before any in-place
+    # modification so the forecast module receives the clean adapter
+    # output (asset_id, asset_name, asset_type, inspection_date,
+    # severity_score) rather than the preprocessed working copy.
+    original_input_df = df
 
     # ── Step 1: Load config ────────────────────────────────
     config = _load_config(config_filepath)
@@ -201,9 +218,43 @@ def run_pipeline_from_dataframe(
     # ── Step 7: TTI calculation ───────────────────────────
     tti_df = calculate_tti(deterioration_df, config)
 
-    # ── Step 8: Build final output ────────────────────────
+    # ── Step 8: Build V2 output ───────────────────────────
     output_df = _build_output(priority_df, anomaly_df, tti_df)
 
+    # ── Step 9: Append V3 forecast columns ───────────────
+    output_df = _append_forecast_columns(output_df, original_input_df)
+
+    return output_df
+
+
+def _append_forecast_columns(
+    output_df : pd.DataFrame,
+    input_df  : pd.DataFrame,
+) -> pd.DataFrame:
+    """Merge M2 LightGBM forecast columns into the V2 output DataFrame.
+
+    Imports forecast lazily so a missing lightgbm package or absent
+    model file never breaks the core analytics pipeline. On any
+    failure the four V3 columns are added as None, preserving the
+    V3_OUTPUT_COLUMNS schema for downstream consumers.
+    """
+    try:
+        from app.services.analytics.forecast import run_forecast_from_dataframe
+        forecast_df = run_forecast_from_dataframe(input_df)
+        if not forecast_df.empty:
+            output_df = output_df.merge(
+                forecast_df[['asset_id'] + V3_FORECAST_COLUMNS],
+                on='asset_id',
+                how='left',
+            )
+            return output_df
+    except Exception:  # noqa: BLE001
+        pass
+
+    # Graceful degradation — fill columns with None so the schema
+    # stays consistent and the router/mapper never KeyError.
+    for col in V3_FORECAST_COLUMNS:
+        output_df[col] = None
     return output_df
 
 
@@ -240,7 +291,7 @@ def _build_output(
     """
 
     # Latest anomaly reason per asset
-    latest_anomaly = anomaly_df[anomaly_df['anomaly_flag'] == True].copy()
+    latest_anomaly = anomaly_df[anomaly_df["anomaly_flag"]].copy()
 
     if len(latest_anomaly) > 0:
         latest_anomaly = (

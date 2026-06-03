@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, ForeignKey
 from sqlalchemy import JSON as JSONB
-from sqlalchemy.sql import func
+from datetime import datetime
 from app.database import Base
 
 class V1AnalyticsReason(Base):
@@ -18,4 +18,4 @@ class V1AnalyticsReason(Base):
     display_order      = Column(Integer, nullable=True)
     evidence           = Column(JSONB, nullable=True, default=dict)
 
-    created_at         = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at         = Column(DateTime, default=datetime.utcnow, nullable=False)
