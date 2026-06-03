@@ -291,7 +291,7 @@ def _build_output(
     """
 
     # Latest anomaly reason per asset
-    latest_anomaly = anomaly_df[anomaly_df['anomaly_flag'] == True].copy()
+    latest_anomaly = anomaly_df[anomaly_df["anomaly_flag"]].copy()
 
     if len(latest_anomaly) > 0:
         latest_anomaly = (

@@ -12,7 +12,6 @@
 from typing import Optional
 
 import pandas as pd
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.asset      import Asset

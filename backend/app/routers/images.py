@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
-import os, uuid, aiofiles
+import os
+import uuid
+import aiofiles
 
 from app.core.deps import get_db, get_current_user
 from app.core.config import settings

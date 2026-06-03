@@ -2,7 +2,6 @@ import uuid
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, ForeignKey
 from sqlalchemy import JSON as JSONB
 from datetime import datetime
-from sqlalchemy.sql import func
 from app.database import Base
 
 class V1AnalyticsItem(Base):

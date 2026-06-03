@@ -2,7 +2,6 @@ from __future__ import annotations
 import os
 import uuid
 import numpy as np
-from typing import Optional
 from PIL import Image as PILImage
 
 from sqlalchemy.orm import Session
@@ -51,7 +50,7 @@ def process_thermal_image(image_id: str, db: Session) -> ThermalCapture:
     try:
         import matplotlib
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt  # noqa: F401
         import matplotlib.cm as cm
 
         # Normalize to 0-1 for colormap

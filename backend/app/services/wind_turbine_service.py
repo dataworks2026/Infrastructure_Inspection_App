@@ -1,7 +1,7 @@
-import os, uuid, functools
-from pathlib import Path
+import os
+import uuid
+import functools
 from typing import Optional
-import numpy as np
 from PIL import Image as PILImage
 import torch
 
@@ -12,8 +12,8 @@ def _patched_torch_load(*args, **kwargs):
     return _original_torch_load(*args, **kwargs)
 torch.load = _patched_torch_load
 
-from ultralytics import YOLO
-from app.core.config import settings
+from ultralytics import YOLO  # noqa: E402
+from app.core.config import settings  # noqa: E402
 
 CLASS_NAMES = [
     'Drain hole impairment', 'Lightning Strike', 'OIL LEAKAGE',

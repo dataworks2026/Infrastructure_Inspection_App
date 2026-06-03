@@ -26,7 +26,7 @@ def load_data(filepath: str) -> pd.DataFrame:
         ValueError: If required columns are missing or data is invalid.
     """
 
-    # Step 1: Load the file 
+    # Step 1: Load the file
     try:
         df = pd.read_csv(filepath)
     except FileNotFoundError:
@@ -42,7 +42,7 @@ def load_data(filepath: str) -> pd.DataFrame:
             f"Required columns are: {REQUIRED_COLUMNS}"
         )
 
-    # Step 3: Check for nulls in required columns 
+    # Step 3: Check for nulls in required columns
     for col in REQUIRED_COLUMNS:
         null_count = df[col].isnull().sum()
         if null_count > 0:
@@ -51,7 +51,7 @@ def load_data(filepath: str) -> pd.DataFrame:
                 f"All required columns must be complete."
             )
 
-    # Step 4: Validate severity values 
+    # Step 4: Validate severity values
     invalid_severity = df[~df['severity_score'].isin(VALID_SEVERITY_VALUES)]
     if len(invalid_severity) > 0:
         raise ValueError(
@@ -60,7 +60,7 @@ def load_data(filepath: str) -> pd.DataFrame:
             f"Invalid rows:\n{invalid_severity[['asset_id', 'inspection_date', 'severity_score']]}"
         )
 
-    # Step 5: Validate inspection_date is parseable 
+    # Step 5: Validate inspection_date is parseable
     try:
         pd.to_datetime(df['inspection_date'])
     except Exception:
@@ -69,7 +69,7 @@ def load_data(filepath: str) -> pd.DataFrame:
             "Expected format: YYYY-MM-DD"
         )
 
-    # Step 6: Add optional columns with defaults 
+    # Step 6: Add optional columns with defaults
     # asset_type defaults to 'default' so thresholds.yaml fallback applies
     if 'asset_type' not in df.columns:
         df['asset_type'] = 'default'
