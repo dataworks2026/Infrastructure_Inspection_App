@@ -58,7 +58,7 @@ from app.services.analytics.utils           import (
 router = APIRouter()
 
 ENGINE_VERSION = "1.0"
-SCHEMA_VERSION = "v2"
+SCHEMA_VERSION = "v3"
 
 
 # ─── read-side helpers ────────────────────────────────────────────────
@@ -140,6 +140,11 @@ def _item_to_asset_result(
         # history capture was added simply lack the field.
         severity_history     = meta.get("severity_history") or [],
         reasons              = [_reason_row_to_dto(r) for r in (reasons or [])],
+        # V3 forecast fields — None when model was absent at run time.
+        forecast_severity_next = nan_to_none(meta.get("forecast_severity_next")),
+        forecast_confidence    = nan_to_none(meta.get("forecast_confidence")),
+        forecast_horizon_days  = nan_to_none(meta.get("forecast_horizon_days")),
+        forecast_note          = nan_to_none(meta.get("forecast_note")),
     )
 
 

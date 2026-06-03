@@ -288,6 +288,12 @@ def save_analytics_items(
                 # Chronological severity points so the asset detail
                 # sparkline does not need extra DB roundtrips.
                 "severity_history": history_by_id.get(asset_id, []),
+                # V3 — M2 LightGBM forecast columns. None when the
+                # model file is absent or the asset has < 2 inspections.
+                "forecast_severity_next": nan_to_none(row.get("forecast_severity_next")),
+                "forecast_confidence":    nan_to_none(row.get("forecast_confidence")),
+                "forecast_horizon_days":  nan_to_none(row.get("forecast_horizon_days")),
+                "forecast_note":          nan_to_none(row.get("forecast_note")),
             },
         )
         db.add(item)

@@ -19,6 +19,13 @@ from __future__ import annotations
 import os
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
+# Disable the LightGBM forecast model in the test suite.
+# The native LightGBM scheduler conflicts with pytest's threading on
+# some platforms (macOS) and causes a segfault. The analytics pipeline
+# runs fully; forecast columns come back as None (graceful degradation).
+# Production and Linux CI are unaffected — they never set this flag.
+os.environ.setdefault("MIRA_DISABLE_FORECAST", "1")
+
 import sys
 import uuid
 from datetime import date

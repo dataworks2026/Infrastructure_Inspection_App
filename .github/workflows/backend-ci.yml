@@ -48,11 +48,15 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install ruff
-          # Install without heavy ML deps (torch/ultralytics) for CI speed
+          # Install without heavy ML deps (torch/ultralytics) for CI speed.
+          # scikit-learn and lightgbm are included: the M2 forecast pkl
+          # must load cleanly, and lightgbm is the primary backend with
+          # scikit-learn as the declared fallback.
           pip install fastapi uvicorn pydantic pydantic-settings sqlalchemy \
             psycopg2-binary python-jose passlib pillow numpy aiofiles \
             email-validator bcrypt httpx python-dotenv python-multipart \
-            pandas scipy PyYAML pytest pytest-asyncio httpx sentry-sdk
+            pandas scipy PyYAML pytest pytest-asyncio httpx sentry-sdk \
+            scikit-learn lightgbm
 
       - name: Lint (ruff)
         run: ruff check app/ --select E,F,W --ignore E501
