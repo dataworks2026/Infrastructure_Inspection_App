@@ -3,16 +3,19 @@ import uuid
 import functools
 from typing import Optional
 from PIL import Image as PILImage
-import torch
+try:
+    import torch
+    _original_torch_load = torch.load
+    @functools.wraps(_original_torch_load)
+    def _patched_torch_load(*args, **kwargs):
+        kwargs['weights_only'] = False
+        return _original_torch_load(*args, **kwargs)
+    torch.load = _patched_torch_load
+    from ultralytics import YOLO  # noqa: E402
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
 
-_original_torch_load = torch.load
-@functools.wraps(_original_torch_load)
-def _patched_torch_load(*args, **kwargs):
-    kwargs['weights_only'] = False
-    return _original_torch_load(*args, **kwargs)
-torch.load = _patched_torch_load
-
-from ultralytics import YOLO  # noqa: E402
 from app.core.config import settings  # noqa: E402
 
 CLASS_NAMES = [
