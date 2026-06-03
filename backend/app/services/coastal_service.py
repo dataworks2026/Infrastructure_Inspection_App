@@ -15,6 +15,7 @@ try:
     _TORCH_AVAILABLE = True
 except ImportError:
     _TORCH_AVAILABLE = False
+    YOLO = None  # type: ignore[assignment]
 
 from app.core.config import settings  # noqa: E402
 
