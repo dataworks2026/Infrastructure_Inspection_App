@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey
 from sqlalchemy import JSON as JSONB
 from sqlalchemy.sql import func
@@ -34,7 +35,7 @@ class V1AnalyticsRun(Base):
     engine_version           = Column(String(10), nullable=False)
     schema_version           = Column(String(10), nullable=False)
 
-    created_at               = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at               = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at             = Column(DateTime, nullable=True)
     processing_time_ms       = Column(Integer, nullable=True)
     total_items_analyzed     = Column(Integer, nullable=False, default=0)

@@ -1,5 +1,7 @@
 """Sensors API — live + historical NOAA data for asset locations."""
 
+from __future__ import annotations
+
 import asyncio
 import time
 import httpx

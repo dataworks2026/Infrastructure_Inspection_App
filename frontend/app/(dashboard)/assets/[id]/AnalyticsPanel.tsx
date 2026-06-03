@@ -16,7 +16,7 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Flag, AlertTriangle, Loader2 } from 'lucide-react';
+import { Flag, AlertTriangle, Loader2, TrendingUp, TrendingDown, Minus, Siren } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip,
 } from 'recharts';
@@ -198,7 +198,146 @@ export default function AnalyticsPanel({ assetId }: { assetId: string }) {
            user does not have to mentally reconcile e.g. a "stable"
            trend with an "Immediate" TTI. */}
       {data.reasons.length > 0 && <ReasonList reasons={data.reasons} />}
+
+      {/* V3 — M2 LightGBM forecast section */}
+      {data.forecast_severity_next != null && (
+        <ForecastSection data={data} />
+      )}
     </Card>
+  );
+}
+
+
+// ── forecast section ─────────────────────────────────────────────
+
+const SEV_STYLE: Record<number, { bg: string; color: string; label: string }> = {
+  1: { bg: '#DCFCE7', color: '#15803D', label: 'S1 — Minor' },
+  2: { bg: '#FEF9C3', color: '#A16207', label: 'S2 — Moderate' },
+  3: { bg: '#FFEDD5', color: '#C2410C', label: 'S3 — Significant' },
+  4: { bg: '#FEE2E2', color: '#B91C1C', label: 'S4 — Critical' },
+};
+
+const CONF_STYLE: Record<string, { bg: string; color: string }> = {
+  High   : { bg: '#DCFCE7', color: '#15803D' },
+  Medium : { bg: '#FEF9C3', color: '#A16207' },
+  Low    : { bg: '#FEE2E2', color: '#B91C1C' },
+};
+
+function ForecastSection({ data }: { data: PredictiveAssetResult }) {
+  const sev  = SEV_STYLE[data.forecast_severity_next!] ?? SEV_STYLE[4];
+  const conf = CONF_STYLE[data.forecast_confidence ?? ''] ?? CONF_STYLE.Medium;
+
+  // Asset locked at S4 AND historically accelerating — worst possible state
+  const lockedAtCritical =
+    data.forecast_severity_next === 4 &&
+    data.latest_severity        === 4;
+
+  const worsening = data.forecast_severity_next! > data.latest_severity;
+  const improving = data.forecast_severity_next! < data.latest_severity;
+
+  const ForecastIcon = worsening ? TrendingUp : improving ? TrendingDown : Minus;
+  const iconColor    = worsening ? '#B91C1C'  : improving ? '#15803D'    : '#6B7280';
+
+  return (
+    <div
+      className="mt-6 pt-5 border-t"
+      style={{ borderColor: '#E2EDE8' }}
+    >
+      <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#6B9A87] mb-4">
+        Forecast — Next Inspection
+      </p>
+
+      {/* Locked-at-critical banner — shown when asset is at S4 and staying there */}
+      {lockedAtCritical && (
+        <div
+          className="flex items-start gap-3 px-4 py-3 mb-5 rounded-lg"
+          style={{
+            background : '#FEF2F2',
+            border     : '1px solid #FECACA',
+            color      : '#7F1D1D',
+          }}
+        >
+          <Siren size={16} className="flex-shrink-0 mt-0.5 text-red-700" />
+          <div>
+            <p className="text-[13px] font-black">
+              Locked at Critical — Immediate intervention required
+            </p>
+            <p className="text-[12px] mt-0.5 leading-snug font-medium">
+              This asset has reached maximum severity (S4) and is forecast to remain there.
+              {data.trend_direction === 'accelerating' && (
+                <span className="block mt-1 text-red-700 font-bold">
+                  ⚠ The rate of deterioration is still accelerating — conditions are actively getting worse.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+
+        {/* Predicted severity */}
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#6B9A87] mb-2">
+            Predicted Severity
+          </p>
+          <div className="flex items-center gap-2">
+            {lockedAtCritical ? (
+              <span
+                className="text-[13px] font-black px-3 py-1 rounded-full flex items-center gap-1.5"
+                style={{ background: '#FEE2E2', color: '#B91C1C', border: '1.5px solid #FECACA' }}
+              >
+                <Siren size={13} />
+                S4 — Critical (No change possible)
+              </span>
+            ) : (
+              <>
+                <ForecastIcon size={18} style={{ color: iconColor }} />
+                <span
+                  className="text-[13px] font-bold px-2.5 py-1 rounded-full"
+                  style={{ background: sev.bg, color: sev.color }}
+                >
+                  {sev.label}
+                </span>
+              </>
+            )}
+          </div>
+          <p className="text-[11px] text-[#6B9A87] mt-1.5">
+            within {data.forecast_horizon_days ?? 180} days
+          </p>
+        </div>
+
+        {/* Confidence */}
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#6B9A87] mb-2">
+            Confidence
+          </p>
+          <span
+            className="text-[13px] font-bold px-2.5 py-1 rounded-full"
+            style={{ background: conf.bg, color: conf.color }}
+          >
+            {data.forecast_confidence}
+          </span>
+          <p className="text-[11px] text-[#6B9A87] mt-1.5">
+            model confidence level
+          </p>
+        </div>
+
+        {/* Forecast note */}
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#6B9A87] mb-2">
+            Interpretation
+          </p>
+          <p
+            className="text-[12px] leading-snug"
+            style={{ color: lockedAtCritical ? '#B91C1C' : '#334155', fontWeight: lockedAtCritical ? 600 : 400 }}
+          >
+            {data.forecast_note}
+          </p>
+        </div>
+
+      </div>
+    </div>
   );
 }
 

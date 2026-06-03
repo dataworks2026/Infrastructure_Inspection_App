@@ -1,5 +1,7 @@
 """NOAA government data services — CO-OPS (tides/weather) + NDBC (buoys)."""
 
+from __future__ import annotations
+
 import httpx
 
 COOPS_BASE = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
