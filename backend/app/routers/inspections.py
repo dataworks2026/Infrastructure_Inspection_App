@@ -6,6 +6,11 @@ from app.models.user import User
 from app.models.inspection import Inspection
 from app.models.image import Image
 from app.models.detection import Detection
+from app.models.mission import Mission
+from app.models.v1_analytics_run import V1AnalyticsRun
+from app.models.v1_analytics_item import V1AnalyticsItem
+from app.models.v1_analytics_reason import V1AnalyticsReason
+from app.models.risk_assessment import RiskAssessment
 from app.schemas.inspection import InspectionCreate, InspectionUpdate, InspectionResponse
 
 router = APIRouter()
@@ -70,7 +75,18 @@ def delete_inspection(
     if not inspection:
         raise HTTPException(status_code=404, detail="Inspection not found")
 
-    # Cascade: detections → images → inspection
+    # Break circular FK: missions.inspection_id → inspections
+    db.query(Mission).filter(Mission.inspection_id == inspection_id).update({"inspection_id": None})
+
+    # Cascade: analytics → risk assessments → detections → images → inspection
+    runs = db.query(V1AnalyticsRun).filter(V1AnalyticsRun.inspection_id == inspection_id).all()
+    for run in runs:
+        items = db.query(V1AnalyticsItem).filter(V1AnalyticsItem.analytics_run_id == run.id).all()
+        for item in items:
+            db.query(V1AnalyticsReason).filter(V1AnalyticsReason.analytics_item_id == item.id).delete()
+        db.query(V1AnalyticsItem).filter(V1AnalyticsItem.analytics_run_id == run.id).delete()
+        db.delete(run)
+    db.query(RiskAssessment).filter(RiskAssessment.inspection_run_id == inspection_id).delete()
     images = db.query(Image).filter(Image.inspection_id == inspection_id).all()
     for img in images:
         db.query(Detection).filter(Detection.image_id == img.id).delete()
