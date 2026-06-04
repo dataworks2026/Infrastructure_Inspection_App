@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { dashboardApi, sensorsApi, missionsApi, type LiveMission } from '@/lib/api';
+import { dashboardApi, sensorsApi, missionsApi } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, ArrowRight,
@@ -174,14 +174,6 @@ export default function DashboardPage() {
     refetchInterval: 120_000,
   });
 
-  const { data: liveMissionsData } = useQuery({
-    queryKey: ['live-missions'],
-    queryFn: dashboardApi.getLiveMissions,
-    refetchInterval: 15_000,
-    staleTime: 10_000,
-  });
-  const liveMissions: LiveMission[] = liveMissionsData?.live_missions ?? [];
-
   const queryClient = useQueryClient();
   const { data: envData, isFetching: envFetching } = useQuery({
     queryKey: ['sensors-live'],
@@ -237,43 +229,6 @@ export default function DashboardPage() {
             {data?.total_inspections ?? 0} inspections
           </div>
         </div>
-      </div>
-
-      {/* ── Live Missions Widget (P5-3) ── */}
-      <div className="rounded-2xl shadow-sm p-4" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid #C8E6D4' }}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[13px] font-black uppercase tracking-wider" style={{ color: '#2D6A4F' }}>Live Missions</span>
-            {liveMissions.length > 0 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{liveMissions.length} active</span>
-            )}
-          </div>
-          <Link href="/digital-twin/viewer" className="text-[10px] font-semibold text-sky-600 hover:text-sky-800 transition-colors">View Twin →</Link>
-        </div>
-        {liveMissions.length === 0 ? (
-          <p className="text-[12px] text-slate-400 py-2">No active missions right now.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {liveMissions.map(m => (
-              <Link key={m.mission_id}
-                href={`/digital-twin/viewer?missionId=${m.mission_id}&assetId=${m.asset_id}`}
-                className="flex items-center justify-between p-2 rounded-xl hover:bg-emerald-50 transition-colors group"
-                style={{ border: '1px solid #E8F5E9' }}>
-                <div className="min-w-0">
-                  <p className="text-[12px] font-bold text-slate-800 truncate">{m.mission_name}</p>
-                  <p className="text-[10px] text-slate-400">{m.drone_model ?? 'Drone'} · {m.status.replace('_', ' ')}</p>
-                </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  {m.telemetry?.battery_pct != null && (
-                    <span className="text-[10px] font-semibold text-slate-500">{Math.round(m.telemetry.battery_pct)}%</span>
-                  )}
-                  <span className="text-[10px] font-bold text-slate-500">{m.photos_uploaded}/{m.total_photos} <span className="text-slate-300">photos</span></span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ── 3 Shortcut Cards ── */}

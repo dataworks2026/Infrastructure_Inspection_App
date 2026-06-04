@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-[24px] font-black mb-1" style={{ color: TEAL }}>
-            Predictive Analytics
+            Analytics
           </h1>
           <p className="text-[13px] text-[#6B9A87]">
             Assets ranked by deterioration rate, anomaly flags, and
@@ -213,7 +213,7 @@ function EmptyState({
     <div className="p-8">
       <div className="mb-6">
         <h1 className="text-[24px] font-black mb-1" style={{ color: TEAL }}>
-          Predictive Analytics
+          Analytics
         </h1>
         <p className="text-[13px] text-[#6B9A87]">
           Assets ranked by deterioration rate, anomaly flags, and
