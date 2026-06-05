@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.database import engine, Base
 from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
-from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive
+from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive, reports
 from app.routers import drones, fleet, pilots, geofences, alerts, mission_records
 import app.models  # noqa: F401
 
@@ -72,6 +72,7 @@ app.include_router(flight_logs.router, prefix="/api/v1/flight-logs", tags=["flig
 app.include_router(odm.router, prefix="/api/v1/odm", tags=["odm"])
 app.include_router(thermal.router, prefix="/api/v1/thermal", tags=["thermal"])
 app.include_router(predictive.router, prefix="/api/v1/predictive", tags=["predictive"])
+app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
 
 # ── Phase D: GCS fleet, drone, pilot, geofence, alert, mission record ─────────
 app.include_router(drones.router, prefix="/api/v1/drones", tags=["drones"])
