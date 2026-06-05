@@ -139,6 +139,67 @@ export const flightLogsApi = {
     api.get(`/flight-logs/mission/${missionId}/export`, { responseType: 'blob' }).then(r => r.data),
 };
 
+// Reports (inspection PDF + JSON preview)
+export interface ReportNarrative {
+  executive_summary: string;
+  technical_findings: string;
+  risk_assessment: 'critical' | 'high' | 'medium' | 'low';
+  risk_score: number;
+  recommendations: { action: string; rationale: string }[];
+  confidence_note: string | null;
+}
+
+export interface ReportMatrixRow {
+  code: string; label: string;
+  minor: number; moderate: number; advanced: number; severe: number; total: number;
+}
+
+export interface ReportImageFinding {
+  image_id: string; image_filename: string;
+  detections: { damage_code: string; severity_label: string; segment: string }[];
+}
+
+export interface ReportPreview {
+  metadata: {
+    organization_name: string; asset_name: string; location_name: string;
+    infrastructure_type: string; inspection_date: string;
+    inspection_type: string; inspection_method: string;
+    inspector_name: string; total_images: number; status: string;
+    inspection_id: string;
+  };
+  summary: {
+    total_detections: number; total_images: number;
+    matrix: ReportMatrixRow[];
+    column_totals: { minor: number; moderate: number; advanced: number; severe: number; total: number };
+  };
+  image_findings: ReportImageFinding[];
+  narrative: ReportNarrative;
+  metrics: {
+    total_detections: number;
+    overall_risk_score: number;
+    high_severity_count: number;
+    high_severity_pct: number;
+    avg_confidence: number;
+    top_3_defects: [string, number][];
+    image_count: number;
+  };
+}
+
+export const reportsApi = {
+  preview: (inspectionId: string) =>
+    api.get<ReportPreview>(`/reports/inspections/${inspectionId}/preview`).then(r => r.data),
+  pdfUrl: (inspectionId: string) =>
+    `/api/v1/reports/inspections/${inspectionId}/pdf`,
+  downloadPdf: async (inspectionId: string, filename = 'inspection-report.pdf') => {
+    const res = await api.get(`/reports/inspections/${inspectionId}/pdf`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+};
+
 export default api;
 
 // ── GCS types (inline — avoids circular dep with types/index.ts) ──────
