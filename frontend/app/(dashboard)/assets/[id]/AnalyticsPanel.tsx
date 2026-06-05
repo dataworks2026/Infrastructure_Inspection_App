@@ -69,7 +69,7 @@ export default function AnalyticsPanel({ assetId }: { assetId: string }) {
       <Card>
         <PanelHeader />
         <p className="text-[13px] text-[#6B9A87]">
-          Predictive analytics not available for this asset yet.{' '}
+          Analytics not available for this asset yet.{' '}
           <Link href="/analytics" className="text-sky-600 hover:underline font-medium">
             Run an analysis →
           </Link>
@@ -114,7 +114,7 @@ export default function AnalyticsPanel({ assetId }: { assetId: string }) {
           : "grid grid-cols-1 sm:grid-cols-3 gap-5"
       }>
         {/* 1. Priority */}
-        <Section label="Priority">
+        <Section label="Priority Score">
           <div className="flex items-baseline gap-2">
             <span className="text-[40px] font-black leading-none tabular-nums" style={{ color: TEAL }}>
               {data.priority_score.toFixed(1)}
@@ -244,7 +244,7 @@ function ForecastSection({ data }: { data: PredictiveAssetResult }) {
       style={{ borderColor: '#E2EDE8' }}
     >
       <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#6B9A87] mb-4">
-        Forecast — Next Inspection
+        Forecast
       </p>
 
       {/* Locked-at-critical banner — shown when asset is at S4 and staying there */}
@@ -480,7 +480,7 @@ function PanelHeader() {
   return (
     <div className="flex items-center justify-between mb-4">
       <h2 className="text-base font-semibold text-slate-700 uppercase tracking-wider">
-        Predictive Analytics
+        Analytics
       </h2>
       <Link
         href="/analytics"

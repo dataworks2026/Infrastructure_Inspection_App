@@ -241,7 +241,7 @@ function EmptyState({
           No analytics runs yet
         </h2>
         <p className="text-[13px] text-[#6B9A87] mb-5 max-w-sm">
-          Click Run Analysis to generate your first predictive report.
+          Click Run Analysis to generate your first analytics report.
           The engine will score every completed inspection in your
           organization.
         </p>
