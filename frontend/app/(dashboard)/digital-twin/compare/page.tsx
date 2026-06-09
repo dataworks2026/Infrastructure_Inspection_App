@@ -3,9 +3,9 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, GitCompareArrows, CalendarDays, AlertTriangle, CheckCircle, ArrowRight, Building2, TrendingDown, TrendingUp, Minus } from 'lucide-react';
-import { assetsApi, inspectionsApi } from '@/lib/api';
-import type { Inspection } from '@/types';
+import { ArrowLeft, GitCompareArrows, CalendarDays, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Building2, TrendingDown, TrendingUp, Minus, ImageIcon } from 'lucide-react';
+import { assetsApi, inspectionsApi, imagesApi } from '@/lib/api';
+import type { Inspection, ImageRecord } from '@/types';
 
 function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent }: {
   beforeLabel: string;
@@ -70,37 +70,35 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
   );
 }
 
-function InspectionCard({ insp, tint }: { insp: Inspection; tint: string }) {
+function PhotoCard({ url, insp }: { url: string | null; insp: Inspection }) {
   const date = insp.inspected_at || insp.created_at;
   return (
-    <div className="relative w-full h-full"
-      style={{ background: `linear-gradient(135deg, ${tint}18 0%, #0f172a 100%)` }}>
-      {/* Subtle center icon — decorative only */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-10">
-        <CalendarDays size={96} style={{ color: tint }} />
-      </div>
+    <div className="relative w-full h-full bg-slate-900">
+      {url ? (
+        <img
+          src={url}
+          alt={insp.name}
+          className="w-full h-full object-cover"
+          draggable={false}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center opacity-30">
+          <ImageIcon size={48} className="text-slate-400" />
+        </div>
+      )}
       {/* Info bar pinned to bottom */}
-      <div className="absolute bottom-0 left-0 right-0 px-5 py-4"
-        style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.95) 70%, transparent)' }}>
-        <p className="text-white font-bold text-base leading-tight truncate">{insp.name}</p>
-        <p className="text-slate-300 text-sm mt-0.5">
+      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 pointer-events-none"
+        style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.92) 60%, transparent)' }}>
+        <p className="text-white font-bold text-sm leading-tight truncate">{insp.name}</p>
+        <p className="text-slate-300 text-xs mt-0.5">
           {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-slate-400 text-xs">{insp.image_count} image{insp.image_count !== 1 ? 's' : ''}</span>
-          <span className="text-slate-600 text-xs">·</span>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-            insp.status === 'completed' ? 'bg-emerald-900/60 text-emerald-400' :
-            insp.status === 'pending'   ? 'bg-amber-900/60 text-amber-400' :
-            'bg-slate-700 text-slate-400'
-          }`}>{insp.status}</span>
-        </div>
       </div>
     </div>
   );
 }
 
-function EmptyCard({ label }: { label: string; tint: string }) {
+function EmptyCard({ label }: { label: string }) {
   return (
     <div className="relative w-full h-full flex items-center justify-center"
       style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' }}>
@@ -118,6 +116,7 @@ export default function ComparePage() {
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
   const [beforeIdx, setBeforeIdx] = useState<number>(0);
   const [afterIdx, setAfterIdx] = useState<number>(1);
+  const [pairIdx, setPairIdx] = useState<number>(0);
 
   const { data: assets = [] } = useQuery({
     queryKey: ['assets'],
@@ -138,6 +137,26 @@ export default function ComparePage() {
 
   const before = sorted[beforeIdx] ?? null;
   const after  = sorted[afterIdx]  ?? null;
+
+  // Fetch images for both selected inspections
+  const { data: beforeImages = [] } = useQuery({
+    queryKey: ['images', before?.id],
+    queryFn: () => imagesApi.list(before!.id),
+    enabled: !!before?.id,
+  });
+
+  const { data: afterImages = [] } = useQuery({
+    queryKey: ['images', after?.id],
+    queryFn: () => imagesApi.list(after!.id),
+    enabled: !!after?.id,
+  });
+
+  // Reset pair index when inspections change
+  const totalPairs = Math.max(beforeImages.length, afterImages.length);
+  const safePairIdx = Math.min(pairIdx, Math.max(0, totalPairs - 1));
+
+  const beforeUrl = (beforeImages as ImageRecord[])[safePairIdx]?.url ?? null;
+  const afterUrl  = (afterImages  as ImageRecord[])[safePairIdx]?.url ?? null;
 
   const diff = useMemo(() => {
     if (!before || !after) return null;
@@ -174,7 +193,7 @@ export default function ComparePage() {
             <Building2 size={15} className="text-slate-400" />
             <select
               value={selectedAssetId}
-              onChange={e => { setSelectedAssetId(e.target.value); setBeforeIdx(0); setAfterIdx(1); }}
+              onChange={e => { setSelectedAssetId(e.target.value); setBeforeIdx(0); setAfterIdx(1); setPairIdx(0); }}
               className="text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:border-violet-400 focus:outline-none">
               <option value="">— Select Asset —</option>
               {(assets as any[]).map((a: any) => (
@@ -203,16 +222,40 @@ export default function ComparePage() {
                 </p>
               </div>
             ) : (
-              <ComparisonSlider
-                beforeLabel={before ? new Date(before.inspected_at || before.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
-                afterLabel={after ? new Date(after.inspected_at || after.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
-                beforeContent={before
-                  ? <InspectionCard insp={before} tint="#6366f1" />
-                  : <EmptyCard label="Select before" tint="#6366f1" />}
-                afterContent={after
-                  ? <InspectionCard insp={after} tint="#0ea5e9" />
-                  : <EmptyCard label="Select after" tint="#0ea5e9" />}
-              />
+              <div className="relative w-full h-full">
+                <ComparisonSlider
+                  beforeLabel={before ? new Date(before.inspected_at || before.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
+                  afterLabel={after ? new Date(after.inspected_at || after.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
+                  beforeContent={before
+                    ? <PhotoCard url={beforeUrl} insp={before} />
+                    : <EmptyCard label="Select before" />}
+                  afterContent={after
+                    ? <PhotoCard url={afterUrl} insp={after} />
+                    : <EmptyCard label="Select after" />}
+                />
+                {/* Image pair navigation */}
+                {totalPairs > 1 && (
+                  <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-700">
+                    <button
+                      onClick={() => setPairIdx(i => Math.max(0, i - 1))}
+                      disabled={safePairIdx === 0}
+                      className="text-white disabled:opacity-30 hover:text-sky-400 transition-colors"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <span className="text-white text-xs font-bold tabular-nums">
+                      Image {safePairIdx + 1} / {totalPairs}
+                    </span>
+                    <button
+                      onClick={() => setPairIdx(i => Math.min(totalPairs - 1, i + 1))}
+                      disabled={safePairIdx === totalPairs - 1}
+                      className="text-white disabled:opacity-30 hover:text-sky-400 transition-colors"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -227,7 +270,9 @@ export default function ComparePage() {
                 <div>
                   <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">Before</label>
                   <select value={beforeIdx} onChange={e => setBeforeIdx(Number(e.target.value))}
-                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-indigo-400 focus:outline-none">
+                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-indigo-400 focus:outline-none"
+                    onChange={e => { setBeforeIdx(Number(e.target.value)); setPairIdx(0); }}
+                  >
                     {sorted.map((insp, i) => (
                       <option key={insp.id} value={i} disabled={i === afterIdx}>
                         {new Date(insp.inspected_at || insp.created_at).toLocaleDateString()} — {insp.name}
@@ -238,7 +283,9 @@ export default function ComparePage() {
                 <div>
                   <label className="text-[10px] font-semibold text-sky-600 uppercase tracking-wider block mb-1">After</label>
                   <select value={afterIdx} onChange={e => setAfterIdx(Number(e.target.value))}
-                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-sky-400 focus:outline-none">
+                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-sky-400 focus:outline-none"
+                    onChange={e => { setAfterIdx(Number(e.target.value)); setPairIdx(0); }}
+                  >
                     {sorted.map((insp, i) => (
                       <option key={insp.id} value={i} disabled={i === beforeIdx}>
                         {new Date(insp.inspected_at || insp.created_at).toLocaleDateString()} — {insp.name}
