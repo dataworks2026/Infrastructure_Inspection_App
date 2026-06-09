@@ -3,10 +3,15 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, GitCompareArrows, CalendarDays, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Building2, TrendingDown, TrendingUp, Minus, ImageIcon } from 'lucide-react';
+import {
+  ArrowLeft, GitCompareArrows, CalendarDays, AlertTriangle, CheckCircle,
+  ChevronLeft, ChevronRight, Building2, TrendingDown, TrendingUp, Minus,
+  ImageIcon, ScanSearch, X, Check,
+} from 'lucide-react';
 import { assetsApi, inspectionsApi, imagesApi } from '@/lib/api';
 import type { Inspection, ImageRecord } from '@/types';
 
+// ── Comparison Slider ──────────────────────────────────────────────────────
 function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent }: {
   beforeLabel: string;
   afterLabel: string;
@@ -25,7 +30,7 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
   }, []);
 
   const handleMouseDown = () => { isDragging.current = true; };
-  const handleMouseUp = () => { isDragging.current = false; };
+  const handleMouseUp   = () => { isDragging.current = false; };
   const handleMouseMove = (e: React.MouseEvent) => { if (isDragging.current) handleMove(e.clientX); };
   const handleTouchMove = (e: React.TouchEvent) => { handleMove(e.touches[0].clientX); };
 
@@ -47,9 +52,13 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
         {beforeContent}
       </div>
 
-      {/* Slider line */}
-      <div className="absolute top-0 bottom-0 z-10" style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)' }}
-        onMouseDown={handleMouseDown} onTouchStart={handleMouseDown}>
+      {/* Slider line + handle */}
+      <div
+        className="absolute top-0 bottom-0 z-10"
+        style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)' }}
+        onMouseDown={handleMouseDown}
+        onTouchStart={handleMouseDown}
+      >
         <div className="w-0.5 h-full bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
         <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-white shadow-xl flex items-center justify-center cursor-col-resize">
           <div className="flex items-center gap-0.5">
@@ -70,29 +79,116 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
   );
 }
 
-function PhotoCard({ url, insp }: { url: string | null; insp: Inspection }) {
+// ── Photo Card ──────────────────────────────────────────────────────────────
+function PhotoCard({
+  url, insp, onPickMatch, isPaired,
+}: {
+  url: string | null;
+  insp: Inspection;
+  onPickMatch?: () => void;
+  isPaired?: boolean;
+}) {
   const date = insp.inspected_at || insp.created_at;
   return (
     <div className="relative w-full h-full bg-slate-900">
       {url ? (
-        <img
-          src={url}
-          alt={insp.name}
-          className="w-full h-full object-cover"
-          draggable={false}
-        />
+        <img src={url} alt={insp.name} className="w-full h-full object-cover" draggable={false} />
       ) : (
         <div className="w-full h-full flex items-center justify-center opacity-30">
           <ImageIcon size={48} className="text-slate-400" />
         </div>
       )}
-      {/* Info bar pinned to bottom */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 pointer-events-none"
-        style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.92) 60%, transparent)' }}>
+
+      {/* Pick match button — shown on the before (left) side only */}
+      {onPickMatch && (
+        <button
+          onClick={onPickMatch}
+          className="absolute top-14 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg transition-colors"
+          style={{
+            background: isPaired ? 'rgba(16,185,129,0.85)' : 'rgba(99,102,241,0.85)',
+            color: 'white',
+            backdropFilter: 'blur(6px)',
+            border: isPaired ? '1px solid rgba(52,211,153,0.5)' : '1px solid rgba(165,180,252,0.4)',
+          }}
+        >
+          {isPaired ? <Check size={12} /> : <ScanSearch size={12} />}
+          {isPaired ? 'Matched' : 'Pick match'}
+        </button>
+      )}
+
+      {/* Info bar */}
+      <div
+        className="absolute bottom-0 left-0 right-0 px-4 py-3 pointer-events-none"
+        style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.92) 60%, transparent)' }}
+      >
         <p className="text-white font-bold text-sm leading-tight truncate">{insp.name}</p>
         <p className="text-slate-300 text-xs mt-0.5">
           {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Thumbnail Picker Overlay ────────────────────────────────────────────────
+function ThumbnailPicker({
+  images,
+  currentIdx,
+  onSelect,
+  onClose,
+  inspectionName,
+}: {
+  images: ImageRecord[];
+  currentIdx: number;
+  onSelect: (idx: number) => void;
+  onClose: () => void;
+  inspectionName: string;
+}) {
+  return (
+    <div
+      className="absolute inset-0 z-30 flex flex-col"
+      style={{ background: 'rgba(2,6,23,0.95)', backdropFilter: 'blur(8px)' }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700 flex-shrink-0">
+        <div>
+          <p className="text-white font-bold text-sm">Pick matching image</p>
+          <p className="text-slate-400 text-xs mt-0.5">{inspectionName} · {images.length} images</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Grid */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="grid grid-cols-4 gap-2">
+          {images.map((img, i) => (
+            <button
+              key={img.id}
+              onClick={() => { onSelect(i); onClose(); }}
+              className="relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover:opacity-90"
+              style={{
+                borderColor: i === currentIdx ? '#6366f1' : 'transparent',
+                outline: i === currentIdx ? '2px solid rgba(99,102,241,0.4)' : 'none',
+              }}
+            >
+              <img src={img.url} alt={img.filename} className="w-full h-full object-cover" draggable={false} />
+              {i === currentIdx && (
+                <div className="absolute inset-0 flex items-center justify-center bg-indigo-600/30">
+                  <Check size={20} className="text-white drop-shadow" />
+                </div>
+              )}
+              <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1"
+                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}>
+                <p className="text-white text-[9px] font-medium truncate">{i + 1}</p>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -112,11 +208,15 @@ function EmptyCard({ label }: { label: string }) {
   );
 }
 
+// ── Main Page ───────────────────────────────────────────────────────────────
 export default function ComparePage() {
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
-  const [beforeIdx, setBeforeIdx] = useState<number>(0);
-  const [afterIdx, setAfterIdx] = useState<number>(1);
-  const [pairIdx, setPairIdx] = useState<number>(0);
+  const [beforeIdx, setBeforeIdx]             = useState<number>(0);
+  const [afterIdx, setAfterIdx]               = useState<number>(1);
+  const [pairIdx, setPairIdx]                 = useState<number>(0);
+  // Maps afterImageIndex → beforeImageIndex (user-defined matches)
+  const [pairMappings, setPairMappings]       = useState<Record<number, number>>({});
+  const [showPicker, setShowPicker]           = useState(false);
 
   const { data: assets = [] } = useQuery({
     queryKey: ['assets'],
@@ -138,7 +238,6 @@ export default function ComparePage() {
   const before = sorted[beforeIdx] ?? null;
   const after  = sorted[afterIdx]  ?? null;
 
-  // Fetch images for both selected inspections
   const { data: beforeImages = [] } = useQuery({
     queryKey: ['images', before?.id],
     queryFn: () => imagesApi.list(before!.id),
@@ -151,12 +250,20 @@ export default function ComparePage() {
     enabled: !!after?.id,
   });
 
-  // Reset pair index when inspections change
-  const totalPairs = Math.max(beforeImages.length, afterImages.length);
-  const safePairIdx = Math.min(pairIdx, Math.max(0, totalPairs - 1));
+  // Navigation is capped to the smaller set (after images = 6)
+  const totalPairs   = Math.min(
+    (beforeImages as ImageRecord[]).length,
+    (afterImages  as ImageRecord[]).length,
+  ) || 0;
+  const safePairIdx  = Math.min(pairIdx, Math.max(0, totalPairs - 1));
 
-  const beforeUrl = (beforeImages as ImageRecord[])[safePairIdx]?.url ?? null;
-  const afterUrl  = (afterImages  as ImageRecord[])[safePairIdx]?.url ?? null;
+  // After image: sequential
+  const afterUrl = (afterImages as ImageRecord[])[safePairIdx]?.url ?? null;
+
+  // Before image: use user-defined mapping if set, otherwise same index
+  const mappedBeforeIdx = pairMappings[safePairIdx] ?? safePairIdx;
+  const beforeUrl = (beforeImages as ImageRecord[])[mappedBeforeIdx]?.url ?? null;
+  const isPaired  = pairMappings[safePairIdx] !== undefined;
 
   const diff = useMemo(() => {
     if (!before || !after) return null;
@@ -164,7 +271,13 @@ export default function ComparePage() {
     return { delta, worsened: delta > 0, stable: delta === 0, improved: delta < 0 };
   }, [before, after]);
 
-  const selectedAsset = assets.find((a: any) => a.id === selectedAssetId);
+  function resetSelections(assetId: string) {
+    setSelectedAssetId(assetId);
+    setBeforeIdx(0);
+    setAfterIdx(1);
+    setPairIdx(0);
+    setPairMappings({});
+  }
 
   return (
     <div className="h-[calc(100vh-48px)] flex flex-col -m-6">
@@ -188,13 +301,13 @@ export default function ComparePage() {
             </div>
           </div>
 
-          {/* Asset selector */}
           <div className="flex items-center gap-2">
             <Building2 size={15} className="text-slate-400" />
             <select
               value={selectedAssetId}
-              onChange={e => { setSelectedAssetId(e.target.value); setBeforeIdx(0); setAfterIdx(1); setPairIdx(0); }}
-              className="text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:border-violet-400 focus:outline-none">
+              onChange={e => resetSelections(e.target.value)}
+              className="text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:border-violet-400 focus:outline-none"
+            >
               <option value="">— Select Asset —</option>
               {(assets as any[]).map((a: any) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
@@ -208,7 +321,7 @@ export default function ComparePage() {
       <div className="flex-1 flex min-h-0">
         {/* Comparison viewer */}
         <div className="flex-1 p-4">
-          <div className="w-full h-full bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-700/50">
+          <div className="w-full h-full bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-700/50 relative">
             {!selectedAssetId ? (
               <div className="w-full h-full flex flex-col items-center justify-center gap-4">
                 <Building2 size={40} className="text-slate-600" />
@@ -222,20 +335,37 @@ export default function ComparePage() {
                 </p>
               </div>
             ) : (
-              <div className="relative w-full h-full">
+              <>
                 <ComparisonSlider
                   beforeLabel={before ? new Date(before.inspected_at || before.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
-                  afterLabel={after ? new Date(after.inspected_at || after.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
+                  afterLabel={after  ? new Date(after.inspected_at  || after.created_at ).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                   beforeContent={before
-                    ? <PhotoCard url={beforeUrl} insp={before} />
+                    ? <PhotoCard
+                        url={beforeUrl}
+                        insp={before}
+                        onPickMatch={() => setShowPicker(true)}
+                        isPaired={isPaired}
+                      />
                     : <EmptyCard label="Select before" />}
                   afterContent={after
                     ? <PhotoCard url={afterUrl} insp={after} />
                     : <EmptyCard label="Select after" />}
                 />
+
+                {/* Thumbnail picker overlay */}
+                {showPicker && (
+                  <ThumbnailPicker
+                    images={beforeImages as ImageRecord[]}
+                    currentIdx={mappedBeforeIdx}
+                    onSelect={idx => setPairMappings(m => ({ ...m, [safePairIdx]: idx }))}
+                    onClose={() => setShowPicker(false)}
+                    inspectionName={before?.name ?? ''}
+                  />
+                )}
+
                 {/* Image pair navigation */}
-                {totalPairs > 1 && (
-                  <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-700">
+                {totalPairs > 0 && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-slate-900/85 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-700">
                     <button
                       onClick={() => setPairIdx(i => Math.max(0, i - 1))}
                       disabled={safePairIdx === 0}
@@ -255,7 +385,7 @@ export default function ComparePage() {
                     </button>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -269,9 +399,10 @@ export default function ComparePage() {
                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em]">Select Inspections</h3>
                 <div>
                   <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">Before</label>
-                  <select value={beforeIdx} onChange={e => setBeforeIdx(Number(e.target.value))}
+                  <select
+                    value={beforeIdx}
+                    onChange={e => { setBeforeIdx(Number(e.target.value)); setPairIdx(0); setPairMappings({}); }}
                     className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-indigo-400 focus:outline-none"
-                    onChange={e => { setBeforeIdx(Number(e.target.value)); setPairIdx(0); }}
                   >
                     {sorted.map((insp, i) => (
                       <option key={insp.id} value={i} disabled={i === afterIdx}>
@@ -282,9 +413,10 @@ export default function ComparePage() {
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-sky-600 uppercase tracking-wider block mb-1">After</label>
-                  <select value={afterIdx} onChange={e => setAfterIdx(Number(e.target.value))}
+                  <select
+                    value={afterIdx}
+                    onChange={e => { setAfterIdx(Number(e.target.value)); setPairIdx(0); setPairMappings({}); }}
                     className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-sky-400 focus:outline-none"
-                    onChange={e => { setAfterIdx(Number(e.target.value)); setPairIdx(0); }}
                   >
                     {sorted.map((insp, i) => (
                       <option key={insp.id} value={i} disabled={i === beforeIdx}>
@@ -295,6 +427,37 @@ export default function ComparePage() {
                 </div>
               </div>
 
+              {/* Pair progress */}
+              {totalPairs > 0 && (
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">Matched Pairs</h3>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {Array.from({ length: totalPairs }, (_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setPairIdx(i)}
+                        className="w-7 h-7 rounded-lg text-[10px] font-bold transition-all"
+                        style={{
+                          background: i === safePairIdx
+                            ? '#6366f1'
+                            : pairMappings[i] !== undefined
+                              ? '#10b981'
+                              : '#f1f5f9',
+                          color: i === safePairIdx || pairMappings[i] !== undefined ? 'white' : '#94a3b8',
+                          border: i === safePairIdx ? '2px solid #818cf8' : '2px solid transparent',
+                        }}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    {Object.keys(pairMappings).length}/{totalPairs} matched ·{' '}
+                    <span className="text-indigo-500">Click left side "Pick match"</span>
+                  </p>
+                </div>
+              )}
+
               {/* All inspections list */}
               <div className="px-4 py-3 border-b border-slate-100">
                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">All Inspections ({sorted.length})</h3>
@@ -302,8 +465,8 @@ export default function ComparePage() {
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {sorted.map((insp, i) => {
                   const isBefore = i === beforeIdx;
-                  const isAfter = i === afterIdx;
-                  const date = insp.inspected_at || insp.created_at;
+                  const isAfter  = i === afterIdx;
+                  const date     = insp.inspected_at || insp.created_at;
                   return (
                     <div key={insp.id}
                       className={`p-3 rounded-xl border transition-all ${
@@ -315,7 +478,7 @@ export default function ComparePage() {
                         <p className="text-[12px] font-semibold text-slate-700 flex-1">{insp.name}</p>
                         <div className="flex gap-1 ml-1">
                           {isBefore && <span className="text-[8px] font-bold bg-indigo-500 text-white px-1.5 py-0.5 rounded">B</span>}
-                          {isAfter  && <span className="text-[8px] font-bold bg-sky-500 text-white px-1.5 py-0.5 rounded">A</span>}
+                          {isAfter  && <span className="text-[8px] font-bold bg-sky-500    text-white px-1.5 py-0.5 rounded">A</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
@@ -351,7 +514,7 @@ export default function ComparePage() {
                     <div className="flex items-center gap-2 text-[11px]">
                       {diff.worsened
                         ? <AlertTriangle size={13} className="text-amber-500" />
-                        : <CheckCircle size={13} className="text-emerald-500" />}
+                        : <CheckCircle   size={13} className="text-emerald-500" />}
                       <span className="text-slate-600">
                         {diff.worsened ? 'Potential progression' : diff.improved ? 'Improvement' : 'Stable'}
                       </span>
