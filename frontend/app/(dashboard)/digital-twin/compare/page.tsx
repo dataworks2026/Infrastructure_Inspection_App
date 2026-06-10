@@ -358,7 +358,7 @@ export default function ComparePage() {
   const [pairIdx, setPairIdx]                 = useState<number>(0);
   const [pairMappings, setPairMappings]       = useState<Record<number, number>>({});
   const [showPicker, setShowPicker]           = useState(false);
-  const showAnnotated = true;
+  const showAnnotated = false;
 
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
 
