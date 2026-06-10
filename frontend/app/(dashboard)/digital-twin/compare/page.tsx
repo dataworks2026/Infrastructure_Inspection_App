@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -88,6 +88,83 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
   );
 }
 
+// ── Canvas bbox overlay ────────────────────────────────────────────────────
+function BboxCanvas({ detections, imgRef }: {
+  detections: any[];
+  imgRef: React.RefObject<HTMLImageElement | null>;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const img    = imgRef.current;
+    if (!canvas || !img || !img.complete || img.naturalWidth === 0) return;
+
+    const dispW = img.offsetWidth;
+    const dispH = img.offsetHeight;
+    canvas.width  = dispW;
+    canvas.height = dispH;
+
+    const scaleX = dispW / img.naturalWidth;
+    const scaleY = dispH / img.naturalHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, dispW, dispH);
+
+    for (const det of detections) {
+      const color = SEV_COLOR[det.severity] ?? '#6B7280';
+      const x1 = det.bbox.x1 * scaleX;
+      const y1 = det.bbox.y1 * scaleY;
+      const x2 = det.bbox.x2 * scaleX;
+      const y2 = det.bbox.y2 * scaleY;
+      const w  = x2 - x1;
+      const h  = y2 - y1;
+
+      // Box border
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 2;
+      ctx.strokeRect(x1, y1, w, h);
+
+      // Semi-transparent fill
+      ctx.fillStyle = `${color}22`;
+      ctx.fillRect(x1, y1, w, h);
+
+      // Label: severity + damage type, no confidence
+      const label = `${det.severity}  ${det.damage_type}`;
+      const pad   = 4;
+      const fSize = Math.max(10, Math.min(13, dispW / 80));
+      ctx.font = `bold ${fSize}px sans-serif`;
+      const textW = ctx.measureText(label).width;
+      const labelH = fSize + pad * 2;
+      const lx = x1;
+      const ly = y1 - labelH < 0 ? y1 : y1 - labelH;
+
+      ctx.fillStyle = color;
+      ctx.fillRect(lx, ly, textW + pad * 2, labelH);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, lx + pad, ly + fSize + pad * 0.5);
+    }
+  }, [detections, imgRef]);
+
+  // Redraw when detections or image change
+  useLayoutEffect(() => { draw(); }, [draw]);
+
+  // Also redraw on window resize
+  useEffect(() => {
+    window.addEventListener('resize', draw);
+    return () => window.removeEventListener('resize', draw);
+  }, [draw]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 pointer-events-none"
+      style={{ zIndex: 5 }}
+    />
+  );
+}
+
 // ── Annotated Photo Card ────────────────────────────────────────────────────
 function PhotoCard({
   imageId, url, insp, showAnnotated, onPickMatch, isPaired,
@@ -99,7 +176,9 @@ function PhotoCard({
   onPickMatch?: () => void;
   isPaired?: boolean;
 }) {
-  const date = insp.inspected_at || insp.created_at;
+  const date   = insp.inspected_at || insp.created_at;
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const { data: detData } = useQuery({
     queryKey: ['detections', imageId],
@@ -108,16 +187,24 @@ function PhotoCard({
     staleTime: Infinity,
   });
 
-  const annotatedUrl: string | null = (detData as any)?.annotated_image_url
-    ? `${(detData as any).annotated_image_url}`
-    : null;
-
-  const displayUrl = showAnnotated && annotatedUrl ? annotatedUrl : url;
+  const detections: any[] = (detData as any)?.detections ?? [];
 
   return (
     <div className="relative w-full h-full bg-slate-900">
-      {displayUrl ? (
-        <img src={displayUrl} alt={insp.name} className="w-full h-full object-cover" draggable={false} />
+      {url ? (
+        <>
+          <img
+            ref={imgRef}
+            src={url}
+            alt={insp.name}
+            className="w-full h-full object-cover"
+            draggable={false}
+            onLoad={() => setImgLoaded(true)}
+          />
+          {showAnnotated && imgLoaded && detections.length > 0 && (
+            <BboxCanvas detections={detections} imgRef={imgRef} />
+          )}
+        </>
       ) : (
         <div className="w-full h-full flex items-center justify-center opacity-30">
           <ImageIcon size={48} className="text-slate-400" />
@@ -144,24 +231,24 @@ function PhotoCard({
       {/* Info bar */}
       <div
         className="absolute bottom-0 left-0 right-0 px-4 py-3 pointer-events-none"
-        style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.92) 60%, transparent)' }}
+        style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.92) 60%, transparent)', zIndex: 6 }}
       >
         <p className="text-white font-bold text-sm leading-tight truncate">{insp.name}</p>
         <p className="text-slate-300 text-xs mt-0.5">
           {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
-        {showAnnotated && annotatedUrl && (
-          <div className="flex items-center gap-1.5 mt-1">
+        {showAnnotated && detections.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <Scan size={10} className="text-emerald-400" />
-            <span className="text-emerald-400 text-[10px] font-semibold">AI annotated</span>
-            {(detData as any)?.detections?.map((d: any, i: number) => (
+            <span className="text-emerald-400 text-[10px] font-semibold">{detections.length} detection{detections.length !== 1 ? 's' : ''}</span>
+            {detections.slice(0, 3).map((d: any, i: number) => (
               <span key={i}
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ background: `${SEV_COLOR[d.severity] ?? '#6B7280'}30`, color: SEV_COLOR[d.severity] ?? '#6B7280' }}
               >
-                {d.severity} {d.damage_type}
+                {d.severity} · {d.damage_type}
               </span>
-            )).slice(0, 2)}
+            ))}
           </div>
         )}
       </div>
