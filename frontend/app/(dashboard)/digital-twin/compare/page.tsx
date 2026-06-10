@@ -57,8 +57,12 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
       onTouchMove={e => handleMove(e.touches[0].clientX)}
       onTouchEnd={() => { isDragging.current = false; }}
     >
-      <div className="absolute inset-0">{afterContent}</div>
-      <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
+      {/* After: right side only — clip prevents canvas from bleeding into before area */}
+      <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${sliderPos}%)` }}>
+        {afterContent}
+      </div>
+      {/* Before: left side only */}
+      <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
         {beforeContent}
       </div>
 
@@ -105,8 +109,21 @@ function BboxCanvas({ detections, imgRef }: {
     canvas.width  = dispW;
     canvas.height = dispH;
 
-    const scaleX = dispW / img.naturalWidth;
-    const scaleY = dispH / img.naturalHeight;
+    // object-cover uses uniform scale + centering — compute the same transform
+    const containerAR = dispW / dispH;
+    const imageAR     = img.naturalWidth / img.naturalHeight;
+    let scale: number, offX: number, offY: number;
+    if (imageAR > containerAR) {
+      // Image wider than container → fit height, crop left/right
+      scale = dispH / img.naturalHeight;
+      offX  = (dispW - img.naturalWidth * scale) / 2;
+      offY  = 0;
+    } else {
+      // Image taller than container → fit width, crop top/bottom
+      scale = dispW / img.naturalWidth;
+      offX  = 0;
+      offY  = (dispH - img.naturalHeight * scale) / 2;
+    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -114,10 +131,10 @@ function BboxCanvas({ detections, imgRef }: {
 
     for (const det of detections) {
       const color = SEV_COLOR[det.severity] ?? '#6B7280';
-      const x1 = det.bbox.x1 * scaleX;
-      const y1 = det.bbox.y1 * scaleY;
-      const x2 = det.bbox.x2 * scaleX;
-      const y2 = det.bbox.y2 * scaleY;
+      const x1 = det.bbox.x1 * scale + offX;
+      const y1 = det.bbox.y1 * scale + offY;
+      const x2 = det.bbox.x2 * scale + offX;
+      const y2 = det.bbox.y2 * scale + offY;
       const w  = x2 - x1;
       const h  = y2 - y1;
 
