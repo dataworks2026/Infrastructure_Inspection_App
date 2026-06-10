@@ -1,15 +1,33 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft, GitCompareArrows, CalendarDays, AlertTriangle, CheckCircle,
   ChevronLeft, ChevronRight, Building2, TrendingDown, TrendingUp, Minus,
-  ImageIcon, ScanSearch, X, Check,
+  ImageIcon, ScanSearch, X, Check, Scan,
 } from 'lucide-react';
-import { assetsApi, inspectionsApi, imagesApi } from '@/lib/api';
+import { assetsApi, inspectionsApi, imagesApi, analysisApi } from '@/lib/api';
 import type { Inspection, ImageRecord } from '@/types';
+
+const SEV_COLOR: Record<string, string> = {
+  S1: '#4CAF50', S2: '#E6A817', S3: '#FF7043', S4: '#B71C1C',
+};
+
+// ── localStorage helpers ────────────────────────────────────────────────────
+function pairsKey(beforeId: string, afterId: string) {
+  return `mira_pairs_${beforeId}_${afterId}`;
+}
+function loadPairs(beforeId: string, afterId: string): Record<number, number> {
+  try {
+    const raw = localStorage.getItem(pairsKey(beforeId, afterId));
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+function savePairs(beforeId: string, afterId: string, pairs: Record<number, number>) {
+  try { localStorage.setItem(pairsKey(beforeId, afterId), JSON.stringify(pairs)); } catch {}
+}
 
 // ── Comparison Slider ──────────────────────────────────────────────────────
 function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent }: {
@@ -29,25 +47,17 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
     setSliderPos((x / rect.width) * 100);
   }, []);
 
-  const handleMouseDown = () => { isDragging.current = true; };
-  const handleMouseUp   = () => { isDragging.current = false; };
-  const handleMouseMove = (e: React.MouseEvent) => { if (isDragging.current) handleMove(e.clientX); };
-  const handleTouchMove = (e: React.TouchEvent) => { handleMove(e.touches[0].clientX); };
-
   return (
     <div
       ref={containerRef}
       className="relative w-full h-full cursor-col-resize select-none overflow-hidden rounded-xl bg-slate-900"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleMouseUp}
+      onMouseMove={e => { if (isDragging.current) handleMove(e.clientX); }}
+      onMouseUp={() => { isDragging.current = false; }}
+      onMouseLeave={() => { isDragging.current = false; }}
+      onTouchMove={e => handleMove(e.touches[0].clientX)}
+      onTouchEnd={() => { isDragging.current = false; }}
     >
-      {/* After (right side — full background) */}
       <div className="absolute inset-0">{afterContent}</div>
-
-      {/* Before (left side — clipped) */}
       <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
         {beforeContent}
       </div>
@@ -56,8 +66,8 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
       <div
         className="absolute top-0 bottom-0 z-10"
         style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)' }}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleMouseDown}
+        onMouseDown={() => { isDragging.current = true; }}
+        onTouchStart={() => { isDragging.current = true; }}
       >
         <div className="w-0.5 h-full bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
         <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-white shadow-xl flex items-center justify-center cursor-col-resize">
@@ -68,38 +78,53 @@ function ComparisonSlider({ beforeLabel, afterLabel, beforeContent, afterContent
         </div>
       </div>
 
-      {/* Labels */}
       <div className="absolute top-4 left-4 z-10">
-        <span className="bg-slate-900/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg">{beforeLabel}</span>
+        <span className="bg-slate-900/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-lg">{beforeLabel}</span>
       </div>
       <div className="absolute top-4 right-4 z-10">
-        <span className="bg-sky-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg">{afterLabel}</span>
+        <span className="bg-sky-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-lg">{afterLabel}</span>
       </div>
     </div>
   );
 }
 
-// ── Photo Card ──────────────────────────────────────────────────────────────
+// ── Annotated Photo Card ────────────────────────────────────────────────────
 function PhotoCard({
-  url, insp, onPickMatch, isPaired,
+  imageId, url, insp, showAnnotated, onPickMatch, isPaired,
 }: {
+  imageId?: string;
   url: string | null;
   insp: Inspection;
+  showAnnotated: boolean;
   onPickMatch?: () => void;
   isPaired?: boolean;
 }) {
   const date = insp.inspected_at || insp.created_at;
+
+  const { data: detData } = useQuery({
+    queryKey: ['detections', imageId],
+    queryFn: () => analysisApi.getDetections(imageId!),
+    enabled: !!imageId && showAnnotated,
+    staleTime: Infinity,
+  });
+
+  const annotatedUrl: string | null = (detData as any)?.annotated_image_url
+    ? `${(detData as any).annotated_image_url}`
+    : null;
+
+  const displayUrl = showAnnotated && annotatedUrl ? annotatedUrl : url;
+
   return (
     <div className="relative w-full h-full bg-slate-900">
-      {url ? (
-        <img src={url} alt={insp.name} className="w-full h-full object-cover" draggable={false} />
+      {displayUrl ? (
+        <img src={displayUrl} alt={insp.name} className="w-full h-full object-cover" draggable={false} />
       ) : (
         <div className="w-full h-full flex items-center justify-center opacity-30">
           <ImageIcon size={48} className="text-slate-400" />
         </div>
       )}
 
-      {/* Pick match button — shown on the before (left) side only */}
+      {/* Pick match button — before side only */}
       {onPickMatch && (
         <button
           onClick={onPickMatch}
@@ -125,6 +150,20 @@ function PhotoCard({
         <p className="text-slate-300 text-xs mt-0.5">
           {new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
+        {showAnnotated && annotatedUrl && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <Scan size={10} className="text-emerald-400" />
+            <span className="text-emerald-400 text-[10px] font-semibold">AI annotated</span>
+            {(detData as any)?.detections?.map((d: any, i: number) => (
+              <span key={i}
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{ background: `${SEV_COLOR[d.severity] ?? '#6B7280'}30`, color: SEV_COLOR[d.severity] ?? '#6B7280' }}
+              >
+                {d.severity} {d.damage_type}
+              </span>
+            )).slice(0, 2)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -132,11 +171,7 @@ function PhotoCard({
 
 // ── Thumbnail Picker Overlay ────────────────────────────────────────────────
 function ThumbnailPicker({
-  images,
-  currentIdx,
-  onSelect,
-  onClose,
-  inspectionName,
+  images, currentIdx, onSelect, onClose, inspectionName,
 }: {
   images: ImageRecord[];
   currentIdx: number;
@@ -149,21 +184,15 @@ function ThumbnailPicker({
       className="absolute inset-0 z-30 flex flex-col"
       style={{ background: 'rgba(2,6,23,0.95)', backdropFilter: 'blur(8px)' }}
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700 flex-shrink-0">
         <div>
           <p className="text-white font-bold text-sm">Pick matching image</p>
           <p className="text-slate-400 text-xs mt-0.5">{inspectionName} · {images.length} images</p>
         </div>
-        <button
-          onClick={onClose}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-        >
+        <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
           <X size={16} />
         </button>
       </div>
-
-      {/* Grid */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="grid grid-cols-4 gap-2">
           {images.map((img, i) => (
@@ -171,10 +200,7 @@ function ThumbnailPicker({
               key={img.id}
               onClick={() => { onSelect(i); onClose(); }}
               className="relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover:opacity-90"
-              style={{
-                borderColor: i === currentIdx ? '#6366f1' : 'transparent',
-                outline: i === currentIdx ? '2px solid rgba(99,102,241,0.4)' : 'none',
-              }}
+              style={{ borderColor: i === currentIdx ? '#6366f1' : 'transparent' }}
             >
               <img src={img.url} alt={img.filename} className="w-full h-full object-cover" draggable={false} />
               {i === currentIdx && (
@@ -184,7 +210,7 @@ function ThumbnailPicker({
               )}
               <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}>
-                <p className="text-white text-[9px] font-medium truncate">{i + 1}</p>
+                <p className="text-white text-[9px] font-medium">{i + 1}</p>
               </div>
             </button>
           ))}
@@ -214,14 +240,11 @@ export default function ComparePage() {
   const [beforeIdx, setBeforeIdx]             = useState<number>(0);
   const [afterIdx, setAfterIdx]               = useState<number>(1);
   const [pairIdx, setPairIdx]                 = useState<number>(0);
-  // Maps afterImageIndex → beforeImageIndex (user-defined matches)
   const [pairMappings, setPairMappings]       = useState<Record<number, number>>({});
   const [showPicker, setShowPicker]           = useState(false);
+  const [showAnnotated, setShowAnnotated]     = useState(false);
 
-  const { data: assets = [] } = useQuery({
-    queryKey: ['assets'],
-    queryFn: () => assetsApi.list(),
-  });
+  const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
 
   const { data: inspections = [] } = useQuery({
     queryKey: ['inspections', { asset_id: selectedAssetId }],
@@ -250,20 +273,31 @@ export default function ComparePage() {
     enabled: !!after?.id,
   });
 
-  // Navigation is capped to the smaller set (after images = 6)
+  // Load pairs from localStorage when inspection pair changes
+  useEffect(() => {
+    if (before?.id && after?.id) {
+      setPairMappings(loadPairs(before.id, after.id));
+      setPairIdx(0);
+    }
+  }, [before?.id, after?.id]);
+
+  // Save pairs to localStorage whenever they change
+  useEffect(() => {
+    if (before?.id && after?.id) {
+      savePairs(before.id, after.id, pairMappings);
+    }
+  }, [pairMappings, before?.id, after?.id]);
+
   const totalPairs   = Math.min(
     (beforeImages as ImageRecord[]).length,
     (afterImages  as ImageRecord[]).length,
   ) || 0;
   const safePairIdx  = Math.min(pairIdx, Math.max(0, totalPairs - 1));
 
-  // After image: sequential
-  const afterUrl = (afterImages as ImageRecord[])[safePairIdx]?.url ?? null;
-
-  // Before image: use user-defined mapping if set, otherwise same index
-  const mappedBeforeIdx = pairMappings[safePairIdx] ?? safePairIdx;
-  const beforeUrl = (beforeImages as ImageRecord[])[mappedBeforeIdx]?.url ?? null;
-  const isPaired  = pairMappings[safePairIdx] !== undefined;
+  const currentAfterImage  = (afterImages  as ImageRecord[])[safePairIdx];
+  const mappedBeforeIdx    = pairMappings[safePairIdx] ?? safePairIdx;
+  const currentBeforeImage = (beforeImages as ImageRecord[])[mappedBeforeIdx];
+  const isPaired           = pairMappings[safePairIdx] !== undefined;
 
   const diff = useMemo(() => {
     if (!before || !after) return null;
@@ -285,8 +319,7 @@ export default function ComparePage() {
       <div className="px-6 py-4 bg-white/80 backdrop-blur-xl border-b border-slate-200 z-10 flex-shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-4">
-            <Link href="/digital-twin"
-              className="inline-flex items-center gap-2 text-sm text-mira-muted hover:text-mira-blue font-medium">
+            <Link href="/digital-twin" className="inline-flex items-center gap-2 text-sm text-mira-muted hover:text-mira-blue font-medium">
               <ArrowLeft size={15} /> Back
             </Link>
             <div className="w-px h-6 bg-slate-200" />
@@ -301,7 +334,22 @@ export default function ComparePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* AI Annotations toggle */}
+            {sorted.length >= 2 && (
+              <button
+                onClick={() => setShowAnnotated(v => !v)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border"
+                style={{
+                  background: showAnnotated ? '#064e3b' : '#f8fafc',
+                  color: showAnnotated ? '#6ee7b7' : '#64748b',
+                  borderColor: showAnnotated ? '#065f46' : '#e2e8f0',
+                }}
+              >
+                <Scan size={13} />
+                {showAnnotated ? 'AI Annotations ON' : 'AI Annotations OFF'}
+              </button>
+            )}
             <Building2 size={15} className="text-slate-400" />
             <select
               value={selectedAssetId}
@@ -319,7 +367,6 @@ export default function ComparePage() {
 
       {/* Main content */}
       <div className="flex-1 flex min-h-0">
-        {/* Comparison viewer */}
         <div className="flex-1 p-4">
           <div className="w-full h-full bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-700/50 relative">
             {!selectedAssetId ? (
@@ -341,18 +388,24 @@ export default function ComparePage() {
                   afterLabel={after  ? new Date(after.inspected_at  || after.created_at ).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                   beforeContent={before
                     ? <PhotoCard
-                        url={beforeUrl}
+                        imageId={currentBeforeImage?.id}
+                        url={currentBeforeImage?.url ?? null}
                         insp={before}
+                        showAnnotated={showAnnotated}
                         onPickMatch={() => setShowPicker(true)}
                         isPaired={isPaired}
                       />
                     : <EmptyCard label="Select before" />}
                   afterContent={after
-                    ? <PhotoCard url={afterUrl} insp={after} />
+                    ? <PhotoCard
+                        imageId={currentAfterImage?.id}
+                        url={currentAfterImage?.url ?? null}
+                        insp={after}
+                        showAnnotated={showAnnotated}
+                      />
                     : <EmptyCard label="Select after" />}
                 />
 
-                {/* Thumbnail picker overlay */}
                 {showPicker && (
                   <ThumbnailPicker
                     images={beforeImages as ImageRecord[]}
@@ -363,24 +416,17 @@ export default function ComparePage() {
                   />
                 )}
 
-                {/* Image pair navigation */}
                 {totalPairs > 0 && (
                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-slate-900/85 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-700">
-                    <button
-                      onClick={() => setPairIdx(i => Math.max(0, i - 1))}
-                      disabled={safePairIdx === 0}
-                      className="text-white disabled:opacity-30 hover:text-sky-400 transition-colors"
-                    >
+                    <button onClick={() => setPairIdx(i => Math.max(0, i - 1))} disabled={safePairIdx === 0}
+                      className="text-white disabled:opacity-30 hover:text-sky-400 transition-colors">
                       <ChevronLeft size={18} />
                     </button>
                     <span className="text-white text-xs font-bold tabular-nums">
                       Image {safePairIdx + 1} / {totalPairs}
                     </span>
-                    <button
-                      onClick={() => setPairIdx(i => Math.min(totalPairs - 1, i + 1))}
-                      disabled={safePairIdx === totalPairs - 1}
-                      className="text-white disabled:opacity-30 hover:text-sky-400 transition-colors"
-                    >
+                    <button onClick={() => setPairIdx(i => Math.min(totalPairs - 1, i + 1))} disabled={safePairIdx === totalPairs - 1}
+                      className="text-white disabled:opacity-30 hover:text-sky-400 transition-colors">
                       <ChevronRight size={18} />
                     </button>
                   </div>
@@ -394,16 +440,12 @@ export default function ComparePage() {
         <div className="w-72 bg-white border-l border-slate-200 flex flex-col">
           {selectedAssetId && sorted.length >= 2 ? (
             <>
-              {/* Inspection selectors */}
               <div className="px-4 py-3 border-b border-slate-100 space-y-3">
                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em]">Select Inspections</h3>
                 <div>
                   <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">Before</label>
-                  <select
-                    value={beforeIdx}
-                    onChange={e => { setBeforeIdx(Number(e.target.value)); setPairIdx(0); setPairMappings({}); }}
-                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-indigo-400 focus:outline-none"
-                  >
+                  <select value={beforeIdx} onChange={e => { setBeforeIdx(Number(e.target.value)); setPairIdx(0); setPairMappings({}); }}
+                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-indigo-400 focus:outline-none">
                     {sorted.map((insp, i) => (
                       <option key={insp.id} value={i} disabled={i === afterIdx}>
                         {new Date(insp.inspected_at || insp.created_at).toLocaleDateString()} — {insp.name}
@@ -413,11 +455,8 @@ export default function ComparePage() {
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-sky-600 uppercase tracking-wider block mb-1">After</label>
-                  <select
-                    value={afterIdx}
-                    onChange={e => { setAfterIdx(Number(e.target.value)); setPairIdx(0); setPairMappings({}); }}
-                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-sky-400 focus:outline-none"
-                  >
+                  <select value={afterIdx} onChange={e => { setAfterIdx(Number(e.target.value)); setPairIdx(0); setPairMappings({}); }}
+                    className="w-full text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:border-sky-400 focus:outline-none">
                     {sorted.map((insp, i) => (
                       <option key={insp.id} value={i} disabled={i === beforeIdx}>
                         {new Date(insp.inspected_at || insp.created_at).toLocaleDateString()} — {insp.name}
@@ -427,38 +466,29 @@ export default function ComparePage() {
                 </div>
               </div>
 
-              {/* Pair progress */}
               {totalPairs > 0 && (
                 <div className="px-4 py-3 border-b border-slate-100">
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">Matched Pairs</h3>
                   <div className="flex gap-1.5 flex-wrap">
                     {Array.from({ length: totalPairs }, (_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setPairIdx(i)}
+                      <button key={i} onClick={() => setPairIdx(i)}
                         className="w-7 h-7 rounded-lg text-[10px] font-bold transition-all"
                         style={{
-                          background: i === safePairIdx
-                            ? '#6366f1'
-                            : pairMappings[i] !== undefined
-                              ? '#10b981'
-                              : '#f1f5f9',
+                          background: i === safePairIdx ? '#6366f1' : pairMappings[i] !== undefined ? '#10b981' : '#f1f5f9',
                           color: i === safePairIdx || pairMappings[i] !== undefined ? 'white' : '#94a3b8',
                           border: i === safePairIdx ? '2px solid #818cf8' : '2px solid transparent',
-                        }}
-                      >
+                        }}>
                         {i + 1}
                       </button>
                     ))}
                   </div>
                   <p className="text-[10px] text-slate-400 mt-2">
                     {Object.keys(pairMappings).length}/{totalPairs} matched ·{' '}
-                    <span className="text-indigo-500">Click left side "Pick match"</span>
+                    <span className="text-emerald-600 font-medium">Saved to browser</span>
                   </p>
                 </div>
               )}
 
-              {/* All inspections list */}
               <div className="px-4 py-3 border-b border-slate-100">
                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">All Inspections ({sorted.length})</h3>
               </div>
@@ -469,16 +499,12 @@ export default function ComparePage() {
                   const date     = insp.inspected_at || insp.created_at;
                   return (
                     <div key={insp.id}
-                      className={`p-3 rounded-xl border transition-all ${
-                        isBefore ? 'border-indigo-200 bg-indigo-50' :
-                        isAfter  ? 'border-sky-200 bg-sky-50' :
-                        'border-slate-100 bg-white'
-                      }`}>
+                      className={`p-3 rounded-xl border transition-all ${isBefore ? 'border-indigo-200 bg-indigo-50' : isAfter ? 'border-sky-200 bg-sky-50' : 'border-slate-100 bg-white'}`}>
                       <div className="flex items-start justify-between">
                         <p className="text-[12px] font-semibold text-slate-700 flex-1">{insp.name}</p>
                         <div className="flex gap-1 ml-1">
                           {isBefore && <span className="text-[8px] font-bold bg-indigo-500 text-white px-1.5 py-0.5 rounded">B</span>}
-                          {isAfter  && <span className="text-[8px] font-bold bg-sky-500    text-white px-1.5 py-0.5 rounded">A</span>}
+                          {isAfter  && <span className="text-[8px] font-bold bg-sky-500 text-white px-1.5 py-0.5 rounded">A</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
@@ -492,29 +518,18 @@ export default function ComparePage() {
                 })}
               </div>
 
-              {/* Diff summary */}
               {diff && (
                 <div className="border-t border-slate-100 p-4 bg-slate-50/50">
                   <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Change Summary</h4>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-[11px]">
-                      {diff.worsened
-                        ? <TrendingDown size={13} className="text-red-500" />
-                        : diff.improved
-                          ? <TrendingUp size={13} className="text-emerald-500" />
-                          : <Minus size={13} className="text-slate-400" />}
+                      {diff.worsened ? <TrendingDown size={13} className="text-red-500" /> : diff.improved ? <TrendingUp size={13} className="text-emerald-500" /> : <Minus size={13} className="text-slate-400" />}
                       <span className="text-slate-600">
-                        {diff.worsened
-                          ? `+${diff.delta} images added`
-                          : diff.improved
-                            ? `${diff.delta} fewer images`
-                            : 'No change in image count'}
+                        {diff.worsened ? `+${diff.delta} images added` : diff.improved ? `${diff.delta} fewer images` : 'No change in image count'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-[11px]">
-                      {diff.worsened
-                        ? <AlertTriangle size={13} className="text-amber-500" />
-                        : <CheckCircle   size={13} className="text-emerald-500" />}
+                      {diff.worsened ? <AlertTriangle size={13} className="text-amber-500" /> : <CheckCircle size={13} className="text-emerald-500" />}
                       <span className="text-slate-600">
                         {diff.worsened ? 'Potential progression' : diff.improved ? 'Improvement' : 'Stable'}
                       </span>
@@ -527,9 +542,7 @@ export default function ComparePage() {
             <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
               <GitCompareArrows size={32} className="text-slate-300" />
               <p className="text-sm font-medium text-slate-400">
-                {!selectedAssetId
-                  ? 'Select an asset to see its inspection history'
-                  : 'Need at least 2 inspections for comparison'}
+                {!selectedAssetId ? 'Select an asset to see its inspection history' : 'Need at least 2 inspections for comparison'}
               </p>
             </div>
           )}
