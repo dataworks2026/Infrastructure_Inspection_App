@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, Building2, TrendingDown, TrendingUp, Minus,
   ImageIcon, ScanSearch, X, Check, Scan,
 } from 'lucide-react';
-import { assetsApi, inspectionsApi, imagesApi, analysisApi } from '@/lib/api';
+import { assetsApi, inspectionsApi, imagesApi, analysisApi, comparisonPairsApi } from '@/lib/api';
 import type { Inspection, ImageRecord } from '@/types';
 
 const SEV_COLOR: Record<string, string> = {
@@ -273,19 +273,28 @@ export default function ComparePage() {
     enabled: !!after?.id,
   });
 
-  // Load pairs from localStorage when inspection pair changes
+  // Load pairs: DB first, localStorage as fallback
   useEffect(() => {
-    if (before?.id && after?.id) {
-      setPairMappings(loadPairs(before.id, after.id));
-      setPairIdx(0);
-    }
+    if (!before?.id || !after?.id) return;
+    setPairIdx(0);
+    comparisonPairsApi.get(before.id, after.id)
+      .then(dbPairs => {
+        const parsed: Record<number, number> = {};
+        Object.entries(dbPairs).forEach(([k, v]) => { parsed[Number(k)] = v; });
+        setPairMappings(parsed);
+        savePairs(before.id, after.id, parsed);
+      })
+      .catch(() => {
+        // Offline fallback
+        setPairMappings(loadPairs(before.id, after.id));
+      });
   }, [before?.id, after?.id]);
 
-  // Save pairs to localStorage whenever they change
+  // Save pairs: DB + localStorage on every change
   useEffect(() => {
-    if (before?.id && after?.id) {
-      savePairs(before.id, after.id, pairMappings);
-    }
+    if (!before?.id || !after?.id || Object.keys(pairMappings).length === 0) return;
+    savePairs(before.id, after.id, pairMappings);
+    comparisonPairsApi.save(before.id, after.id, pairMappings).catch(() => {});
   }, [pairMappings, before?.id, after?.id]);
 
   const totalPairs   = Math.min(
@@ -484,7 +493,7 @@ export default function ComparePage() {
                   </div>
                   <p className="text-[10px] text-slate-400 mt-2">
                     {Object.keys(pairMappings).length}/{totalPairs} matched ·{' '}
-                    <span className="text-emerald-600 font-medium">Saved to browser</span>
+                    <span className="text-emerald-600 font-medium">Saved to database</span>
                   </p>
                 </div>
               )}

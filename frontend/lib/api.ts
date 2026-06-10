@@ -108,6 +108,19 @@ export const sensorsApi = {
 };
 
 // Analysis
+export const comparisonPairsApi = {
+  get: (beforeInspectionId: string, afterInspectionId: string) =>
+    api.get<{ pairs: Record<string, number> }>('/comparison-pairs', {
+      params: { before_inspection_id: beforeInspectionId, after_inspection_id: afterInspectionId },
+    }).then(r => r.data.pairs),
+  save: (beforeInspectionId: string, afterInspectionId: string, pairs: Record<number, number>) =>
+    api.put<{ pairs: Record<string, number> }>('/comparison-pairs', {
+      before_inspection_id: beforeInspectionId,
+      after_inspection_id: afterInspectionId,
+      pairs,
+    }).then(r => r.data.pairs),
+};
+
 export const analysisApi = {
   analyze: (imageId: string) =>
     api.post<AnalysisResult>(`/images/${imageId}/analyze`).then(r => r.data),

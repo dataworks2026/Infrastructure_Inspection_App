@@ -10,6 +10,7 @@ from app.database import engine, Base
 from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
 from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive, reports
 from app.routers import drones, fleet, pilots, geofences, alerts, mission_records
+from app.routers import comparison_pairs
 import app.models  # noqa: F401
 
 limiter = Limiter(key_func=get_remote_address)
@@ -81,6 +82,7 @@ app.include_router(pilots.router, prefix="/api/v1/pilots", tags=["pilots"])
 app.include_router(geofences.router, prefix="/api/v1/geofences", tags=["geofences"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
 app.include_router(mission_records.router, prefix="/api/v1/mission-records", tags=["mission-records"])
+app.include_router(comparison_pairs.router, prefix="/api/v1", tags=["comparison-pairs"])
 
 @app.get("/health")
 async def health():
