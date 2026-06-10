@@ -5,7 +5,8 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Dict
 
-from app.database import Base, get_db
+from app.database import Base
+from app.core.deps import get_db
 from app.routers.auth import get_current_user
 from app.models import User
 
