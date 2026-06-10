@@ -361,19 +361,21 @@ export default function ComparePage() {
   });
 
   // Load pairs: DB first, localStorage as fallback
+  // Use state-updater form so any pairs the user picked while the request was
+  // in-flight are not overwritten — DB fills missing slots, user edits win.
   useEffect(() => {
     if (!before?.id || !after?.id) return;
     setPairIdx(0);
     comparisonPairsApi.get(before.id, after.id)
       .then(dbPairs => {
-        const parsed: Record<number, number> = {};
-        Object.entries(dbPairs).forEach(([k, v]) => { parsed[Number(k)] = v; });
-        setPairMappings(parsed);
-        savePairs(before.id, after.id, parsed);
+        const fromDb: Record<number, number> = {};
+        Object.entries(dbPairs).forEach(([k, v]) => { fromDb[Number(k)] = Number(v); });
+        setPairMappings(current => ({ ...fromDb, ...current }));
       })
       .catch(() => {
-        // Offline fallback
-        setPairMappings(loadPairs(before.id, after.id));
+        setPairMappings(current =>
+          Object.keys(current).length > 0 ? current : loadPairs(before.id, after.id)
+        );
       });
   }, [before?.id, after?.id]);
 
