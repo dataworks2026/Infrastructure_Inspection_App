@@ -15,6 +15,31 @@ const SEV_COLOR: Record<string, string> = {
   S1: '#4CAF50', S2: '#E6A817', S3: '#FF7043', S4: '#B71C1C',
 };
 
+// ── Compare-only label helpers ──────────────────────────────────────────────
+const DAMAGE_CODE: Record<string, string> = {
+  'biological growth': 'BG', 'marine growth': 'MG',
+  'decay': 'DE', 'deterioration': 'DE', 'wood decay': 'DE',
+  'rust staining': 'RS', 'rust': 'RS',
+  'corrosion': 'CO',
+  'crack': 'CR', 'cracking': 'CR',
+  'spall': 'SP', 'spalling': 'SP',
+  'delamination': 'DL',
+  'efflorescence': 'EF',
+  'impact damage': 'ID',
+  'scour': 'SC',
+  'settlement': 'ST',
+};
+const SEV_LABEL: Record<string, string> = {
+  S1: '1 (Minor)', S2: '2 (Moderate)', S3: '3 (Advanced)', S4: '4 (Severe)',
+};
+function detLabel(det: any): string {
+  const key   = (det.damage_type ?? '').toLowerCase().trim();
+  const code  = DAMAGE_CODE[key] ?? (det.damage_type ?? '??').slice(0, 2).toUpperCase();
+  const sev   = SEV_LABEL[det.severity] ?? det.severity ?? '?';
+  const seg   = det.segment ?? det.domain_metadata?.component ?? det.domain_metadata?.segment ?? '';
+  return seg ? `${code} | Sev ${sev} | ${seg}` : `${code} | Sev ${sev}`;
+}
+
 // ── localStorage helpers ────────────────────────────────────────────────────
 function pairsKey(beforeId: string, afterId: string) {
   return `mira_pairs_${beforeId}_${afterId}`;
@@ -147,8 +172,8 @@ function BboxCanvas({ detections, imgRef }: {
       ctx.fillStyle = `${color}22`;
       ctx.fillRect(x1, y1, w, h);
 
-      // Label: severity + damage type, no confidence
-      const label = `${det.severity}  ${det.damage_type}`;
+      // Label: CODE | Sev N (Name) | Segment  — compare page only
+      const label = detLabel(det);
       const pad   = 4;
       const fSize = Math.max(10, Math.min(13, dispW / 80));
       ctx.font = `bold ${fSize}px sans-serif`;
@@ -263,7 +288,7 @@ function PhotoCard({
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ background: `${SEV_COLOR[d.severity] ?? '#6B7280'}30`, color: SEV_COLOR[d.severity] ?? '#6B7280' }}
               >
-                {d.severity} · {d.damage_type}
+                {detLabel(d)}
               </span>
             ))}
           </div>
