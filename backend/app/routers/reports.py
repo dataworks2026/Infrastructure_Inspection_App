@@ -11,6 +11,7 @@ from app.services.reports.metrics import calculate_metrics
 from app.services.reports.narrative import generate_narrative
 from app.services.reports.pdf_report import generate_pdf
 from app.services.reports.report_builder import build_report_data
+from app.services.reports.review_diff import compute_review_diff, has_review_data
 
 router = APIRouter()
 
@@ -55,13 +56,18 @@ def report_preview(
     narrative   = generate_narrative(metrics)
     report_data = build_report_data(records, meta, narrative)
 
-    return {
+    response = {
         "metadata":       report_data["metadata"],
         "summary":        report_data["summary"],
         "image_findings": report_data["image_findings"],
         "narrative":      narrative,
         "metrics":        metrics,
     }
+    # Engineer review section — only present when review rows exist
+    # (inspection already org-scoped by load_inspection_records above)
+    if has_review_data(db, inspection_id):
+        response["review"] = compute_review_diff(db, inspection_id)
+    return response
 
 
 @router.get("/inspections/{inspection_id}/pdf")
@@ -84,6 +90,10 @@ def report_pdf(
     metrics     = calculate_metrics(records)
     narrative   = generate_narrative(metrics)
     report_data = build_report_data(records, meta, narrative)
+    # Engineer review section — only added when review rows exist; reports
+    # without review data are unchanged (inspection already org-scoped above)
+    if has_review_data(db, inspection_id):
+        report_data["review"] = compute_review_diff(db, inspection_id)
     pdf_bytes   = generate_pdf(report_data)
 
     filename = f"{_slug(meta['asset_name'])}-inspection-report.pdf"

@@ -22,6 +22,12 @@ try:
 except ImportError:
     _PIL_AVAILABLE = False
 
+from app.services.reports.damage_codes import (
+    CODE_LABELS,
+    map_damage_code,
+    map_severity,
+)
+
 _TEAL      = colors.HexColor("#2aa8a0")
 _NAVY      = colors.HexColor("#1e2d4a")
 _GREY_TEXT = colors.HexColor("#6b7280")
@@ -486,6 +492,184 @@ def _narrative_page(narrative: dict) -> list:
 
     return elems
 
+def _damage_type_display(raw: str) -> str:
+    code = map_damage_code(raw or "")
+    label = CODE_LABELS.get(code)
+    if label:
+        return f"{label} ({code})"
+    return (raw or "unknown").replace("_", " ").title()
+
+
+def _severity_display(raw: object) -> str:
+    label = map_severity(str(raw or ""))
+    return label if label != "Unknown" else str(raw or "—")
+
+
+def _describe_delta(delta: dict | None) -> str:
+    """Human-readable change description derived from a review delta_json."""
+    if not delta:
+        return "—"
+    parts: list[str] = []
+    if delta.get("bbox_changed"):
+        parts.append("Bounding box repositioned")
+    if delta.get("damage_type_changed"):
+        parts.append(
+            f"Damage type {_damage_type_display(delta.get('damage_type_before'))} "
+            f"→ {_damage_type_display(delta.get('damage_type_after'))}"
+        )
+    if delta.get("severity_changed"):
+        parts.append(
+            f"Severity {_severity_display(delta.get('severity_before'))} "
+            f"→ {_severity_display(delta.get('severity_after'))}"
+        )
+    return "; ".join(parts) if parts else "No field changes"
+
+
+def _engineer_review_pages(review: dict) -> list:
+    """CV vs Engineer analysis section — only built when the inspection has
+    DetectionReview rows. Reports without review data are untouched."""
+    w = _content_width()
+    totals = review.get("totals", {})
+    elems: list = []
+
+    elems.append(Paragraph("Engineer Review — CV vs Engineer Analysis", _H2))
+    elems.append(Spacer(1, 0.08 * inch))
+    elems.append(Paragraph(
+        "Summary of the engineer review performed on the computer-vision model "
+        "output for this inspection. CV accuracy counts accepted and modified "
+        "detections as correct identifications.",
+        _BODY,
+    ))
+    elems.append(Spacer(1, 0.2 * inch))
+
+    # ── summary block ────────────────────────────────────────────────────────
+    reviewed_at = review.get("reviewed_at")
+    if hasattr(reviewed_at, "strftime"):
+        reviewed_at_str = reviewed_at.strftime("%B %d, %Y %H:%M UTC")
+    else:
+        reviewed_at_str = str(reviewed_at) if reviewed_at else "—"
+
+    summary_rows = [
+        ("REVIEWED BY",        review.get("reviewed_by") or "—"),
+        ("REVIEWED AT",        reviewed_at_str),
+        ("CV DETECTIONS",      str(totals.get("cv_detections", 0))),
+        ("ACCEPTED",           str(totals.get("accepted", 0))),
+        ("REJECTED",           str(totals.get("rejected", 0))),
+        ("MODIFIED",           str(totals.get("modified", 0))),
+        ("ENGINEER ADDED",     str(totals.get("engineer_added", 0))),
+        ("FINAL VERIFIED",     str(totals.get("final_count", 0))),
+        ("CV ACCURACY",        f"{totals.get('accuracy_pct', 0.0)}%"),
+    ]
+    label_w = 2.2 * inch
+    summary_data = [
+        [Paragraph(label, _TEAL_LABEL), Paragraph(value, _BODY)]
+        for label, value in summary_rows
+    ]
+    st = Table(summary_data, colWidths=[label_w, w - label_w])
+    st.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (0, -1), _TEAL),
+        ("BACKGROUND",    (1, 0), (1, -1), colors.white),
+        ("TEXTCOLOR",     (1, 0), (1, -1), _NAVY),
+        ("FONTNAME",      (1, 0), (1, -1), "Helvetica"),
+        ("FONTSIZE",      (0, 0), (-1, -1), 9),
+        ("GRID",          (0, 0), (-1, -1), 0.5, _BORDER),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+    ]))
+    elems.append(st)
+    elems.append(Spacer(1, 0.25 * inch))
+
+    # ── damage type accuracy ─────────────────────────────────────────────────
+    dmg = review.get("damage_type_accuracy") or {}
+    if dmg:
+        elems.append(Paragraph("DAMAGE TYPE ACCURACY", _SECTION_HEADING))
+        rows = [["Damage Type", "CV", "Accepted", "Rejected", "Modified", "Accuracy"]]
+        for key in sorted(dmg.keys()):
+            c = dmg[key]
+            rows.append([
+                _damage_type_display(key),
+                str(c.get("cv", 0)),
+                str(c.get("accepted", 0)),
+                str(c.get("rejected", 0)),
+                str(c.get("modified", 0)),
+                f"{c.get('pct', 0.0)}%",
+            ])
+        col_w = (w - 2.2 * inch) / 5
+        dt = Table(rows, colWidths=[2.2 * inch] + [col_w] * 5)
+        cmds = _standard_table_style()
+        cmds.append(("ALIGN", (1, 0), (-1, -1), "CENTER"))
+        dt.setStyle(TableStyle(cmds))
+        elems.append(dt)
+        elems.append(Spacer(1, 0.25 * inch))
+
+    # ── notable corrections ──────────────────────────────────────────────────
+    modifications = review.get("modifications") or []
+    if modifications:
+        elems.append(Paragraph("NOTABLE CORRECTIONS", _SECTION_HEADING))
+        mod_rows = [["Image", "Change", "Engineer Notes"]]
+        for m in modifications:
+            mod_rows.append([
+                Paragraph(m.get("image_filename") or "—", _BODY),
+                Paragraph(_describe_delta(m.get("delta")), _BODY),
+                Paragraph(m.get("notes") or "—", _BODY),
+            ])
+        mt = Table(mod_rows, colWidths=[1.9 * inch, 2.5 * inch, w - 4.4 * inch])
+        mt.setStyle(TableStyle(_standard_table_style()))
+        elems.append(mt)
+        elems.append(Spacer(1, 0.2 * inch))
+
+    # ── conclusion ───────────────────────────────────────────────────────────
+    conclusion = _review_conclusion(totals, dmg)
+    if conclusion:
+        elems.append(Paragraph("<b>Conclusion</b>", _BOLD))
+        elems.append(Spacer(1, 0.06 * inch))
+        elems.append(Paragraph(conclusion, _BODY))
+
+    return elems
+
+
+def _review_conclusion(totals: dict, dmg: dict) -> str:
+    total_cv = totals.get("cv_detections", 0)
+    if not total_cv:
+        return ""
+    overall = totals.get("accuracy_pct", 0.0)
+    sentences = [f"Overall CV model accuracy was {overall}% across {total_cv} detections."]
+
+    def _plain(key: str) -> str:
+        label = CODE_LABELS.get(map_damage_code(key or ""))
+        return label.lower() if label else (key or "unknown").replace("_", " ").lower()
+
+    strong = [
+        (key, c) for key, c in dmg.items()
+        if c.get("cv", 0) > 0 and c.get("pct", 0.0) >= 80.0
+    ]
+    weak = [
+        (key, c) for key, c in dmg.items()
+        if c.get("cv", 0) > 0 and c.get("pct", 0.0) < 60.0
+    ]
+    if strong:
+        strong.sort(key=lambda kv: kv[1].get("pct", 0.0), reverse=True)
+        listed = ", ".join(
+            f"{_plain(k)} ({c.get('pct', 0.0)}%)" for k, c in strong
+        )
+        sentences.append(f"The model performed well on {listed}.")
+    if weak:
+        weak.sort(key=lambda kv: kv[1].get("pct", 0.0))
+        listed = ", ".join(
+            f"{_plain(k)} ({c.get('pct', 0.0)}%)" for k, c in weak
+        )
+        sentences.append(f"Performance was weaker on {listed}.")
+    added = totals.get("engineer_added", 0)
+    if added:
+        sentences.append(
+            f"The engineer added {added} detection{'s' if added != 1 else ''} the model missed."
+        )
+    return " ".join(sentences)
+
+
 def generate_pdf(report_data: dict) -> bytes:
     buf = BytesIO()
     meta    = report_data["metadata"]
@@ -508,6 +692,13 @@ def generate_pdf(report_data: dict) -> bytes:
     story.extend(_defect_summary_page(summary))
     story.extend(_image_findings_pages(report_data["image_findings"]))
     story.extend(_narrative_page(report_data["narrative"]))
+
+    # Engineer review section — only present when the inspection has review
+    # data; otherwise the story is identical to the pre-review report.
+    review = report_data.get("review")
+    if review:
+        story.append(PageBreak())
+        story.extend(_engineer_review_pages(review))
 
     doc.build(story, onFirstPage=_page_footer, onLaterPages=_page_footer)
     return buf.getvalue()
