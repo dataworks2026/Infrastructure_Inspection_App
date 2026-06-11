@@ -11,6 +11,9 @@ import {
 import { assetsApi, inspectionsApi, imagesApi, analysisApi, comparisonPairsApi } from '@/lib/api';
 import type { Inspection, ImageRecord } from '@/types';
 
+const CACHE_BUST = Date.now();
+const bust = (url: string | null) => url ? `${url}?v=${CACHE_BUST}` : url;
+
 const SEV_COLOR: Record<string, string> = {
   S1: '#4CAF50', S2: '#E6A817', S3: '#FF7043', S4: '#B71C1C',
 };
@@ -224,7 +227,7 @@ function PhotoCard({
         <>
           <img
             ref={imgRef}
-            src={url}
+            src={bust(url) ?? ''}
             alt={insp.name}
             className="w-full h-full object-cover"
             draggable={false}
@@ -318,7 +321,7 @@ function ThumbnailPicker({
               className="relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover:opacity-90"
               style={{ borderColor: i === currentIdx ? '#6366f1' : 'transparent' }}
             >
-              <img src={img.url} alt={img.filename} className="w-full h-full object-cover" draggable={false} />
+              <img src={bust(img.url) ?? ''} alt={img.filename} className="w-full h-full object-cover" draggable={false} />
               {i === currentIdx && (
                 <div className="absolute inset-0 flex items-center justify-center bg-indigo-600/30">
                   <Check size={20} className="text-white drop-shadow" />
