@@ -1,0 +1,439 @@
+'use client';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import {
+  ArrowLeft, ScanSearch, CheckCircle, XCircle, Pencil, PlusCircle,
+  FileDown, ClipboardList, AlertCircle, Check, X, Plus,
+} from 'lucide-react';
+import { reviewApi, inspectionsApi } from '@/lib/api';
+import KPICard from '@/components/dashboard/KPICard';
+import type {
+  ReviewAction,
+  ModificationDelta,
+  ModificationEntry,
+  PerImageDiff,
+  DamageTypeAccuracy,
+} from '@/types';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Gauge / accuracy color by range: <50 red, <75 amber, <90 green, ≥90 emerald */
+function accuracyColor(pct: number): { hex: string; text: string; bg: string } {
+  if (pct < 50) return { hex: '#ef4444', text: 'text-red-500',     bg: 'bg-red-500'     };
+  if (pct < 75) return { hex: '#f59e0b', text: 'text-amber-500',   bg: 'bg-amber-500'   };
+  if (pct < 90) return { hex: '#22c55e', text: 'text-green-500',   bg: 'bg-green-500'   };
+  return              { hex: '#10b981', text: 'text-emerald-500', bg: 'bg-emerald-500' };
+}
+
+const actionBadgeStyles: Record<ReviewAction, string> = {
+  accepted: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  rejected: 'bg-red-500/15 text-red-400 border-red-500/30',
+  modified: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  added:    'bg-sky-500/15 text-sky-400 border-sky-500/30',
+};
+
+const actionLabels: Record<ReviewAction, string> = {
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+  modified: 'Modified',
+  added:    'Engineer Added',
+};
+
+function ActionBadge({ action }: { action: ReviewAction }) {
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold border ${actionBadgeStyles[action]}`}>
+      {actionLabels[action]}
+    </span>
+  );
+}
+
+const severityLabel = (s: string): string => {
+  const map: Record<string, string> = { S1: 'Minor', S2: 'Moderate', S3: 'Advanced', S4: 'Severe' };
+  return map[s] ? `${s} (${map[s]})` : s;
+};
+
+/** Human-readable change descriptions from a ModificationDelta */
+function describeDelta(delta: ModificationDelta): string[] {
+  const parts: string[] = [];
+  if (delta.bbox_changed) {
+    if (delta.bbox_before && delta.bbox_after) {
+      const dx = Math.round(
+        Math.max(
+          Math.abs(delta.bbox_after.x1 - delta.bbox_before.x1),
+          Math.abs(delta.bbox_after.y1 - delta.bbox_before.y1),
+          Math.abs(delta.bbox_after.x2 - delta.bbox_before.x2),
+          Math.abs(delta.bbox_after.y2 - delta.bbox_before.y2),
+        )
+      );
+      parts.push(dx > 0 ? `Bbox repositioned (moved up to ${dx}px)` : 'Bbox repositioned');
+    } else {
+      parts.push('Bbox repositioned');
+    }
+  }
+  if (delta.severity_changed) {
+    parts.push(
+      delta.severity_before && delta.severity_after
+        ? `Severity ${severityLabel(delta.severity_before)} → ${severityLabel(delta.severity_after)}`
+        : 'Severity changed'
+    );
+  }
+  if (delta.damage_type_changed) {
+    parts.push(
+      delta.damage_type_before && delta.damage_type_after
+        ? `Damage type ${delta.damage_type_before} → ${delta.damage_type_after}`
+        : 'Damage type changed'
+    );
+  }
+  return parts.length > 0 ? parts : ['Detection updated'];
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// ─── Accuracy Gauge (inline SVG semicircular arc) ────────────────────────────
+
+function AccuracyGauge({ pct }: { pct: number }) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  const { hex, text } = accuracyColor(clamped);
+  // Semicircle: radius 80, centered at (100, 95), stroke arc from 180° to 0°
+  const r = 80;
+  const circumference = Math.PI * r; // half-circle length
+  const filled = (clamped / 100) * circumference;
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg width="200" height="115" viewBox="0 0 200 115" role="img" aria-label={`CV accuracy ${clamped.toFixed(1)} percent`}>
+        {/* Track */}
+        <path
+          d={`M 20 95 A ${r} ${r} 0 0 1 180 95`}
+          fill="none"
+          stroke="currentColor"
+          className="text-card-border"
+          strokeWidth="14"
+          strokeLinecap="round"
+        />
+        {/* Value arc */}
+        <path
+          d={`M 20 95 A ${r} ${r} 0 0 1 180 95`}
+          fill="none"
+          stroke={hex}
+          strokeWidth="14"
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${circumference}`}
+          style={{ transition: 'stroke-dasharray 600ms ease' }}
+        />
+        {/* Center percentage */}
+        <text
+          x="100" y="88"
+          textAnchor="middle"
+          className="font-mono font-bold"
+          fill={hex}
+          fontSize="32"
+        >
+          {clamped.toFixed(1)}%
+        </text>
+        <text x="100" y="108" textAnchor="middle" fill="currentColor" className="text-card-muted" fontSize="11" opacity="0.7">
+          CV Accuracy
+        </text>
+      </svg>
+      <div className={`text-sm font-semibold mt-1 ${text}`}>
+        {clamped < 50 ? 'Needs Retraining' : clamped < 75 ? 'Fair' : clamped < 90 ? 'Good' : 'Excellent'}
+      </div>
+    </div>
+  );
+}
+
+// ─── Per-image action chips ──────────────────────────────────────────────────
+
+function ActionChips({ image }: { image: PerImageDiff }) {
+  const counts: Record<ReviewAction, number> = { accepted: 0, rejected: 0, modified: 0, added: 0 };
+  image.actions.forEach(a => { counts[a.action] += 1; });
+
+  const chips: { key: ReviewAction; icon: React.ReactNode; cls: string }[] = [
+    { key: 'accepted', icon: <Check className="w-3 h-3" />,  cls: 'bg-emerald-500/15 text-emerald-400' },
+    { key: 'rejected', icon: <X className="w-3 h-3" />,      cls: 'bg-red-500/15 text-red-400' },
+    { key: 'modified', icon: <Pencil className="w-3 h-3" />, cls: 'bg-amber-500/15 text-amber-400' },
+    { key: 'added',    icon: <Plus className="w-3 h-3" />,   cls: 'bg-sky-500/15 text-sky-400' },
+  ];
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {chips.map(c => counts[c.key] > 0 && (
+        <span key={c.key} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono font-semibold ${c.cls}`} title={actionLabels[c.key]}>
+          {c.icon}{counts[c.key]}
+        </span>
+      ))}
+      {image.actions.length === 0 && <span className="text-xs text-card-faint">—</span>}
+    </div>
+  );
+}
+
+// ─── Accuracy badge with mini bar ────────────────────────────────────────────
+
+function AccuracyBadge({ pct }: { pct: number }) {
+  const { text, bg } = accuracyColor(pct);
+  return (
+    <div className="flex items-center gap-2 min-w-[110px]">
+      <div className="flex-1 h-1.5 rounded-full bg-card-border overflow-hidden">
+        <div className={`h-full rounded-full ${bg}`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+      </div>
+      <span className={`text-sm font-mono font-semibold ${text}`}>{pct.toFixed(0)}%</span>
+    </div>
+  );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
+export default function ReviewSummaryPage() {
+  const params = useParams();
+  const inspectionId = params.id as string;
+
+  const { data: inspection } = useQuery({
+    queryKey: ['inspection', inspectionId],
+    queryFn: () => inspectionsApi.get(inspectionId),
+  });
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['review-diff', inspectionId],
+    queryFn: () => reviewApi.getReviewDiff(inspectionId),
+  });
+
+  // ── Loading ──
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-8 w-64 rounded-lg bg-card-border/60" />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-32 rounded-xl bg-card-dark border border-card-border" />
+          ))}
+        </div>
+        <div className="h-48 rounded-xl bg-card-dark border border-card-border" />
+        <div className="h-64 rounded-xl bg-card-dark border border-card-border" />
+      </div>
+    );
+  }
+
+  // ── Error ──
+  if (isError) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="w-10 h-10 text-red-500 mb-3" />
+        <h2 className="text-lg font-semibold text-card-text mb-1">Failed to load review summary</h2>
+        <p className="text-sm text-card-muted mb-4">{detail || 'An unexpected error occurred while fetching the review diff.'}</p>
+        <Link href={`/inspections/${inspectionId}`} className="inline-flex items-center gap-2 text-sm text-mira-blue hover:underline">
+          <ArrowLeft className="w-4 h-4" /> Back to Inspection
+        </Link>
+      </div>
+    );
+  }
+
+  // ── Empty (no reviews yet) ──
+  const hasReviews = data && (data.totals.cv_detections > 0 || data.totals.engineer_added > 0 || data.per_image.some(i => i.actions.length > 0));
+  if (!data || !hasReviews) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <ClipboardList className="w-10 h-10 text-card-faint mb-3" />
+        <h2 className="text-lg font-semibold text-card-text mb-1">No review data yet</h2>
+        <p className="text-sm text-card-muted mb-4 max-w-md">
+          This inspection has not been reviewed by an engineer yet. Start a review from the inspection detail page to capture CV corrections.
+        </p>
+        <Link href={`/inspections/${inspectionId}`} className="inline-flex items-center gap-2 text-sm text-mira-blue hover:underline">
+          <ArrowLeft className="w-4 h-4" /> Back to Inspection
+        </Link>
+      </div>
+    );
+  }
+
+  const { totals } = data;
+  const damageTypes = Object.entries(data.damage_type_accuracy);
+
+  return (
+    <div className="space-y-6 print:space-y-4">
+      {/* ── 1. Header ───────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link
+            href={`/inspections/${inspectionId}`}
+            className="inline-flex items-center gap-1.5 text-sm text-card-muted hover:text-card-text transition-colors mb-2 print:hidden"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Inspection
+          </Link>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-card-text">
+              Review Summary{inspection ? ` — ${inspection.name}` : ''}
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              <CheckCircle className="w-3.5 h-3.5" /> Review Completed
+            </span>
+          </div>
+          <p className="text-sm text-card-muted mt-1">
+            Reviewed by <span className="font-medium text-card-text">{data.reviewed_by || 'Unknown'}</span>
+            {' '}on <span className="font-medium text-card-text">{formatDate(data.reviewed_at)}</span>
+          </p>
+        </div>
+
+        {/* ── 6. Export button — print-friendly layout for now (backend PDF export lands in Phase 3 via report-generator) */}
+        <button
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-mira-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity print:hidden"
+        >
+          <FileDown className="w-4 h-4" /> Export PDF
+        </button>
+      </div>
+
+      {/* ── 2. KPI row ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <KPICard label="CV Detections"   value={totals.cv_detections}  sublabel="Total from model"  color="blue"   icon={<ScanSearch className="w-5 h-5" />} />
+        <KPICard label="Accepted"        value={totals.accepted}       sublabel="Confirmed as-is"   color="green"  icon={<CheckCircle className="w-5 h-5" />} delay={50} />
+        <KPICard label="Rejected"        value={totals.rejected}       sublabel="False positives"   color="red"    icon={<XCircle className="w-5 h-5" />} delay={100} />
+        <KPICard label="Modified"        value={totals.modified}       sublabel="Corrected by engineer" color="orange" icon={<Pencil className="w-5 h-5" />} delay={150} />
+        <KPICard label="Engineer Added"  value={totals.engineer_added} sublabel="Missed by CV"      color="blue"   icon={<PlusCircle className="w-5 h-5" />} delay={200} />
+        <KPICard label="CV Accuracy"     value={`${totals.accuracy_pct.toFixed(1)}%`} sublabel={`${totals.final_count} final verified`} color={totals.accuracy_pct >= 75 ? 'green' : totals.accuracy_pct >= 50 ? 'orange' : 'red'} delay={250} />
+      </div>
+
+      {/* ── 3. Accuracy gauge ───────────────────────────────────────────── */}
+      <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark p-6 flex flex-col md:flex-row items-center gap-8">
+        <AccuracyGauge pct={totals.accuracy_pct} />
+        <div className="flex-1 w-full">
+          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider mb-3">Model Performance</h2>
+          <p className="text-sm text-card-muted leading-relaxed">
+            The CV model produced <span className="font-semibold text-card-text">{totals.cv_detections}</span> detections,
+            of which <span className="font-semibold text-emerald-400">{totals.accepted}</span> were accepted unchanged.
+            The engineer rejected <span className="font-semibold text-red-400">{totals.rejected}</span>,
+            corrected <span className="font-semibold text-amber-400">{totals.modified}</span>,
+            and added <span className="font-semibold text-sky-400">{totals.engineer_added}</span> detections the model missed.
+            The final verified record contains <span className="font-semibold text-card-text">{totals.final_count}</span> detections.
+          </p>
+          {/* Stacked proportion bar */}
+          {totals.cv_detections > 0 && (
+            <div className="mt-4">
+              <div className="flex h-2.5 rounded-full overflow-hidden bg-card-border">
+                <div className="bg-emerald-500" style={{ width: `${(totals.accepted / totals.cv_detections) * 100}%` }} title={`Accepted: ${totals.accepted}`} />
+                <div className="bg-amber-500"   style={{ width: `${(totals.modified / totals.cv_detections) * 100}%` }} title={`Modified: ${totals.modified}`} />
+                <div className="bg-red-500"     style={{ width: `${(totals.rejected / totals.cv_detections) * 100}%` }} title={`Rejected: ${totals.rejected}`} />
+              </div>
+              <div className="flex gap-4 mt-2 text-xs text-card-faint">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Accepted</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Modified</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" /> Rejected</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── 4. Per-image breakdown ──────────────────────────────────────── */}
+      <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark overflow-hidden">
+        <div className="px-6 py-4 border-b border-card-border">
+          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider">Per-Image Breakdown</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-card-faint uppercase tracking-wider border-b border-card-border">
+                <th className="px-6 py-3 font-semibold">Image</th>
+                <th className="px-4 py-3 font-semibold text-right">CV Detections</th>
+                <th className="px-4 py-3 font-semibold text-right">Final Verified</th>
+                <th className="px-4 py-3 font-semibold">Actions</th>
+                <th className="px-6 py-3 font-semibold">Accuracy</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.per_image.map(img => (
+                <tr key={img.image_id} className="border-b border-card-border/50 last:border-0 hover:bg-card-border/20 transition-colors">
+                  <td className="px-6 py-3 font-medium text-card-text font-mono text-xs">{img.filename}</td>
+                  <td className="px-4 py-3 text-right font-mono text-card-muted">{img.cv_count}</td>
+                  <td className="px-4 py-3 text-right font-mono text-card-text">{img.final_count}</td>
+                  <td className="px-4 py-3"><ActionChips image={img} /></td>
+                  <td className="px-6 py-3"><AccuracyBadge pct={img.accuracy_pct} /></td>
+                </tr>
+              ))}
+              {data.per_image.length === 0 && (
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-card-faint">No image-level data available.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── 5. Damage type accuracy ─────────────────────────────────────── */}
+      <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark overflow-hidden">
+        <div className="px-6 py-4 border-b border-card-border">
+          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider">Accuracy by Damage Type</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-card-faint uppercase tracking-wider border-b border-card-border">
+                <th className="px-6 py-3 font-semibold">Damage Type</th>
+                <th className="px-4 py-3 font-semibold text-right">CV Detected</th>
+                <th className="px-4 py-3 font-semibold text-right">Accepted</th>
+                <th className="px-4 py-3 font-semibold text-right">Rejected</th>
+                <th className="px-4 py-3 font-semibold text-right">Modified</th>
+                <th className="px-6 py-3 font-semibold">Accuracy</th>
+              </tr>
+            </thead>
+            <tbody>
+              {damageTypes.map(([type, acc]: [string, DamageTypeAccuracy]) => (
+                <tr key={type} className="border-b border-card-border/50 last:border-0 hover:bg-card-border/20 transition-colors">
+                  <td className="px-6 py-3 font-medium text-card-text capitalize">{type.replace(/_/g, ' ')}</td>
+                  <td className="px-4 py-3 text-right font-mono text-card-muted">{acc.cv}</td>
+                  <td className="px-4 py-3 text-right font-mono text-emerald-400">{acc.accepted}</td>
+                  <td className="px-4 py-3 text-right font-mono text-red-400">{acc.rejected}</td>
+                  <td className="px-4 py-3 text-right font-mono text-amber-400">{acc.modified}</td>
+                  <td className="px-6 py-3"><AccuracyBadge pct={acc.pct} /></td>
+                </tr>
+              ))}
+              {damageTypes.length === 0 && (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-card-faint">No damage type data available.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── 6. Modification log ─────────────────────────────────────────── */}
+      <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark overflow-hidden">
+        <div className="px-6 py-4 border-b border-card-border flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider">Modification Log</h2>
+          <span className="text-xs text-card-faint font-mono">{data.modifications.length} change{data.modifications.length === 1 ? '' : 's'}</span>
+        </div>
+        {data.modifications.length === 0 ? (
+          <div className="px-6 py-8 text-center text-card-faint text-sm">
+            No modifications — all CV detections were accepted or rejected without changes.
+          </div>
+        ) : (
+          <ul className="divide-y divide-card-border/50">
+            {data.modifications.map((mod: ModificationEntry, i: number) => (
+              <li key={`${mod.cv_detection_id}-${i}`} className="px-6 py-4 hover:bg-card-border/20 transition-colors">
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                  <span className="font-mono text-xs text-card-text">{mod.image_filename}</span>
+                  <ActionBadge action="modified" />
+                </div>
+                <ul className="flex flex-wrap gap-2 mb-1">
+                  {describeDelta(mod.delta).map((desc, j) => (
+                    <li key={j} className="inline-flex items-center px-2 py-0.5 rounded bg-card-border/40 text-xs text-card-muted font-mono">
+                      {desc}
+                    </li>
+                  ))}
+                </ul>
+                {mod.notes && (
+                  <p className="text-sm text-card-faint italic mt-1.5">&ldquo;{mod.notes}&rdquo;</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
