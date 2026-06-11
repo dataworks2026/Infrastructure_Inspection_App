@@ -17,13 +17,13 @@ from app.schemas.review import (
     SubmitReviewResponse,
     ReviewSummary,
     CompleteReviewResponse,
-    ReviewTotals,
-    PerImageAction,
-    PerImageDiff,
     DamageTypeAccuracy,
-    ModificationEntry,
     ReviewDiffResponse,
+    OverallReviewStats,
+    RecentReviewedInspection,
+    ReviewStatsResponse,
 )
+from app.services.reports.review_diff import compute_review_diff
 
 router = APIRouter()
 
@@ -328,129 +328,135 @@ def complete_review(
     )
 
 
+@router.get("/review-stats", response_model=ReviewStatsResponse)
+def get_review_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Org-wide CV accuracy stats aggregated from engineer review data.
+    # NOTE: deliberately NOT /inspections/review-stats — the inspections
+    # router registers GET /inspections/{inspection_id} before this router
+    # in main.py, which would shadow that path ("review-stats" would be
+    # captured as an inspection_id).
+    org_id = current_user.organization_id
+
+    inspections: List[Inspection] = db.query(Inspection).filter(
+        Inspection.organization_id == org_id,
+        Inspection.status == InspectionStatus.review_completed.value,
+    ).all()
+    inspection_ids = [i.id for i in inspections]
+
+    if not inspection_ids:
+        return ReviewStatsResponse(
+            overall=OverallReviewStats(
+                reviewed_inspections=0,
+                total_cv_detections=0,
+                accepted=0,
+                rejected=0,
+                modified=0,
+                engineer_added=0,
+                avg_accuracy_pct=0.0,
+            ),
+            by_damage_type={},
+            recent=[],
+        )
+
+    # Locked CV detections of those inspections (one query, joined via Image)
+    cv_rows = db.query(Detection.id, Detection.damage_type, Image.inspection_id).join(
+        Image, Detection.image_id == Image.id
+    ).filter(
+        Image.inspection_id.in_(inspection_ids),
+        Detection.source == "cv_model",
+        Detection.is_locked.is_(True),
+    ).all()
+    cv_damage_type_by_id: Dict[str, str] = {row[0]: (row[1] or "unknown") for row in cv_rows}
+
+    reviews: List[DetectionReview] = db.query(DetectionReview).filter(
+        DetectionReview.organization_id == org_id,
+        DetectionReview.inspection_id.in_(inspection_ids),
+    ).all()
+
+    # ── overall (pooled across the org, not mean-of-means) ───────────────────
+    counts = {"accepted": 0, "rejected": 0, "modified": 0, "added": 0}
+    for r in reviews:
+        if r.action in counts:
+            counts[r.action] += 1
+    total_cv = len(cv_rows)
+    avg_accuracy = round((counts["accepted"] + counts["modified"]) / total_cv * 100, 1) if total_cv else 0.0
+
+    # ── by damage type (keyed by ORIGINAL CV detection damage_type) ──────────
+    dmg: Dict[str, Dict[str, int]] = {}
+    for det_id, damage_type, _insp_id in cv_rows:
+        key = damage_type or "unknown"
+        dmg.setdefault(key, {"cv": 0, "accepted": 0, "rejected": 0, "modified": 0})
+        dmg[key]["cv"] += 1
+    for r in reviews:
+        if r.action in ("accepted", "rejected", "modified") and r.cv_detection_id:
+            key = cv_damage_type_by_id.get(r.cv_detection_id)
+            if key is None:
+                continue
+            dmg.setdefault(key, {"cv": 0, "accepted": 0, "rejected": 0, "modified": 0})
+            dmg[key][r.action] += 1
+
+    by_damage_type: Dict[str, DamageTypeAccuracy] = {}
+    for key, c in dmg.items():
+        pct = round((c["accepted"] + c["modified"]) / c["cv"] * 100, 1) if c["cv"] else 0.0
+        by_damage_type[key] = DamageTypeAccuracy(
+            cv=c["cv"], accepted=c["accepted"], rejected=c["rejected"], modified=c["modified"], pct=pct,
+        )
+
+    # ── recent (last 10 review_completed inspections, newest first) ──────────
+    cv_count_by_inspection: Dict[str, int] = {}
+    for _det_id, _damage_type, insp_id in cv_rows:
+        cv_count_by_inspection[insp_id] = cv_count_by_inspection.get(insp_id, 0) + 1
+
+    correct_by_inspection: Dict[str, int] = {}
+    latest_review_at: Dict[str, datetime] = {}
+    for r in reviews:
+        if r.action in ("accepted", "modified"):
+            correct_by_inspection[r.inspection_id] = correct_by_inspection.get(r.inspection_id, 0) + 1
+        if r.reviewed_at is not None:
+            prev = latest_review_at.get(r.inspection_id)
+            if prev is None or r.reviewed_at > prev:
+                latest_review_at[r.inspection_id] = r.reviewed_at
+
+    def _sort_key(insp: Inspection):
+        return latest_review_at.get(insp.id) or insp.updated_at or insp.created_at or datetime.min
+
+    recent: List[RecentReviewedInspection] = []
+    for insp in sorted(inspections, key=_sort_key, reverse=True)[:10]:
+        insp_cv = cv_count_by_inspection.get(insp.id, 0)
+        insp_correct = correct_by_inspection.get(insp.id, 0)
+        recent.append(RecentReviewedInspection(
+            inspection_id=insp.id,
+            name=insp.name,
+            reviewed_at=latest_review_at.get(insp.id),
+            accuracy_pct=round(insp_correct / insp_cv * 100, 1) if insp_cv else 0.0,
+            cv_detections=insp_cv,
+        ))
+
+    return ReviewStatsResponse(
+        overall=OverallReviewStats(
+            reviewed_inspections=len(inspection_ids),
+            total_cv_detections=total_cv,
+            accepted=counts["accepted"],
+            rejected=counts["rejected"],
+            modified=counts["modified"],
+            engineer_added=counts["added"],
+            avg_accuracy_pct=avg_accuracy,
+        ),
+        by_damage_type=by_damage_type,
+        recent=recent,
+    )
+
+
 @router.get("/inspections/{inspection_id}/review-diff", response_model=ReviewDiffResponse)
 def get_review_diff(
     inspection_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    inspection = _get_org_inspection(inspection_id, db, current_user)
-
-    images = db.query(Image).filter(Image.inspection_id == inspection_id).all()
-    images_by_id: Dict[str, Image] = {i.id: i for i in images}
-    image_ids = list(images_by_id.keys())
-
-    cv_detections: List[Detection] = []
-    if image_ids:
-        cv_detections = db.query(Detection).filter(
-            Detection.image_id.in_(image_ids),
-            Detection.source == "cv_model",
-            Detection.is_locked.is_(True),
-        ).all()
-    cv_by_id: Dict[str, Detection] = {d.id: d for d in cv_detections}
-
-    reviews: List[DetectionReview] = db.query(DetectionReview).filter(
-        DetectionReview.inspection_id == inspection_id
-    ).all()
-
-    # ── totals ────────────────────────────────────────────────────────────────
-    counts = {"accepted": 0, "rejected": 0, "modified": 0, "added": 0}
-    for r in reviews:
-        if r.action in counts:
-            counts[r.action] += 1
-    total_cv = len(cv_detections)
-    final_count = counts["accepted"] + counts["modified"] + counts["added"]
-    accuracy = round((counts["accepted"] + counts["modified"]) / total_cv * 100, 1) if total_cv else 0.0
-
-    # ── latest reviewer ───────────────────────────────────────────────────────
-    reviewed_by = None
-    reviewed_at = None
-    dated_reviews = [r for r in reviews if r.reviewed_at is not None]
-    if dated_reviews:
-        latest = max(dated_reviews, key=lambda r: r.reviewed_at)
-        reviewed_by, reviewed_at = latest.reviewed_by, latest.reviewed_at
-    elif reviews:
-        reviewed_by = reviews[-1].reviewed_by
-
-    # ── per-image ─────────────────────────────────────────────────────────────
-    cv_count_by_image: Dict[str, int] = {}
-    for d in cv_detections:
-        cv_count_by_image[d.image_id] = cv_count_by_image.get(d.image_id, 0) + 1
-
-    reviews_by_image: Dict[str, List[DetectionReview]] = {}
-    for r in reviews:
-        reviews_by_image.setdefault(r.image_id, []).append(r)
-
-    per_image: List[PerImageDiff] = []
-    for img_id, img_reviews in reviews_by_image.items():
-        img = images_by_id.get(img_id)
-        cv_count = cv_count_by_image.get(img_id, 0)
-        img_accepted = sum(1 for r in img_reviews if r.action == "accepted")
-        img_modified = sum(1 for r in img_reviews if r.action == "modified")
-        img_added = sum(1 for r in img_reviews if r.action == "added")
-        img_final = img_accepted + img_modified + img_added
-        img_pct = round((img_accepted + img_modified) / cv_count * 100, 1) if cv_count else 0.0
-        per_image.append(PerImageDiff(
-            image_id=img_id,
-            filename=img.filename if img else "",
-            cv_count=cv_count,
-            final_count=img_final,
-            accuracy_pct=img_pct,
-            actions=[PerImageAction(
-                cv_detection_id=r.cv_detection_id,
-                engineer_detection_id=r.engineer_detection_id,
-                action=r.action,
-                notes=r.notes,
-            ) for r in img_reviews],
-        ))
-
-    # ── damage-type accuracy (keyed by ORIGINAL CV damage_type) ───────────────
-    dmg: Dict[str, Dict[str, int]] = {}
-    for d in cv_detections:
-        key = d.damage_type or "unknown"
-        dmg.setdefault(key, {"cv": 0, "accepted": 0, "rejected": 0, "modified": 0})
-        dmg[key]["cv"] += 1
-    for r in reviews:
-        if r.action in ("accepted", "rejected", "modified") and r.cv_detection_id:
-            original = cv_by_id.get(r.cv_detection_id)
-            if original is None:
-                continue
-            key = original.damage_type or "unknown"
-            dmg.setdefault(key, {"cv": 0, "accepted": 0, "rejected": 0, "modified": 0})
-            dmg[key][r.action] += 1
-
-    damage_type_accuracy: Dict[str, DamageTypeAccuracy] = {}
-    for key, c in dmg.items():
-        pct = round((c["accepted"] + c["modified"]) / c["cv"] * 100, 1) if c["cv"] else 0.0
-        damage_type_accuracy[key] = DamageTypeAccuracy(
-            cv=c["cv"], accepted=c["accepted"], rejected=c["rejected"], modified=c["modified"], pct=pct,
-        )
-
-    # ── modification log ──────────────────────────────────────────────────────
-    modifications = [
-        ModificationEntry(
-            cv_detection_id=r.cv_detection_id,
-            image_filename=images_by_id[r.image_id].filename if r.image_id in images_by_id else None,
-            delta=r.delta_json,
-            notes=r.notes,
-        )
-        for r in reviews if r.action == "modified"
-    ]
-
-    return ReviewDiffResponse(
-        inspection_id=inspection_id,
-        reviewed_by=reviewed_by,
-        reviewed_at=reviewed_at,
-        totals=ReviewTotals(
-            cv_detections=total_cv,
-            accepted=counts["accepted"],
-            rejected=counts["rejected"],
-            modified=counts["modified"],
-            engineer_added=counts["added"],
-            final_count=final_count,
-            accuracy_pct=accuracy,
-        ),
-        per_image=per_image,
-        damage_type_accuracy=damage_type_accuracy,
-        modifications=modifications,
-    )
+    # Org scoping happens here — compute_review_diff itself queries by
+    # inspection_id only.
+    _get_org_inspection(inspection_id, db, current_user)
+    return ReviewDiffResponse(**compute_review_diff(db, inspection_id))

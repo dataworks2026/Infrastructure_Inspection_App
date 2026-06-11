@@ -509,6 +509,96 @@ def test_review_diff_before_any_review_is_empty(client, review_data):
     assert body["modifications"] == []
 
 
+# ─── review-stats ─────────────────────────────────────────────────
+
+def test_review_stats_happy_path_math(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+
+    # Inspection still pending_review — not counted yet
+    resp = client.get("/api/v1/review-stats")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["overall"]["reviewed_inspections"] == 0
+
+    client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review")
+
+    resp = client.get("/api/v1/review-stats")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    o = body["overall"]
+    assert o["reviewed_inspections"] == 1
+    assert o["total_cv_detections"] == 4
+    assert o["accepted"] == 2
+    assert o["rejected"] == 1
+    assert o["modified"] == 1
+    assert o["engineer_added"] == 1
+    assert o["avg_accuracy_pct"] == 75.0    # (2 + 1) / 4 * 100, pooled
+
+    dta = body["by_damage_type"]
+    assert set(dta) == {"corrosion", "crack"}
+    assert dta["corrosion"] == {"cv": 2, "accepted": 1, "rejected": 0, "modified": 1, "pct": 100.0}
+    assert dta["crack"] == {"cv": 2, "accepted": 1, "rejected": 1, "modified": 0, "pct": 50.0}
+    # modified detection re-typed to 'spalling' must NOT appear as a key
+    assert "spalling" not in dta
+
+    recent = body["recent"]
+    assert len(recent) == 1
+    r = recent[0]
+    assert r["inspection_id"] == d["inspection_id"]
+    assert r["name"] == "Review Test Inspection"
+    assert r["reviewed_at"] is not None
+    assert r["accuracy_pct"] == 75.0
+    assert r["cv_detections"] == 4
+
+
+def test_review_stats_empty_org_returns_zeros(client):
+    resp = client.get("/api/v1/review-stats")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["overall"] == {
+        "reviewed_inspections": 0,
+        "total_cv_detections": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "modified": 0,
+        "engineer_added": 0,
+        "avg_accuracy_pct": 0.0,
+    }
+    assert body["by_damage_type"] == {}
+    assert body["recent"] == []
+
+
+def test_review_stats_org_isolation(db_session, other_org_client, review_data, test_org):
+    # Seed a completed review in test-org directly (other_org_client and
+    # client cannot coexist — both override get_current_user on the app)
+    d = review_data
+    insp = db_session.get(Inspection, d["inspection_id"])
+    insp.status = "review_completed"
+    det = db_session.get(Detection, d["det_a"])
+    det.is_locked = True
+    det.source = "cv_model"
+    db_session.add(DetectionReview(
+        organization_id=test_org.organization_id,
+        image_id=d["img1"],
+        inspection_id=d["inspection_id"],
+        cv_detection_id=d["det_a"],
+        action="accepted",
+        reviewed_by="test@example.com",
+    ))
+    db_session.commit()
+
+    # The other org sees nothing
+    resp = other_org_client.get("/api/v1/review-stats")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["overall"]["reviewed_inspections"] == 0
+    assert body["overall"]["total_cv_detections"] == 0
+    assert body["by_damage_type"] == {}
+    assert body["recent"] == []
+
+
 # ─── org isolation ────────────────────────────────────────────────
 
 def test_other_org_user_gets_404_on_all_endpoints(other_org_client, review_data):

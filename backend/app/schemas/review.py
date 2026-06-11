@@ -122,6 +122,30 @@ class ModificationEntry(BaseModel):
     notes: Optional[str] = None
 
 
+class OverallReviewStats(BaseModel):
+    reviewed_inspections: int
+    total_cv_detections: int
+    accepted: int
+    rejected: int
+    modified: int
+    engineer_added: int
+    avg_accuracy_pct: float
+
+
+class RecentReviewedInspection(BaseModel):
+    inspection_id: str
+    name: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    accuracy_pct: float
+    cv_detections: int
+
+
+class ReviewStatsResponse(BaseModel):
+    overall: OverallReviewStats
+    by_damage_type: Dict[str, DamageTypeAccuracy]
+    recent: List[RecentReviewedInspection]
+
+
 class ReviewDiffResponse(BaseModel):
     inspection_id: str
     reviewed_by: Optional[str] = None
