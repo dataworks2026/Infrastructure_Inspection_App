@@ -40,6 +40,10 @@ class Detection(Base):
     estimated_repair_cost_range = Column(String(50), nullable=True)
     domain_metadata             = Column(JSONB, nullable=True, default=dict)
 
+    # engineer review flow
+    source                      = Column(String(20), nullable=False, default="cv_model")  # 'cv_model' | 'engineer_added'
+    is_locked                   = Column(Boolean, nullable=False, default=False)          # True = CV detection frozen after review starts
+
     reviewed                    = Column(Boolean, nullable=False, default=False)
     reviewed_by                 = Column(String(100), nullable=True)
     review_date                 = Column(DateTime, nullable=True)

@@ -22,6 +22,7 @@ from app.models.thermal_capture import ThermalCapture  # noqa: F401
 # Image & Detection Layer
 from app.models.image import Image  # noqa: F401
 from app.models.detection import Detection  # noqa: F401
+from app.models.detection_review import DetectionReview  # noqa: F401
 
 # Analytics Core Layer
 from app.models.risk_assessment import RiskAssessment  # noqa: F401

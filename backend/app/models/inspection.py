@@ -1,8 +1,18 @@
 import uuid
+from enum import Enum
 from sqlalchemy import Column, String, Integer, Date, DateTime, ForeignKey
 from sqlalchemy import JSON as JSONB
 from sqlalchemy.sql import func
 from app.database import Base
+
+class InspectionStatus(str, Enum):
+    # Code-level enum only — DB column stays VARCHAR(50)
+    pending = "pending"
+    processing = "processing"
+    completed = "completed"                # CV analysis done — ready for review
+    pending_review = "pending_review"      # Review started, engineer working
+    review_completed = "review_completed"  # Final verified state
+    failed = "failed"
 
 class Inspection(Base):
     # Schema doc calls this 'inspection_runs'; kept as 'inspections' for route compat
