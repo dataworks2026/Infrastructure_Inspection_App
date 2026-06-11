@@ -12,6 +12,7 @@ import {
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import type { DashboardAssetHealth } from '@/types';
+import CvAccuracyWidget from '@/components/dashboard/CvAccuracyWidget';
 
 /* ── Dynamic import of 3D scene (no SSR — Three.js needs browser) ── */
 const TurbineScene = dynamic(
@@ -330,6 +331,8 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Right column: Sensors + CV Accuracy */}
+        <div className="flex flex-col gap-4">
         {/* Sensors Card */}
         <Link href="/sensors"
           className="interactive-card bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all"
@@ -387,6 +390,10 @@ export default function DashboardPage() {
             )}
           </div>
         </Link>
+
+        {/* CV Model Accuracy */}
+        <CvAccuracyWidget />
+        </div>
       </div>
 
       {/* ── Digital Twin 3D Viewer ── */}

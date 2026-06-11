@@ -177,6 +177,30 @@ export interface ReviewDiffResponse {
   modifications: ModificationEntry[];
 }
 
+export interface ReviewStatsOverall {
+  reviewed_inspections: number;
+  total_cv_detections: number;
+  accepted: number;
+  rejected: number;
+  modified: number;
+  engineer_added: number;
+  avg_accuracy_pct: number;
+}
+
+export interface ReviewStatsRecent {
+  inspection_id: string;
+  name: string | null;
+  reviewed_at: string | null;
+  accuracy_pct: number;
+  cv_detections: number;
+}
+
+export interface ReviewStatsResponse {
+  overall: ReviewStatsOverall;
+  by_damage_type: Record<string, DamageTypeAccuracy>;
+  recent: ReviewStatsRecent[];
+}
+
 export interface ImageRecord {
   id: string;
   filename: string;
