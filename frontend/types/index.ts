@@ -1,6 +1,6 @@
 export type InfrastructureType = 'wind_turbine' | 'coastal' | 'pier' | 'railway';
 export type AssetStatus = 'active' | 'maintenance' | 'decommissioned';
-export type InspectionStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type InspectionStatus = 'pending' | 'processing' | 'completed' | 'pending_review' | 'review_completed' | 'failed';
 export type AnalysisStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type UserRole = 'admin' | 'analyst' | 'viewer';
 
@@ -53,6 +53,128 @@ export interface Detection {
   bbox: BoundingBox;
   severity?: string;
   created_at: string;
+  // Engineer Review Flow fields (returned by backend in detection payloads)
+  source?: 'cv_model' | 'engineer_added';
+  is_locked?: boolean;
+  reviewed?: boolean;
+  reviewed_by?: string | null;
+}
+
+// ── Engineer Review Flow ────────────────────────────────────
+
+export type ReviewAction = 'accepted' | 'rejected' | 'modified' | 'added';
+export type Severity = 'S1' | 'S2' | 'S3' | 'S4';
+
+export interface CorrectedDetection {
+  damage_type: string;
+  severity: Severity;
+  bbox: BoundingBox;
+  confidence_score: number;
+}
+
+export interface DetectionReviewItem {
+  cv_detection_id: string | null;
+  action: ReviewAction;
+  corrected_detection?: CorrectedDetection;
+  notes?: string;
+}
+
+export interface SubmitReviewRequest {
+  reviews: DetectionReviewItem[];
+}
+
+export interface StartReviewResponse {
+  inspection_id: string;
+  status: InspectionStatus;
+  locked_detections_count: number;
+}
+
+export interface SubmitReviewResponse {
+  image_id: string;
+  reviews_written: number;
+  cv_accepted: number;
+  cv_rejected: number;
+  cv_modified: number;
+  engineer_added: number;
+}
+
+export interface ReviewSummary {
+  total_cv_detections: number;
+  accepted: number;
+  rejected: number;
+  modified: number;
+  engineer_added: number;
+  final_verified_count: number;
+  cv_accuracy_pct: number;
+}
+
+export interface CompleteReviewResponse {
+  inspection_id: string;
+  status: InspectionStatus;
+  summary: ReviewSummary;
+}
+
+export interface ReviewTotals {
+  cv_detections: number;
+  accepted: number;
+  rejected: number;
+  modified: number;
+  engineer_added: number;
+  final_count: number;
+  accuracy_pct: number;
+}
+
+export interface PerImageAction {
+  cv_detection_id: string | null;
+  engineer_detection_id: string | null;
+  action: ReviewAction;
+  notes: string | null;
+}
+
+export interface PerImageDiff {
+  image_id: string;
+  filename: string;
+  cv_count: number;
+  final_count: number;
+  accuracy_pct: number;
+  actions: PerImageAction[];
+}
+
+export interface DamageTypeAccuracy {
+  cv: number;
+  accepted: number;
+  rejected: number;
+  modified: number;
+  pct: number;
+}
+
+export interface ModificationDelta {
+  bbox_changed: boolean;
+  bbox_before?: BoundingBox;
+  bbox_after?: BoundingBox;
+  damage_type_changed: boolean;
+  damage_type_before?: string;
+  damage_type_after?: string;
+  severity_changed: boolean;
+  severity_before?: string;
+  severity_after?: string;
+}
+
+export interface ModificationEntry {
+  cv_detection_id: string;
+  image_filename: string;
+  delta: ModificationDelta;
+  notes: string | null;
+}
+
+export interface ReviewDiffResponse {
+  inspection_id: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  totals: ReviewTotals;
+  per_image: PerImageDiff[];
+  damage_type_accuracy: Record<string, DamageTypeAccuracy>;
+  modifications: ModificationEntry[];
 }
 
 export interface ImageRecord {

@@ -5,6 +5,8 @@ import type {
   AnalysisResult, DashboardOverview,
   PredictiveAssetResult, PredictiveRunDetail,
   PredictiveRunSummary, PredictiveRunTriggerResponse,
+  StartReviewResponse, SubmitReviewRequest, SubmitReviewResponse,
+  CompleteReviewResponse, ReviewDiffResponse,
 } from '@/types';
 
 const api = axios.create({ baseURL: '/api/v1' });
@@ -128,6 +130,18 @@ export const analysisApi = {
     api.get(`/images/${imageId}/detections`).then(r => r.data),
   getAllDetections: (inspectionId: string) =>
     api.get<Record<string, any>>(`/inspections/${inspectionId}/all-detections`).then(r => r.data),
+};
+
+// Engineer Review Flow (CV detection correction)
+export const reviewApi = {
+  startReview: (inspectionId: string) =>
+    api.post<StartReviewResponse>(`/inspections/${inspectionId}/start-review`).then(r => r.data),
+  submitImageReview: (imageId: string, body: SubmitReviewRequest) =>
+    api.post<SubmitReviewResponse>(`/images/${imageId}/submit-review`, body).then(r => r.data),
+  completeReview: (inspectionId: string) =>
+    api.post<CompleteReviewResponse>(`/inspections/${inspectionId}/complete-review`).then(r => r.data),
+  getReviewDiff: (inspectionId: string) =>
+    api.get<ReviewDiffResponse>(`/inspections/${inspectionId}/review-diff`).then(r => r.data),
 };
 
 // Predictive Analytics (deterioration / anomaly / priority / TTI)
