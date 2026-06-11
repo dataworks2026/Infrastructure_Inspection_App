@@ -1,12 +1,25 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { inspectionsApi, imagesApi, assetsApi, analysisApi } from '@/lib/api';
+import { inspectionsApi, imagesApi, assetsApi, analysisApi, reviewApi } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown } from 'lucide-react';
+import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
+import ReviewOverlay, { type ReviewState } from '@/components/review/ReviewOverlay';
+import BboxEditor from '@/components/review/BboxEditor';
+import ReviewPanel, {
+  FIXED_DAMAGE_TYPES,
+  normSeverity,
+  type AddedDraft,
+  type LocalDetectionReview,
+} from '@/components/review/ReviewPanel';
+import type { BoundingBox, Detection, DetectionReviewItem, Severity, SubmitReviewRequest } from '@/types';
+
+const roundBbox = (b: BoundingBox): BoundingBox => ({
+  x1: Math.round(b.x1), y1: Math.round(b.y1), x2: Math.round(b.x2), y2: Math.round(b.y2),
+});
 
 // ─── Severity ───────────────────────────────────────────────────────────────
 const severityConfig: Record<string, { label: string; color: string; bg: string; hex: string }> = {
@@ -50,109 +63,6 @@ const DAMAGE_DEFAULT = { stroke: '#64748B', light: '#F1F5F9', tw: { bg: 'bg-slat
 function getDamageConfig(damageType: string) {
   const key = (damageType || '').toLowerCase();
   return DAMAGE_PALETTE.find(p => p.key.some(k => key.includes(k))) ?? DAMAGE_DEFAULT;
-}
-
-// ─── Custom SVG Annotated Overlay ────────────────────────────────────────────
-function AnnotatedOverlay({ imageUrl, detections, onClick, fitScreen }: {
-  imageUrl: string;
-  detections: any[];
-  onClick?: () => void;
-  fitScreen?: boolean;
-}) {
-  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
-
-  return (
-    <div className={`relative cursor-pointer group ${fitScreen ? 'inline-block max-h-full max-w-full' : 'w-full'}`} onClick={onClick}>
-      <img
-        src={imageUrl}
-        alt="AI Analysis"
-        className={fitScreen
-          ? 'block max-h-[calc(100vh-160px)] max-w-full object-contain rounded-lg'
-          : 'w-full rounded-lg border border-slate-200 block'}
-        onLoad={(e) => {
-          const img = e.currentTarget;
-          setDims({ w: img.naturalWidth, h: img.naturalHeight });
-        }}
-      />
-      {dims && detections.length > 0 && (
-        <svg
-          viewBox={`0 0 ${dims.w} ${dims.h}`}
-          preserveAspectRatio="none"
-          className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
-        >
-          {(() => {
-            const visible = detections.filter((d: any) => d.confidence >= 0.20);
-            const scale = dims.w / 700;
-            const strokeW = Math.max(2, 2.5 * scale);
-            const labelH = Math.round(22 * scale);
-            const labelPad = Math.round(6 * scale);
-
-            const labels = visible.map((d: any) => {
-              const { x1, y1, x2, y2 } = d.bbox;
-              const sev = normSev(d.severity) || '';
-              const mainLabel = sev ? `${sev} ${d.damage_type}` : d.damage_type;
-              const mainFontSize = Math.round(13 * scale);
-              const mainCharW = mainFontSize * 0.58;
-              const labelW = mainLabel.length * mainCharW + labelPad * 2;
-              let labelY = y1 >= labelH + 3 * scale ? y1 - labelH - 2 * scale : y2 + 2 * scale;
-              const labelX = Math.max(0, Math.min(x1, dims.w - labelW - 2));
-              return { d, mainLabel, mainFontSize, labelW, labelH, labelX, labelY };
-            });
-            // Nudge overlapping labels
-            for (let i = 0; i < labels.length; i++) {
-              for (let j = i + 1; j < labels.length; j++) {
-                const a = labels[i], b = labels[j];
-                if (Math.abs(a.labelY - b.labelY) < labelH * 0.85 &&
-                    a.labelX < b.labelX + b.labelW && b.labelX < a.labelX + a.labelW) {
-                  b.labelY = a.labelY + labelH + 2 * scale;
-                  if (b.labelY > dims.h - labelH) b.labelY = a.labelY - labelH - 2 * scale;
-                }
-              }
-            }
-
-            return labels.map((l, i) => {
-              const { d, mainLabel, mainFontSize, labelW, labelH: lH, labelX, labelY } = l;
-              const sevHex = severityConfig[normSev(d.severity) || '']?.hex || '#64748B';
-              const cfg = { stroke: sevHex, light: sevHex + '30' };
-              const { x1, y1, x2, y2 } = d.bbox;
-              const bw = x2 - x1;
-              const bh = y2 - y1;
-              const conf = d.confidence;
-              const hi = conf >= 0.5;
-              const fillOp = hi ? 0.12 : 0.04;
-              const strokeOp = hi ? 0.9 : 0.3;
-              const cornerOp = hi ? 0.95 : 0.35;
-              const labelBgOp = hi ? 0.85 : 0.45;
-
-              return (
-                <g key={i}>
-                  <rect x={x1} y={y1} width={bw} height={bh}
-                    fill={cfg.stroke} fillOpacity={fillOp} rx={2 * scale} />
-                  <rect x={x1} y={y1} width={bw} height={bh}
-                    fill="none" stroke={cfg.stroke} strokeWidth={strokeW}
-                    strokeOpacity={strokeOp} rx={2 * scale} />
-                  <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <line x1={x2} y1={y2 - bh * 0.12} x2={x2} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <line x1={x2} y1={y2} x2={x2 - bw * 0.12} y2={y2} stroke={cfg.stroke} strokeWidth={strokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
-                  <rect x={labelX + 1} y={labelY + 1} width={labelW} height={lH}
-                    fill="rgba(0,0,0,0.25)" rx={4 * scale} />
-                  <rect x={labelX} y={labelY} width={labelW} height={lH}
-                    fill={cfg.stroke} fillOpacity={labelBgOp} rx={4 * scale} />
-                  <text x={labelX + labelPad} y={labelY + lH * 0.72}
-                    fontSize={mainFontSize} fill="white"
-                    fontFamily="system-ui,-apple-system,sans-serif"
-                    fontWeight="700" letterSpacing="0.2">
-                    {mainLabel}
-                  </text>
-                </g>
-              );
-            });
-          })()}
-        </svg>
-      )}
-    </div>
-  );
 }
 
 // ─── Lightbox ────────────────────────────────────────────────────────────────
@@ -225,7 +135,7 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
         )}
         {showAnnotated && hasAnnotation ? (
           <div className="h-full w-full flex items-center justify-center overflow-hidden">
-            <AnnotatedOverlay imageUrl={img.url} detections={result.detections} fitScreen />
+            <ReviewOverlay imageUrl={img.url} detections={result.detections} mode="view" fitScreen />
           </div>
         ) : (
           <img src={img.url} alt={img.filename} className="max-h-full max-w-full object-contain rounded-lg" />
@@ -329,6 +239,255 @@ export default function InspectionDetailPage() {
     if (batchDetections) setAnalysisResults(batchDetections);
   }, [batchDetections]);
 
+  // ── Engineer Review Mode state ──────────────────────────────────────────────
+  const [showStartReviewConfirm, setShowStartReviewConfirm] = useState(false);
+  // Pending (not yet submitted) per-detection actions: imageId → detectionId → state
+  const [reviewState, setReviewState] = useState<Record<string, Record<string, LocalDetectionReview>>>({});
+  // Engineer-added draft detections: imageId → drafts
+  const [addedDrafts, setAddedDrafts] = useState<Record<string, AddedDraft[]>>({});
+  // Images whose review was submitted in this session (server also flags det.reviewed)
+  const [submittedImages, setSubmittedImages] = useState<Set<string>>(new Set());
+  const [selectedDetectionId, setSelectedDetectionId] = useState<string | null>(null);
+  const [editingDetId, setEditingDetId] = useState<string | null>(null);
+  const [drawingNew, setDrawingNew] = useState(false);
+  const [naturalDims, setNaturalDims] = useState<{ w: number; h: number } | null>(null);
+
+  // Reset per-image editing UI when switching images
+  useEffect(() => {
+    setSelectedDetectionId(null);
+    setEditingDetId(null);
+    setDrawingNew(false);
+    setNaturalDims(null);
+  }, [selectedImage]);
+
+  const cvDetsOf = (imgId: string): Detection[] =>
+    ((analysisResults[imgId]?.detections ?? []) as Detection[]).filter(d => d.source !== 'engineer_added');
+
+  /** Image review submitted (this session or per server flags). */
+  const isImageSubmitted = (imgId: string, extra?: Set<string>): boolean => {
+    if (submittedImages.has(imgId) || extra?.has(imgId)) return true;
+    const cv = cvDetsOf(imgId);
+    return cv.length > 0 && cv.every(d => !!d.reviewed);
+  };
+
+  /** Counts toward review progress (zero-CV images don't block completion). */
+  const isImageReviewed = (imgId: string, extra?: Set<string>): boolean =>
+    isImageSubmitted(imgId, extra) || cvDetsOf(imgId).length === 0;
+
+  const startReviewMutation = useMutation({
+    mutationFn: () => reviewApi.startReview(inspectionId),
+    onSuccess: () => {
+      setShowStartReviewConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      toast.success('Review mode started — CV detections are now locked');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to start review'),
+  });
+
+  const submitReviewMutation = useMutation({
+    mutationFn: ({ imageId, body }: { imageId: string; body: SubmitReviewRequest }) =>
+      reviewApi.submitImageReview(imageId, body),
+    onSuccess: (_data, { imageId }) => {
+      const done = new Set(submittedImages);
+      done.add(imageId);
+      setSubmittedImages(done);
+      setReviewState(prev => { const n = { ...prev }; delete n[imageId]; return n; });
+      setAddedDrafts(prev => { const n = { ...prev }; delete n[imageId]; return n; });
+      setEditingDetId(null);
+      setDrawingNew(false);
+      queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      toast.success('Image review submitted');
+      // Advance to the next image that still needs review
+      const next = images.find((im: any) => !isImageReviewed(im.id, done));
+      if (next) setSelectedImage(next.id);
+    },
+    onError: (err: any, { imageId }) => {
+      if (err?.response?.status === 409) {
+        toast.warning('This image was already reviewed — refreshing detections');
+        setSubmittedImages(prev => new Set(prev).add(imageId));
+        setReviewState(prev => { const n = { ...prev }; delete n[imageId]; return n; });
+        queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      } else {
+        toast.error(err?.response?.data?.detail || 'Failed to submit image review');
+      }
+    },
+  });
+
+  const completeReviewMutation = useMutation({
+    mutationFn: () => reviewApi.completeReview(inspectionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      toast.success('Review completed');
+      router.push(`/inspections/${inspectionId}/review-summary`);
+    },
+    onError: (err: any) => {
+      if (err?.response?.status === 409) {
+        toast.warning('Some detections are still unreviewed — submit every image first');
+        queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      } else {
+        toast.error(err?.response?.data?.detail || 'Failed to complete review');
+      }
+    },
+  });
+
+  // ── Review handlers ─────────────────────────────────────────────────────────
+  function handleReviewAction(det: Detection, action: 'accepted' | 'rejected' | 'modified') {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    const cur = reviewState[imgId]?.[det.id];
+    const togglingOff = cur?.action === action;
+
+    setReviewState(prev => {
+      const img = { ...(prev[imgId] ?? {}) };
+      if (togglingOff) {
+        img[det.id] = { ...cur, action: null };
+      } else if (action === 'modified') {
+        img[det.id] = {
+          action: 'modified',
+          modifiedBbox: cur?.modifiedBbox ?? { ...det.bbox },
+          damageType: cur?.damageType ?? det.damage_type,
+          severity: cur?.severity ?? normSeverity(det.severity),
+          notes: cur?.notes ?? '',
+        };
+      } else {
+        img[det.id] = { ...(cur ?? {}), action };
+      }
+      return { ...prev, [imgId]: img };
+    });
+
+    setDrawingNew(false);
+    if (togglingOff || action !== 'modified') {
+      if (editingDetId === det.id) setEditingDetId(null);
+      if (!togglingOff) setSelectedDetectionId(det.id);
+    } else {
+      // Modify: activate bbox editing for this detection immediately
+      setEditingDetId(det.id);
+      setSelectedDetectionId(det.id);
+    }
+  }
+
+  function handleUpdateReviewState(detId: string, patch: Partial<LocalDetectionReview>) {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    setReviewState(prev => {
+      const existing: LocalDetectionReview = prev[imgId]?.[detId] ?? { action: null };
+      return {
+        ...prev,
+        [imgId]: { ...(prev[imgId] ?? {}), [detId]: { ...existing, ...patch } },
+      };
+    });
+  }
+
+  function handleToggleEditBbox(detId: string) {
+    setDrawingNew(false);
+    setEditingDetId(prev => (prev === detId ? null : detId));
+    setSelectedDetectionId(detId);
+  }
+
+  function handleDrawComplete(b: BoundingBox) {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    const tempId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const damageTypeOptions = damageTypeOptionsOf();
+    const draft: AddedDraft = {
+      tempId,
+      bbox: roundBbox(b),
+      damageType: damageTypeOptions[0] ?? 'corrosion',
+      severity: 'S2',
+      notes: '',
+    };
+    setAddedDrafts(prev => ({ ...prev, [imgId]: [...(prev[imgId] ?? []), draft] }));
+    setDrawingNew(false);
+    setSelectedDetectionId(tempId);
+  }
+
+  function handleUpdateDraft(tempId: string, patch: Partial<AddedDraft>) {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    setAddedDrafts(prev => ({
+      ...prev,
+      [imgId]: (prev[imgId] ?? []).map(d => (d.tempId === tempId ? { ...d, ...patch } : d)),
+    }));
+  }
+
+  function handleRemoveDraft(tempId: string) {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    setAddedDrafts(prev => ({ ...prev, [imgId]: (prev[imgId] ?? []).filter(d => d.tempId !== tempId) }));
+    if (editingDetId === tempId) setEditingDetId(null);
+    if (selectedDetectionId === tempId) setSelectedDetectionId(null);
+  }
+
+  function handleEditorChange(b: BoundingBox) {
+    const imgId = selectedImage;
+    if (!imgId || !editingDetId) return;
+    const bb = roundBbox(b);
+    const drafts = addedDrafts[imgId] ?? [];
+    if (drafts.some(d => d.tempId === editingDetId)) {
+      handleUpdateDraft(editingDetId, { bbox: bb });
+    } else {
+      handleUpdateReviewState(editingDetId, { modifiedBbox: bb });
+    }
+  }
+
+  function damageTypeOptionsOf(): string[] {
+    const detected = Object.values(analysisResults)
+      .flatMap((r: any) => (r?.detections || []).map((d: any) => d.damage_type))
+      .filter(Boolean);
+    return Array.from(new Set([...detected, ...FIXED_DAMAGE_TYPES]));
+  }
+
+  function handleSubmitImageReview() {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    const cv = cvDetsOf(imgId);
+    const states = reviewState[imgId] ?? {};
+    const reviews: DetectionReviewItem[] = [];
+
+    for (const d of cv) {
+      const st = states[d.id];
+      if (!st?.action) return; // guard — button is disabled in this case
+      if (st.action === 'modified') {
+        reviews.push({
+          cv_detection_id: d.id,
+          action: 'modified',
+          corrected_detection: {
+            damage_type: (st.damageType || d.damage_type).trim(),
+            severity: st.severity ?? normSeverity(d.severity),
+            bbox: st.modifiedBbox ?? d.bbox,
+            confidence_score: 1.0,
+          },
+          notes: st.notes?.trim() || undefined,
+        });
+      } else {
+        reviews.push({
+          cv_detection_id: d.id,
+          action: st.action,
+          notes: st.notes?.trim() || undefined,
+        });
+      }
+    }
+
+    for (const draft of addedDrafts[imgId] ?? []) {
+      reviews.push({
+        cv_detection_id: null,
+        action: 'added',
+        corrected_detection: {
+          damage_type: draft.damageType.trim(),
+          severity: draft.severity,
+          bbox: draft.bbox,
+          confidence_score: 1.0,
+        },
+        notes: draft.notes.trim() || undefined,
+      });
+    }
+
+    submitReviewMutation.mutate({ imageId: imgId, body: { reviews } });
+  }
+
   async function handleAnalyze(imageId: string) {
     setAnalyzing(imageId);
     try {
@@ -386,6 +545,63 @@ export default function InspectionDetailPage() {
   const currentResult = currentImg ? analysisResults[currentImg.id] : null;
   const currentImgLoading = loadingDetections && currentImg?.analysis_status === 'completed' && !currentResult;
 
+  // ── Review-mode derived values ────────────────────────────────────────────
+  const isReviewMode = inspection.status === 'pending_review';
+  const reviewedImageCount = images.filter((im: any) => isImageReviewed(im.id)).length;
+  const allImagesReviewed = !loadingDetections && images.length > 0 && reviewedImageCount === images.length;
+
+  const currentCvDets: Detection[] = currentImg ? cvDetsOf(currentImg.id) : [];
+  const currentStates: Record<string, LocalDetectionReview> = currentImg ? (reviewState[currentImg.id] ?? {}) : {};
+  const currentDrafts: AddedDraft[] = currentImg ? (addedDrafts[currentImg.id] ?? []) : [];
+  const currentSubmitted = currentImg ? isImageSubmitted(currentImg.id) : false;
+
+  const actionedCount = currentCvDets.filter(d => currentStates[d.id]?.action).length;
+  const draftsValid = currentDrafts.every(d => d.damageType.trim().length > 0);
+  const modifiedValid = currentCvDets.every(d => {
+    const st = currentStates[d.id];
+    return st?.action !== 'modified' || ((st.damageType ?? '').trim().length > 0 && !!st.modifiedBbox);
+  });
+  const canSubmitReview =
+    !currentSubmitted &&
+    (currentCvDets.length > 0 || currentDrafts.length > 0) &&
+    actionedCount === currentCvDets.length &&
+    draftsValid && modifiedValid;
+
+  // Overlay composition: server detections + draft (engineer) boxes not being edited
+  const allServerDets: Detection[] = (currentResult?.detections ?? []) as Detection[];
+  const draftOverlayDets: Detection[] = currentDrafts
+    .filter(d => d.tempId !== editingDetId)
+    .map(dr => ({
+      id: dr.tempId,
+      image_id: currentImg?.id ?? '',
+      infrastructure_type: (allServerDets[0]?.infrastructure_type ?? 'coastal') as Detection['infrastructure_type'],
+      damage_type: dr.damageType || 'new damage',
+      confidence: 1,
+      bbox: dr.bbox,
+      severity: dr.severity,
+      created_at: '',
+      source: 'engineer_added' as const,
+    }));
+  const overlayDetections = currentSubmitted ? allServerDets : [...allServerDets, ...draftOverlayDets];
+  const overlayStates: Record<string, ReviewState> = {};
+  for (const [id, st] of Object.entries(currentStates)) {
+    // While a modified bbox is being edited, BboxEditor renders it — suppress the overlay copy
+    overlayStates[id] = { action: st.action, modifiedBbox: editingDetId === id ? undefined : st.modifiedBbox };
+  }
+
+  // BboxEditor composition (rendered inside ReviewOverlay's svg)
+  const editingDraft = currentDrafts.find(d => d.tempId === editingDetId) ?? null;
+  const editingCvDet = editingDraft ? null : currentCvDets.find(d => d.id === editingDetId) ?? null;
+  const editorBbox: BoundingBox | null = drawingNew
+    ? null
+    : editingDraft
+      ? editingDraft.bbox
+      : editingCvDet
+        ? (currentStates[editingCvDet.id]?.modifiedBbox ?? editingCvDet.bbox)
+        : null;
+  const editorMode: 'draw' | 'edit' | 'idle' = drawingNew ? 'draw' : editingDetId && editorBbox ? 'edit' : 'idle';
+  const editorColor = drawingNew || editingDraft ? '#10b981' : '#f59e0b';
+
   return (
     <div>
       {lightboxIndex !== null && (
@@ -442,10 +658,11 @@ export default function InspectionDetailPage() {
             <div className="flex items-center gap-3 flex-wrap">
               {asset && <span className="text-sm px-2.5 py-1 rounded-md font-medium bg-sky-50 text-sky-700 border border-sky-100">{asset.name}</span>}
               <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
-                inspection.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                inspection.status === 'completed' || inspection.status === 'review_completed' ? 'bg-emerald-50 text-emerald-700' :
                 inspection.status === 'pending' ? 'bg-amber-50 text-amber-700' :
+                inspection.status === 'pending_review' ? 'bg-amber-100 text-amber-800' :
                 'bg-slate-100 text-slate-500'
-              }`}>{inspection.status}</span>
+              }`}>{inspection.status.replace(/_/g, ' ')}</span>
               {editingDate ? (
                 <div className="flex items-center gap-1.5">
                   <input
@@ -491,12 +708,22 @@ export default function InspectionDetailPage() {
               {inspection.inspector_name && <span className="text-sm text-slate-400">Inspector: {inspection.inspector_name}</span>}
             </div>
           </div>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all ml-4 flex-shrink-0"
-          >
-            <Trash2 size={15} /> Delete
-          </button>
+          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+            {inspection.status === 'completed' && (
+              <button
+                onClick={() => setShowStartReviewConfirm(true)}
+                className="flex items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-all shadow-sm"
+              >
+                <ClipboardCheck size={15} /> Start Review
+              </button>
+            )}
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all"
+            >
+              <Trash2 size={15} /> Delete
+            </button>
+          </div>
         </div>
       </div>
 
@@ -509,6 +736,75 @@ export default function InspectionDetailPage() {
         onConfirm={() => deleteMutation.mutate()}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+
+      <ConfirmDialog
+        isOpen={showStartReviewConfirm}
+        title="Start Engineer Review"
+        message="All CV detections on this inspection will be locked, and the inspection will enter Review Mode. You will then accept, reject, modify, or add detections image by image."
+        confirmLabel="Start Review"
+        isLoading={startReviewMutation.isPending}
+        onConfirm={() => startReviewMutation.mutate()}
+        onCancel={() => setShowStartReviewConfirm(false)}
+      />
+
+      {/* ── Review Mode banner ── */}
+      {isReviewMode && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 mb-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <ClipboardCheck size={20} className="text-amber-600 flex-shrink-0" />
+              <div>
+                <p className="text-base font-bold text-amber-800">Review Mode Active</p>
+                <p className="text-sm text-amber-700">Review each detection, then submit per image.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-40 h-2 bg-amber-200/70 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                    style={{ width: `${images.length ? (reviewedImageCount / images.length) * 100 : 0}%` }}
+                  />
+                </div>
+                <span className="text-sm font-semibold text-amber-800 font-mono whitespace-nowrap">
+                  {reviewedImageCount} / {images.length} images reviewed
+                </span>
+              </div>
+              {allImagesReviewed && (
+                <button
+                  onClick={() => completeReviewMutation.mutate()}
+                  disabled={completeReviewMutation.isPending}
+                  className="flex items-center gap-1.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg transition-all shadow-sm disabled:opacity-50"
+                >
+                  {completeReviewMutation.isPending
+                    ? <Loader size={15} className="animate-spin" />
+                    : <CheckCircle size={15} />}
+                  Complete Review
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Review completed banner ── */}
+      {inspection.status === 'review_completed' && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6 shadow-sm flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <CheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
+            <div>
+              <p className="text-base font-bold text-emerald-800">Review completed</p>
+              <p className="text-sm text-emerald-700">The verified detection set is final. Engineer-added detections are shown in green.</p>
+            </div>
+          </div>
+          <Link
+            href={`/inspections/${inspectionId}/review-summary`}
+            className="text-sm font-bold text-emerald-700 hover:text-emerald-900 bg-white border border-emerald-200 px-3.5 py-2 rounded-lg transition-all"
+          >
+            View Review Summary →
+          </Link>
+        </div>
+      )}
 
       {/* ── Detection loading indicator ── */}
       {loadingDetections && (
@@ -624,6 +920,11 @@ export default function InspectionDetailPage() {
                               <div className="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin" />
                             </div>
                           )}
+                          {isReviewMode && !loadingDetections && isImageReviewed(img.id) && (
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center" title="Review submitted">
+                              <Check size={9} className="text-white" strokeWidth={3.5} />
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0 py-0.5">
                           <p className="text-[12px] font-medium text-slate-700 truncate leading-tight">
@@ -653,7 +954,94 @@ export default function InspectionDetailPage() {
 
           {/* Right: Detail view */}
           <div className="col-span-9">
-            {currentImg ? (
+            {currentImg && isReviewMode ? (
+              /* ── Review Mode: interactive overlay + action panel ── */
+              <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ImageIcon size={18} className="text-mira-muted flex-shrink-0" />
+                    <span className="text-base font-semibold text-slate-700 truncate">{currentImg.filename}</span>
+                    {currentSubmitted ? (
+                      <span className="flex items-center gap-1 text-sm px-2 py-0.5 rounded-md font-medium bg-emerald-50 text-emerald-700 flex-shrink-0">
+                        <Check size={13} /> Reviewed
+                      </span>
+                    ) : (
+                      <span className="text-sm px-2 py-0.5 rounded-md font-medium bg-amber-50 text-amber-700 flex-shrink-0">In review</span>
+                    )}
+                  </div>
+                  <button onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
+                    className="flex items-center gap-1.5 text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all flex-shrink-0">
+                    <ZoomIn size={14} /> Full Screen
+                  </button>
+                </div>
+
+                <div className="flex items-stretch">
+                  {/* Canvas */}
+                  <div className="flex-1 min-w-0 p-5">
+                    {currentImgLoading ? (
+                      <div className="w-full rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-3 py-24">
+                        <div className="w-8 h-8 border-2 border-mira-blue/30 border-t-mira-blue rounded-full animate-spin" />
+                        <p className="text-sm text-slate-400 font-medium">Fetching detection data…</p>
+                      </div>
+                    ) : (
+                      <ReviewOverlay
+                        imageUrl={currentImg.url}
+                        detections={overlayDetections}
+                        mode={currentSubmitted ? 'view' : 'review'}
+                        interactive={!currentSubmitted}
+                        reviewStates={overlayStates}
+                        selectedDetectionId={selectedDetectionId}
+                        onSelectDetection={id => setSelectedDetectionId(id)}
+                        onNaturalSize={(w, h) => setNaturalDims({ w, h })}
+                      >
+                        {!currentSubmitted && naturalDims && (
+                          <BboxEditor
+                            bbox={editorBbox}
+                            imageNaturalWidth={naturalDims.w}
+                            imageNaturalHeight={naturalDims.h}
+                            mode={editorMode}
+                            color={editorColor}
+                            onChange={handleEditorChange}
+                            onDrawComplete={handleDrawComplete}
+                          />
+                        )}
+                      </ReviewOverlay>
+                    )}
+                    {drawingNew && (
+                      <p className="text-sm text-emerald-700 mt-2 font-medium">Drag on the image to draw the new detection box.</p>
+                    )}
+                    {!drawingNew && editingDetId && editorMode === 'edit' && (
+                      <p className="text-sm text-amber-700 mt-2 font-medium">Drag the box to move it, or pull the handles to resize. Changes are saved with your review.</p>
+                    )}
+                  </div>
+
+                  {/* Right: per-detection action panel */}
+                  <div className="w-[360px] flex-shrink-0 border-l border-slate-100 bg-slate-50/40">
+                    <ReviewPanel
+                      detections={allServerDets}
+                      drafts={currentDrafts}
+                      states={currentStates}
+                      imageSubmitted={currentSubmitted}
+                      selectedDetectionId={selectedDetectionId}
+                      editingDetId={editingDetId}
+                      drawingNew={drawingNew}
+                      damageTypeOptions={damageTypeOptionsOf()}
+                      submitting={submitReviewMutation.isPending}
+                      canSubmit={canSubmitReview}
+                      onSelectDetection={id => setSelectedDetectionId(id)}
+                      onAction={handleReviewAction}
+                      onUpdateState={handleUpdateReviewState}
+                      onToggleEditBbox={handleToggleEditBbox}
+                      onStartDraw={() => { setDrawingNew(true); setEditingDetId(null); }}
+                      onCancelDraw={() => setDrawingNew(false)}
+                      onUpdateDraft={handleUpdateDraft}
+                      onRemoveDraft={handleRemoveDraft}
+                      onSubmit={handleSubmitImageReview}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : currentImg ? (
               <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-hidden">
                 {/* Image header */}
                 <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
@@ -717,9 +1105,10 @@ export default function InspectionDetailPage() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</p>
-                        <AnnotatedOverlay
+                        <ReviewOverlay
                           imageUrl={currentImg.url}
                           detections={currentResult.detections}
+                          mode="view"
                           onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
                         />
                       </div>
