@@ -13,7 +13,7 @@ export interface TwinRef {
   name: string;
 }
 
-type Asset = { id?: string; name?: string; [k: string]: unknown };
+type Asset = { id?: string; name?: string };
 
 // Match by asset_id first (exact), then fall back to a fuzzy asset-name match
 // so that orgs that re-created assets under new UUIDs still resolve correctly.

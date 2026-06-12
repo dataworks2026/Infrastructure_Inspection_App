@@ -274,7 +274,8 @@ function DxfViewer({ record }: { record: RecordItem }) {
   const [stats, setStats] = useState<{ entities: number; layers: number } | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current || !record.raw_bytes) return;
+    const container = containerRef.current;
+    if (!container || !record.raw_bytes) return;
     let viewer: any = null;
     let disposed = false;
 
@@ -291,7 +292,7 @@ function DxfViewer({ record }: { record: RecordItem }) {
         // dxf-viewer's clearColor option expects a THREE.Color instance
         // (it calls .getHex() on it internally). Passing a plain {r,g,b,a}
         // object throws "this.options.clearColor.getHex is not a function".
-        viewer = new DxfViewerClass(containerRef.current, {
+        viewer = new DxfViewerClass(container, {
           clearColor: new THREE.Color(0x0A0E14),
           autoResize: true,
           colorCorrection: true,
