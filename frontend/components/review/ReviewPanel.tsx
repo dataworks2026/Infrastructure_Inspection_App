@@ -20,6 +20,7 @@ import {
   SEVERITY_LEVELS,
   STRUCTURAL_SEGMENTS,
   buildAnnotationLabel,
+  damageLabelOf,
   type IndustryCategory,
 } from '@/lib/annotationTaxonomy';
 
@@ -527,6 +528,12 @@ export default function ReviewPanel({
               const st = states[det.id];
               const action = st?.action ?? null;
               const selected = selectedDetectionId === det.id;
+              // Pending modified values — surface them on the card so the
+              // engineer sees their edit took effect before submitting
+              const origSev = normSeverity(det.severity);
+              const modSev = action === 'modified' && st?.severity && st.severity !== origSev ? st.severity : null;
+              const origCode = deriveDamageCode(det, category);
+              const modCode = action === 'modified' && st?.damageCode && st.damageCode !== origCode ? st.damageCode : null;
               return (
                 <div
                   key={det.id}
@@ -536,9 +543,24 @@ export default function ReviewPanel({
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-sm font-bold text-slate-700 truncate">{det.damage_type}</span>
+                    <span className="text-sm font-bold text-slate-700 truncate">
+                      {modCode ? (
+                        <>
+                          <span className="line-through text-slate-400">{det.damage_type}</span>
+                          <span className="text-amber-600"> → {damageLabelOf(modCode, category)}</span>
+                        </>
+                      ) : det.damage_type}
+                    </span>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <SevBadge severity={det.severity} />
+                      {modSev ? (
+                        <span className="flex items-center gap-1">
+                          <span className="opacity-40 line-through"><SevBadge severity={origSev} /></span>
+                          <span className="text-amber-600 text-xs font-bold">→</span>
+                          <SevBadge severity={modSev} />
+                        </span>
+                      ) : (
+                        <SevBadge severity={det.severity} />
+                      )}
                       <span className="text-xs font-mono text-slate-400">{Math.round(det.confidence * 100)}%</span>
                     </div>
                   </div>

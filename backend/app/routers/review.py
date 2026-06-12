@@ -72,7 +72,10 @@ def _compute_delta(original: Detection, corrected) -> dict:
     else:
         delta["bbox_changed"] = False
 
-    if (original.damage_type or None) != (corrected.damage_type or None):
+    # Case-insensitive: CV writes 'Corrosion', the review UI submits 'corrosion'
+    old_damage = (original.damage_type or "").strip().lower() or None
+    new_damage = (corrected.damage_type or "").strip().lower() or None
+    if old_damage != new_damage:
         delta["damage_type_changed"] = True
         delta["damage_type_before"] = original.damage_type
         delta["damage_type_after"] = corrected.damage_type
