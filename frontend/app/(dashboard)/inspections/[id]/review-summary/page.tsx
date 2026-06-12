@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, ScanSearch, CheckCircle, XCircle, Pencil, PlusCircle,
-  FileDown, ClipboardList, AlertCircle, Check, X, Plus, Loader2,
+  FileDown, FileJson, ClipboardList, AlertCircle, Check, X, Plus, Loader2,
 } from 'lucide-react';
 import { reviewApi, inspectionsApi } from '@/lib/api';
 import KPICard from '@/components/dashboard/KPICard';
@@ -196,6 +196,7 @@ export default function ReviewSummaryPage() {
   const params = useParams();
   const inspectionId = params.id as string;
   const [exporting, setExporting] = useState(false);
+  const [exportingJson, setExportingJson] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const { data: inspection } = useQuery({
@@ -225,6 +226,31 @@ export default function ReviewSummaryPage() {
       setExportError('Failed to generate the review report PDF. Please try again.');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportJson = async () => {
+    if (exportingJson) return;
+    setExportingJson(true);
+    setExportError(null);
+    try {
+      const res = await reviewApi.downloadReviewExport(inspectionId);
+      const dispo = res.headers['content-disposition'] as string | undefined;
+      const filename =
+        dispo?.match(/filename="?([^";]+)"?/)?.[1] ||
+        `${inspection?.name || inspectionId}_review_export.json`;
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError('Failed to generate the review export JSON. Please try again.');
+    } finally {
+      setExportingJson(false);
     }
   };
 
@@ -311,15 +337,26 @@ export default function ReviewSummaryPage() {
 
         {/* ── 6. Export — downloads the dedicated Engineer Review Report PDF */}
         <div className="flex flex-col items-end gap-1.5">
-          <button
-            onClick={handleExportPdf}
-            disabled={exporting}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-mira-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity print:hidden disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {exporting
-              ? (<><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF…</>)
-              : (<><FileDown className="w-4 h-4" /> Export PDF</>)}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportJson}
+              disabled={exportingJson}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-card-border bg-card-dark text-card-text text-sm font-semibold hover:bg-card-border/40 transition-colors print:hidden disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {exportingJson
+                ? (<><Loader2 className="w-4 h-4 animate-spin" /> Generating JSON…</>)
+                : (<><FileJson className="w-4 h-4" /> Export JSON</>)}
+            </button>
+            <button
+              onClick={handleExportPdf}
+              disabled={exporting}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-mira-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity print:hidden disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {exporting
+                ? (<><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF…</>)
+                : (<><FileDown className="w-4 h-4" /> Export PDF</>)}
+            </button>
+          </div>
           {exportError && (
             <span className="text-xs text-red-400">{exportError}</span>
           )}

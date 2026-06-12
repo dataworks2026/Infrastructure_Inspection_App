@@ -148,6 +148,9 @@ export const reviewApi = {
   // Returns the full axios response so callers can read Content-Disposition
   downloadReviewReport: (inspectionId: string) =>
     api.get<Blob>(`/inspections/${inspectionId}/review-report.pdf`, { responseType: 'blob' }),
+  // Training-data JSON export (annotations.json v1.1 superset) — full response for Content-Disposition
+  downloadReviewExport: (inspectionId: string) =>
+    api.get<Blob>(`/inspections/${inspectionId}/review-export.json`, { responseType: 'blob' }),
   updateImageAssetType: (imageId: string, assetType: string) =>
     api.patch<UpdateAssetTypeResponse>(`/images/${imageId}/asset-type`, { asset_type: assetType }).then(r => r.data),
 };
