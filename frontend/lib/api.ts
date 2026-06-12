@@ -145,6 +145,9 @@ export const reviewApi = {
     api.get<ReviewDiffResponse>(`/inspections/${inspectionId}/review-diff`).then(r => r.data),
   getReviewStats: () =>
     api.get<ReviewStatsResponse>('/review-stats').then(r => r.data),
+  // Returns the full axios response so callers can read Content-Disposition
+  downloadReviewReport: (inspectionId: string) =>
+    api.get<Blob>(`/inspections/${inspectionId}/review-report.pdf`, { responseType: 'blob' }),
   updateImageAssetType: (imageId: string, assetType: string) =>
     api.patch<UpdateAssetTypeResponse>(`/images/${imageId}/asset-type`, { asset_type: assetType }).then(r => r.data),
 };

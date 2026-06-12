@@ -1,10 +1,11 @@
 'use client';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, ScanSearch, CheckCircle, XCircle, Pencil, PlusCircle,
-  FileDown, ClipboardList, AlertCircle, Check, X, Plus,
+  FileDown, ClipboardList, AlertCircle, Check, X, Plus, Loader2,
 } from 'lucide-react';
 import { reviewApi, inspectionsApi } from '@/lib/api';
 import KPICard from '@/components/dashboard/KPICard';
@@ -194,11 +195,38 @@ function AccuracyBadge({ pct }: { pct: number }) {
 export default function ReviewSummaryPage() {
   const params = useParams();
   const inspectionId = params.id as string;
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const { data: inspection } = useQuery({
     queryKey: ['inspection', inspectionId],
     queryFn: () => inspectionsApi.get(inspectionId),
   });
+
+  const handleExportPdf = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await reviewApi.downloadReviewReport(inspectionId);
+      const dispo = res.headers['content-disposition'] as string | undefined;
+      const filename =
+        dispo?.match(/filename="?([^";]+)"?/)?.[1] ||
+        `${inspection?.name || inspectionId}_review_report.pdf`;
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError('Failed to generate the review report PDF. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['review-diff', inspectionId],
@@ -281,13 +309,21 @@ export default function ReviewSummaryPage() {
           </p>
         </div>
 
-        {/* ── 6. Export button — print-friendly layout for now (backend PDF export lands in Phase 3 via report-generator) */}
-        <button
-          onClick={() => window.print()}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-mira-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity print:hidden"
-        >
-          <FileDown className="w-4 h-4" /> Export PDF
-        </button>
+        {/* ── 6. Export — downloads the dedicated Engineer Review Report PDF */}
+        <div className="flex flex-col items-end gap-1.5">
+          <button
+            onClick={handleExportPdf}
+            disabled={exporting}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-mira-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity print:hidden disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {exporting
+              ? (<><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF…</>)
+              : (<><FileDown className="w-4 h-4" /> Export PDF</>)}
+          </button>
+          {exportError && (
+            <span className="text-xs text-red-400">{exportError}</span>
+          )}
+        </div>
       </div>
 
       {/* ── 2. KPI row ──────────────────────────────────────────────────── */}
