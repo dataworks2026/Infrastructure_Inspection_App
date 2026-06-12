@@ -1,8 +1,9 @@
+import json
 import re
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
@@ -14,6 +15,7 @@ from app.services.reports.narrative import generate_narrative
 from app.services.reports.pdf_report import generate_pdf
 from app.services.reports.report_builder import build_report_data
 from app.services.reports.review_diff import compute_review_diff, has_review_data
+from app.services.reports.review_export import build_review_export
 from app.services.reports.review_report import generate_review_report_pdf
 
 router = APIRouter()
@@ -156,5 +158,52 @@ def review_report_pdf(
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@review_report_router.get("/inspections/{inspection_id}/review-export.json")
+def review_export_json(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Training-data JSON export — superset of the Annotation App's
+    annotations.json v1.1 (final verified annotations with provenance) plus a
+    lossless record of every CV prediction and the engineer's verdict.
+
+    Available while the review is in progress (pending_review — partial
+    export, unreviewed CV predictions carry review: null) and after
+    completion (review_completed).
+    """
+    org_id = _require_org(current_user)
+    inspection = db.query(Inspection).filter(
+        Inspection.id == inspection_id,
+        Inspection.organization_id == org_id,
+    ).first()
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    if inspection.status not in (
+        InspectionStatus.pending_review.value,
+        InspectionStatus.review_completed.value,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Inspection status is '{inspection.status}' — the review export "
+                   "is only available once an engineer review has been started.",
+        )
+    if not has_review_data(db, inspection_id):
+        raise HTTPException(
+            status_code=409,
+            detail="This inspection has no engineer review data yet — "
+                   "submit at least one image review first.",
+        )
+
+    export = build_review_export(db, inspection_id)
+    filename = f"{_sanitize_filename(inspection.name or inspection_id)}_review_export.json"
+    return Response(
+        content=json.dumps(export, indent=2),
+        media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

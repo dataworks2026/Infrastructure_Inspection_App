@@ -793,6 +793,186 @@ def test_patch_asset_type_other_org_404(other_org_client, review_data):
     assert resp.status_code == 404
 
 
+# ─── review-export.json (training-data export) ───────────────────
+
+def _export(client, insp_id):
+    return client.get(f"/api/v1/inspections/{insp_id}/review-export.json")
+
+
+def _submit_all_labeled(client, d):
+    """Same flow as _submit_all but with annotation labels on modified/added."""
+    r1 = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_a"], "action": "accepted"},
+        {"cv_detection_id": d["det_b"], "action": "rejected", "notes": "false positive"},
+        {"cv_detection_id": d["det_c"], "action": "modified",
+         "corrected_detection": LABELED_CORRECTED, "notes": "bbox too tight"},
+    ])
+    r2 = _submit(client, d["img2"], [
+        {"cv_detection_id": d["det_d"], "action": "accepted"},
+        {"action": "added", "corrected_detection": LABELED_ADDED, "notes": "missed by CV"},
+    ])
+    return r1, r2
+
+
+def test_review_export_full_flow(client, db_session, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    r1, r2 = _submit_all_labeled(client, d)
+    assert r1.status_code == 200, r1.text
+    assert r2.status_code == 200, r2.text
+    assert client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review").status_code == 200
+
+    resp = _export(client, d["inspection_id"])
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("application/json")
+    dispo = resp.headers["content-disposition"]
+    assert "attachment" in dispo
+    assert "Review_Test_Inspection_review_export.json" in dispo
+
+    body = resp.json()
+
+    # ── envelope ──
+    assert body["inspection_id"] == d["inspection_id"]
+    assert body["export_version"] == "1.1"
+    assert body["export_variant"] == "engineer_review"
+    assert body["source_app"] == "inspection_app"
+    assert body["asset_name"] == "Pier 9"
+    assert body["generated_at"] is not None
+
+    # ── review block ──
+    rev = body["review"]
+    assert rev["status"] == "review_completed"
+    assert rev["reviewed_by"] == "test@example.com"
+    assert rev["reviewed_at"] is not None
+    assert rev["totals"] == {
+        "cv_detections": 4, "accepted": 2, "rejected": 1, "modified": 1,
+        "engineer_added": 1, "final_count": 4, "accuracy_pct": 75.0,
+    }
+
+    # ── image-level counts ──
+    assert body["total_images"] == 2
+    assert body["total_annotations"] == 4
+    images = {i["image_id"]: i for i in body["images"]}
+    assert set(images) == {d["img1"], d["img2"]}
+    for img in body["images"]:
+        assert img["annotation_status"] == "completed"
+        assert img["num_annotations"] == len(img["annotations"])
+    assert sum(i["num_annotations"] for i in body["images"]) == body["total_annotations"]
+
+    # ── image 1: accepted + modified in annotations, rejected absent ──
+    i1 = images[d["img1"]]
+    assert i1["filename"] == "img1.jpg"
+    assert i1["num_annotations"] == 2
+    anns1 = {a["origin"]: a for a in i1["annotations"]}
+    assert set(anns1) == {"cv_accepted", "engineer_modified"}
+
+    # accepted — fields come from the ORIGINAL CV detection (v1.1 shape)
+    acc = anns1["cv_accepted"]
+    assert acc["annotation_id"] == d["det_a"]
+    assert acc["cv_detection_id"] == d["det_a"]
+    assert acc["bbox"] == {"x": 10.0, "y": 20.0, "width": 100.0, "height": 100.0}
+    assert acc["shape_type"] == "rect"
+    assert acc["damage_type"] == {"code": "CO", "label": "Corrosion"}
+    assert acc["severity"] == {"level": 2, "label": "Moderate"}
+    assert acc["structural_segments"] == []
+    assert acc["defect_id"] is None
+
+    # modified — fields come from the engineer's CORRECTED detection
+    mod = anns1["engineer_modified"]
+    assert mod["cv_detection_id"] == d["det_c"]
+    assert mod["annotation_id"] != d["det_c"]
+    assert mod["bbox"] == {"x": 15.0, "y": 25.0, "width": 115.0, "height": 115.0}
+    assert mod["shape_type"] == "ellipse"
+    assert mod["damage_type"] == {"code": "SP", "label": "Spalling"}
+    assert mod["severity"] == {"level": 3, "label": "Advanced"}
+    assert mod["structural_segments"] == [{"code": "DT"}, {"code": "PS"}]
+    assert mod["defect_id"] == "PIER-1"
+
+    # rejected det_b absent from annotations
+    assert d["det_b"] not in {a["annotation_id"] for a in i1["annotations"]}
+
+    # cv_predictions — ALL 3 locked CV detections on img1, lossless
+    preds1 = {p["detection_id"]: p for p in i1["cv_predictions"]}
+    assert set(preds1) == {d["det_a"], d["det_b"], d["det_c"]}
+    pa = preds1[d["det_a"]]
+    assert pa["bbox"] == {"x": 10.0, "y": 20.0, "width": 100.0, "height": 100.0}
+    assert pa["confidence"] == 0.8
+    assert pa["model_name"] == "yolov8-maritime"
+    assert pa["review"]["action"] == "accepted"
+    assert pa["review"]["engineer_annotation_id"] is None
+    assert pa["review"]["delta"] is None
+    pb = preds1[d["det_b"]]
+    assert pb["review"]["action"] == "rejected"
+    assert pb["review"]["engineer_annotation_id"] is None
+    assert pb["review"]["delta"] is None
+    assert pb["review"]["notes"] == "false positive"
+    assert pb["review"]["reviewed_by"] == "test@example.com"
+    # modified prediction links to the corrected annotation, delta verbatim
+    pc = preds1[d["det_c"]]
+    assert pc["damage_type"] == {"code": "CO", "label": "Corrosion"}   # frozen original
+    assert pc["review"]["action"] == "modified"
+    assert pc["review"]["engineer_annotation_id"] == mod["annotation_id"]
+    db_row = db_session.query(DetectionReview).filter(
+        DetectionReview.cv_detection_id == d["det_c"]).one()
+    assert pc["review"]["delta"] == db_row.delta_json
+
+    # ── image 2: accepted + added in annotations, added absent from preds ──
+    i2 = images[d["img2"]]
+    assert i2["num_annotations"] == 2
+    anns2 = {a["origin"]: a for a in i2["annotations"]}
+    assert set(anns2) == {"cv_accepted", "engineer_added"}
+    add = anns2["engineer_added"]
+    assert add["cv_detection_id"] is None
+    assert add["bbox"] == {"x": 200.0, "y": 200.0, "width": 50.0, "height": 60.0}
+    assert add["shape_type"] == "ellipse"
+    assert add["damage_type"] == {"code": "DL", "label": "Delamination"}
+    assert add["severity"] == {"level": 1, "label": "Minor"}
+    assert add["structural_segments"] == [{"code": "BH"}]
+    assert add["defect_id"] == "BH-002"
+    # engineer-added detection never appears in cv_predictions
+    assert [p["detection_id"] for p in i2["cv_predictions"]] == [d["det_d"]]
+    assert i2["cv_predictions"][0]["review"]["action"] == "accepted"
+
+
+def test_review_export_partial_pending_review(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    # Review only image1 — det_d on image2 stays unreviewed
+    _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_a"], "action": "accepted"},
+        {"cv_detection_id": d["det_b"], "action": "rejected"},
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": CORRECTED},
+    ])
+    resp = _export(client, d["inspection_id"])
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["review"]["status"] == "pending_review"
+    # only the reviewed image is exported
+    assert body["total_images"] == 1
+    assert body["images"][0]["image_id"] == d["img1"]
+    # unreviewed CV detections on the exported image would carry review: null
+    for p in body["images"][0]["cv_predictions"]:
+        assert p["review"] is not None   # all 3 on img1 were reviewed
+
+
+def test_review_export_409_before_any_review(client, review_data):
+    d = review_data
+    # status 'completed' — review never started
+    assert _export(client, d["inspection_id"]).status_code == 409
+    # review started but no image submitted yet — still 409
+    _start(client, d["inspection_id"])
+    assert _export(client, d["inspection_id"]).status_code == 409
+
+
+def test_review_export_missing_inspection_404(client):
+    assert _export(client, "no-such-inspection").status_code == 404
+
+
+def test_review_export_other_org_404(other_org_client, review_data):
+    d = review_data
+    assert _export(other_org_client, d["inspection_id"]).status_code == 404
+
+
 # ─── org isolation ────────────────────────────────────────────────
 
 def test_other_org_user_gets_404_on_all_endpoints(other_org_client, review_data):
