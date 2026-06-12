@@ -87,6 +87,8 @@ export interface ReviewOverlayProps {
   interactive?: boolean;
   /** Reports the image's natural dimensions once loaded (for BboxEditor composition). */
   onNaturalSize?: (w: number, h: number) => void;
+  /** When false, hides all text label chips (boxes/ellipses/strikethroughs stay). */
+  showLabels?: boolean;
 }
 
 export default function ReviewOverlay({
@@ -101,6 +103,7 @@ export default function ReviewOverlay({
   children,
   interactive,
   onNaturalSize,
+  showLabels = true,
 }: ReviewOverlayProps) {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   const isReview = mode === 'review';
@@ -152,7 +155,7 @@ export default function ReviewOverlay({
                 if (action === 'added') {
                   mainLabel = `NEW: ${annLabel}`;
                 } else if (action === null) {
-                  mainLabel = `CV: ${annLabel} | ${Math.round(d.confidence * 100)}%`;
+                  mainLabel = `CV: ${annLabel}`;
                 } else {
                   mainLabel = annLabel;
                 }
@@ -290,17 +293,21 @@ export default function ReviewOverlay({
                       }, 2 * scale)}
                     </>
                   )}
-                  {/* Label chip */}
-                  <rect x={labelX + 1} y={labelY + 1} width={labelW} height={lH}
-                    fill="rgba(0,0,0,0.25)" rx={4 * scale} />
-                  <rect x={labelX} y={labelY} width={labelW} height={lH}
-                    fill={stroke} fillOpacity={labelBgOp} rx={4 * scale} />
-                  <text x={labelX + labelPad} y={labelY + lH * 0.72}
-                    fontSize={mainFontSize} fill="white"
-                    fontFamily="system-ui,-apple-system,sans-serif"
-                    fontWeight="700" letterSpacing="0.2">
-                    {mainLabel}
-                  </text>
+                  {/* Label chip (hidden when labels are toggled off) */}
+                  {showLabels && (
+                    <>
+                      <rect x={labelX + 1} y={labelY + 1} width={labelW} height={lH}
+                        fill="rgba(0,0,0,0.25)" rx={4 * scale} />
+                      <rect x={labelX} y={labelY} width={labelW} height={lH}
+                        fill={stroke} fillOpacity={labelBgOp} rx={4 * scale} />
+                      <text x={labelX + labelPad} y={labelY + lH * 0.72}
+                        fontSize={mainFontSize} fill="white"
+                        fontFamily="system-ui,-apple-system,sans-serif"
+                        fontWeight="700" letterSpacing="0.2">
+                        {mainLabel}
+                      </text>
+                    </>
+                  )}
                 </g>
               );
             });

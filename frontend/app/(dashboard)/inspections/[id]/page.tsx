@@ -10,9 +10,7 @@ import { useToast } from '@/components/ui/Toast';
 import ReviewOverlay, { type ReviewState } from '@/components/review/ReviewOverlay';
 import BboxEditor from '@/components/review/BboxEditor';
 import ReviewPanel, {
-  normSeverity,
-  deriveDamageCode,
-  segmentsOf,
+  initModifiedState,
   type AddedDraft,
   type LocalDetectionReview,
 } from '@/components/review/ReviewPanel';
@@ -69,11 +67,12 @@ function getDamageConfig(damageType: string) {
 }
 
 // ─── Lightbox ────────────────────────────────────────────────────────────────
-function Lightbox({ images, initialIndex, onClose, analysisResults }: {
+function Lightbox({ images, initialIndex, onClose, analysisResults, showLabels = true }: {
   images: any[];
   initialIndex: number;
   onClose: () => void;
   analysisResults: Record<string, any>;
+  showLabels?: boolean;
 }) {
   const [index, setIndex] = useState(initialIndex);
   const [showAnnotated, setShowAnnotated] = useState(true);
@@ -138,7 +137,7 @@ function Lightbox({ images, initialIndex, onClose, analysisResults }: {
         )}
         {showAnnotated && hasAnnotation ? (
           <div className="h-full w-full flex items-center justify-center overflow-hidden">
-            <ReviewOverlay imageUrl={img.url} detections={result.detections} mode="view" fitScreen />
+            <ReviewOverlay imageUrl={img.url} detections={result.detections} mode="view" fitScreen showLabels={showLabels} />
           </div>
         ) : (
           <img src={img.url} alt={img.filename} className="max-h-full max-w-full object-contain rounded-lg" />
@@ -255,6 +254,8 @@ export default function InspectionDetailPage() {
   const [tool, setTool] = useState<ReviewTool>('select');
   // Bumped after each draw so the panel scrolls to LABELS and focuses Damage Type
   const [labelsFocusToken, setLabelsFocusToken] = useState(0);
+  // Overlay text label chips visible (toggle: toolbar button or 'L')
+  const [showLabels, setShowLabels] = useState(true);
   // Image asset types saved this session (PATCH succeeded): imageId → asset_type
   const [assetTypeOverrides, setAssetTypeOverrides] = useState<Record<string, string>>({});
   const [naturalDims, setNaturalDims] = useState<{ w: number; h: number } | null>(null);
@@ -384,15 +385,7 @@ export default function InspectionDetailPage() {
       if (togglingOff) {
         img[det.id] = { ...cur, action: null };
       } else if (action === 'modified') {
-        img[det.id] = {
-          action: 'modified',
-          modifiedBbox: cur?.modifiedBbox ?? { ...det.bbox },
-          damageCode: cur?.damageCode ?? deriveDamageCode(det, category),
-          severity: cur?.severity ?? normSeverity(det.severity),
-          segments: cur?.segments ?? segmentsOf(det),
-          defectId: cur?.defectId ?? det.domain_metadata?.defect_id ?? '',
-          notes: cur?.notes ?? '',
-        };
+        img[det.id] = initModifiedState(det, category, cur);
       } else {
         img[det.id] = { ...(cur ?? {}), action };
       }
@@ -400,7 +393,11 @@ export default function InspectionDetailPage() {
     });
 
     setTool('select');
-    if (!togglingOff) setSelectedDetectionId(det.id);
+    if (!togglingOff) {
+      setSelectedDetectionId(det.id);
+      // Modify jumps straight to the LABELS editor (same behavior as new drafts)
+      if (action === 'modified') setLabelsFocusToken(t => t + 1);
+    }
   }
 
   /** Accept All / Reject All — only fills in unactioned CV detections. */
@@ -568,6 +565,18 @@ export default function InspectionDetailPage() {
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inspection?.status, lightboxIndex, selectedImage, selectedDetectionId, addedDrafts, submittedImages, analysisResults]);
+
+  // L = toggle overlay labels — works in view mode, review mode and the lightbox
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.toLowerCase() === 'l') setShowLabels(s => !s);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   async function handleAnalyze(imageId: string) {
     setAnalyzing(imageId);
@@ -743,6 +752,7 @@ export default function InspectionDetailPage() {
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           analysisResults={analysisResults}
+          showLabels={showLabels}
         />
       )}
 
@@ -1115,6 +1125,8 @@ export default function InspectionDetailPage() {
                     onToolChange={setTool}
                     canDelete={!!selectedDraft}
                     onDelete={() => { if (selectedDraft) handleRemoveDraft(selectedDraft.tempId); }}
+                    showLabels={showLabels}
+                    onToggleLabels={() => setShowLabels(s => !s)}
                     reviewedImages={reviewedImageCount}
                     totalImages={images.length}
                     hasUnsaved={hasUnsavedChanges}
@@ -1146,6 +1158,7 @@ export default function InspectionDetailPage() {
                         selectedDetectionId={selectedDetectionId}
                         onSelectDetection={id => setSelectedDetectionId(id)}
                         onNaturalSize={(w, h) => setNaturalDims({ w, h })}
+                        showLabels={showLabels}
                       >
                         {!currentSubmitted && naturalDims && (
                           <BboxEditor
@@ -1266,6 +1279,7 @@ export default function InspectionDetailPage() {
                           imageUrl={currentImg.url}
                           detections={currentResult.detections}
                           mode="view"
+                          showLabels={showLabels}
                           onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
                         />
                       </div>

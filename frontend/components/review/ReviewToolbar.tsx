@@ -8,7 +8,7 @@
  */
 
 import {
-  MousePointer2, Square, Circle, Trash2, Check, X, Loader, Save,
+  MousePointer2, Square, Circle, Trash2, Check, X, Loader, Save, Eye, EyeOff,
 } from 'lucide-react';
 
 export type ReviewTool = 'select' | 'box' | 'oval';
@@ -19,6 +19,9 @@ export interface ReviewToolbarProps {
   /** Selected item is an engineer draft (deletable). CV detections are never deletable. */
   canDelete: boolean;
   onDelete: () => void;
+  /** Overlay text labels visible on the canvas. */
+  showLabels: boolean;
+  onToggleLabels: () => void;
   reviewedImages: number;
   totalImages: number;
   /** Current image has local (not yet submitted) review state. */
@@ -45,6 +48,8 @@ export default function ReviewToolbar({
   onToolChange,
   canDelete,
   onDelete,
+  showLabels,
+  onToggleLabels,
   reviewedImages,
   totalImages,
   hasUnsaved,
@@ -86,6 +91,19 @@ export default function ReviewToolbar({
         className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-white text-red-600 border-red-200 hover:bg-red-50 transition-all disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-white"
       >
         <Trash2 size={14} /> Delete
+      </button>
+
+      <button
+        title="Show/Hide labels (L)"
+        onClick={onToggleLabels}
+        className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-all ${
+          showLabels
+            ? 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            : 'bg-slate-700 text-white border-slate-700 hover:bg-slate-600'
+        }`}
+      >
+        {showLabels ? <Eye size={14} /> : <EyeOff size={14} />} Labels
+        <span className={`text-[10px] font-mono ${showLabels ? 'text-slate-400' : 'text-slate-300'}`}>L</span>
       </button>
 
       <div className="w-px h-6 bg-slate-200" />

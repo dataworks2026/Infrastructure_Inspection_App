@@ -89,6 +89,27 @@ export function segmentsOf(det: Detection): string[] {
   return [];
 }
 
+/**
+ * Initial 'modified' review state for a CV detection: bbox + label prefills
+ * from the detection, preserving anything the engineer already set (`cur`).
+ * Shared by the page's Modify action and the panel's label auto-promote.
+ */
+export function initModifiedState(
+  det: Detection,
+  category: IndustryCategory,
+  cur?: LocalDetectionReview,
+): LocalDetectionReview {
+  return {
+    action: 'modified',
+    modifiedBbox: cur?.modifiedBbox ?? { ...det.bbox },
+    damageCode: cur?.damageCode ?? deriveDamageCode(det, category),
+    severity: cur?.severity ?? normSeverity(det.severity),
+    segments: cur?.segments ?? segmentsOf(det),
+    defectId: cur?.defectId ?? det.domain_metadata?.defect_id ?? '',
+    notes: cur?.notes ?? '',
+  };
+}
+
 function SevBadge({ severity }: { severity: string | null | undefined }) {
   const s = normSeverity(severity);
   const hex = REVIEW_SEVERITY_HEX[s];
@@ -328,9 +349,10 @@ export default function ReviewPanel({
   const selectedCvDet = selectedDraft
     ? null
     : cvDetections.find(d => d.id === selectedDetectionId) ?? null;
-  const selectedModified =
-    selectedCvDet && states[selectedCvDet.id]?.action === 'modified' ? selectedCvDet : null;
-  const labelsTarget = selectedDraft ?? selectedModified;
+  const selectedCvState = selectedCvDet ? states[selectedCvDet.id] : undefined;
+  const selectedCvIsModified = selectedCvState?.action === 'modified';
+  // LABELS shows for any selected draft or CV detection (edits auto-promote to 'modified')
+  const labelsTarget = selectedDraft ?? selectedCvDet;
 
   // Annotation list labels
   const cvListLabel = (d: Detection, idx: number): string => {
@@ -357,27 +379,52 @@ export default function ReviewPanel({
         defectId: selectedDraft.defectId,
         notes: selectedDraft.notes,
       }
-    : selectedModified
-      ? {
-          damageCode: states[selectedModified.id]?.damageCode ?? '',
-          severity: states[selectedModified.id]?.severity ?? normSeverity(selectedModified.severity),
-          segments: states[selectedModified.id]?.segments ?? [],
-          defectId: states[selectedModified.id]?.defectId ?? '',
-          notes: states[selectedModified.id]?.notes ?? '',
-        }
+    : selectedCvDet
+      ? selectedCvIsModified
+        ? {
+            damageCode: selectedCvState?.damageCode ?? '',
+            severity: selectedCvState?.severity ?? normSeverity(selectedCvDet.severity),
+            segments: selectedCvState?.segments ?? [],
+            defectId: selectedCvState?.defectId ?? '',
+            notes: selectedCvState?.notes ?? '',
+          }
+        : {
+            // Not yet modified — prefill straight from the CV detection
+            damageCode: deriveDamageCode(selectedCvDet, category),
+            severity: normSeverity(selectedCvDet.severity),
+            segments: segmentsOf(selectedCvDet),
+            defectId: selectedCvDet.domain_metadata?.defect_id ?? '',
+            notes: selectedCvState?.notes ?? '',
+          }
       : null;
 
   const patchLabels = (patch: Partial<LabelValues>) => {
     if (selectedDraft) {
       onUpdateDraft(selectedDraft.tempId, patch);
-    } else if (selectedModified) {
-      // LocalDetectionReview stores severity as Severity | undefined ('' → unset)
-      const { severity, ...rest } = patch;
-      onUpdateState(selectedModified.id, {
-        ...rest,
-        ...(severity !== undefined ? { severity: severity === '' ? undefined : severity } : {}),
-      });
+      return;
     }
+    if (!selectedCvDet) return;
+    // LocalDetectionReview stores severity as Severity | undefined ('' → unset)
+    const { severity, ...rest } = patch;
+    const statePatch: Partial<LocalDetectionReview> = {
+      ...rest,
+      ...(severity !== undefined ? { severity: severity === '' ? undefined : severity } : {}),
+    };
+    if (selectedCvIsModified) {
+      onUpdateState(selectedCvDet.id, statePatch);
+      return;
+    }
+    // Notes are valid on accepted/rejected detections — never auto-promote for them
+    const keys = Object.keys(patch);
+    if (keys.length === 1 && keys[0] === 'notes') {
+      onUpdateState(selectedCvDet.id, { notes: patch.notes });
+      return;
+    }
+    // Any label edit auto-promotes the detection to 'modified' (shared init)
+    onUpdateState(selectedCvDet.id, {
+      ...initModifiedState(selectedCvDet, category, selectedCvState),
+      ...statePatch,
+    });
   };
 
   // ── Active review view ──────────────────────────────────────────────────────
@@ -550,14 +597,23 @@ export default function ReviewPanel({
           <div
             ref={labelsRef}
             className={`rounded-lg border p-3 ${
-              selectedDraft ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-200 bg-amber-50/40'
+              selectedDraft
+                ? 'border-emerald-200 bg-emerald-50/40'
+                : selectedCvIsModified
+                  ? 'border-amber-200 bg-amber-50/40'
+                  : 'border-slate-200 bg-slate-50/40'
             }`}
           >
             <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
               Labels — {selectedDraft
                 ? draftNames[drafts.findIndex(d => d.tempId === selectedDraft.tempId)]
-                : `Modified: ${selectedModified?.damage_type}`}
+                : `CV Detection ${cvDetections.findIndex(d => d.id === selectedCvDet?.id) + 1}`}
             </h3>
+            {selectedCvDet && (selectedCvState?.action === 'accepted' || selectedCvState?.action === 'rejected') && (
+              <p className="text-[11px] text-slate-500 italic mb-2">
+                Editing labels will mark this detection as Modified
+              </p>
+            )}
             <LabelsEditor
               category={category}
               value={labelValues}
