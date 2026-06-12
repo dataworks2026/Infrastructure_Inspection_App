@@ -3,7 +3,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { memo, useCallback, useEffect, useState } from 'react';
 import {
-  LayoutDashboard, Building2, ClipboardList, Upload, FileText,
+  LayoutDashboard, Building2, ClipboardList, Upload, FileText, FolderArchive,
   LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
   Settings, Search, HelpCircle, X, Activity, TrendingDown,
 } from 'lucide-react';
@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { href: '/sensors',     label: 'Sensors',     icon: Activity,        tourId: 'nav-sensors' },
   { href: '/upload',      label: 'Upload',      icon: Upload,          tourId: 'nav-upload' },
   { href: '/reports',     label: 'Reports',     icon: FileText },
+  { href: '/records',     label: 'Records',     icon: FolderArchive },
 ];
 
 const TWIN_ITEMS = [

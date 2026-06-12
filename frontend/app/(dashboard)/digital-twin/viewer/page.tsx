@@ -1,17 +1,42 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { missionsApi, type MissionDetection } from '@/lib/api';
+import { missionsApi, assetsApi, type MissionDetection } from '@/lib/api';
+import { resolveTwinForUser } from '@/lib/twinMap';
 import {
   ArrowLeft, Building2, AlertTriangle, RotateCw, MousePointer, Layers,
   Calendar, Activity, Thermometer, Wind, Droplets, Eye, EyeOff,
   ChevronDown, ChevronRight, MapPin, Clock, TrendingDown, TrendingUp,
   Shield, Gauge, FileText, Camera, Download, Share2, Maximize2, Flame,
 } from 'lucide-react';
+
+/* Org-aware twin iframe for the full-screen 3D Viewer page. */
+function ViewerTwinIframe() {
+  const { data: assets } = useQuery({
+    queryKey: ['assets-for-twin'],
+    queryFn: () => assetsApi.list(),
+  });
+  const twin = resolveTwinForUser(assets ?? []);
+  if (!twin) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">
+        No digital twin is available for this account yet.
+      </div>
+    );
+  }
+  return (
+    <iframe
+      src={`/twin/?mid=${twin.mid}&name=${encodeURIComponent(twin.name)}`}
+      title={`${twin.name} digital twin`}
+      className="w-full h-full block border-0"
+      allow="fullscreen"
+    />
+  );
+}
 
 const TurbineScene = dynamic(() => import('./TurbineScene'), { ssr: false, loading: () => (
   <div className="w-full h-full bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center">
@@ -25,6 +50,23 @@ const TurbineScene = dynamic(() => import('./TurbineScene'), { ssr: false, loadi
 /* ═══════════════════════════════════════════════
    DATA — Pins, inspections timeline, environmental
    ═══════════════════════════════════════════════ */
+// ── Constants used by activePins for our JSON-driven detections ──────────────
+const MID_CONST = '2abe1a45-0fc7-4e92-9d87-5c7cc7b0c1b8';
+
+// Map structure strings from detections.json into the side-panel buckets.
+// Each real Yankee Pier structure gets its OWN index so the filter chips +
+// per-structure counts work correctly (previously they all collapsed to 2).
+const STRUCT_NAME_TO_IDX: Record<string, number> = {
+  'seawall': 0, 'sheet pile': 0,
+  'timber pile': 1,
+  'concrete cap': 2,
+  'pile cap': 3,
+};
+function structToIdx(name?: string): number {
+  if (!name) return 0;
+  return STRUCT_NAME_TO_IDX[name.toLowerCase()] ?? 0;
+}
+
 const DEMO_PINS = [
   // Sheet Pile Seawall (structure 0)
   { id: '1', label: 'Sheet Pile Section Loss', severity: 'S3', confidence: 0.93, structure: 0, zone: 'Seawall · Splash Zone · Panel 4', firstSeen: '2024-03-15', trend: 'worsening' as const },
@@ -64,16 +106,16 @@ const SEVERITY_COLORS: Record<string, { color: string; label: string; bg: string
 };
 
 const STRUCTURE_LABELS: Record<number, { label: string; color: string }> = {
-  0: { label: 'Castle Williams', color: '#c0622e' },
-  1: { label: 'Fort Jay', color: '#6366f1' },
-  2: { label: 'Seawall', color: '#06b6d4' },
-  3: { label: 'Soissons Dock', color: '#f59e0b' },
+  0: { label: 'Seawall',      color: '#0EA5E9' },
+  1: { label: 'Timber Pile',  color: '#F59E0B' },
+  2: { label: 'Concrete Cap', color: '#A78BFA' },
+  3: { label: 'Pile Cap',     color: '#34D399' },
 };
 
 /* ═══════════════════════════════════════════════
    HEALTH SCORE CALCULATION (like Forerunner risk scores)
    ═══════════════════════════════════════════════ */
-function computeHealthScore(pins: typeof DEMO_PINS): number {
+function computeHealthScore(pins: ReadonlyArray<{ severity: string }>): number {
   if (pins.length === 0) return 100;
   const weights: Record<string, number> = { S0: 0, S1: 2, S2: 5, S3: 12, S4: 25 };
   const totalPenalty = pins.reduce((sum, p) => sum + (weights[p.severity] || 0), 0);
@@ -114,6 +156,24 @@ export default function ViewerPage() {
   const searchParams = useSearchParams();
   const missionId = searchParams.get('missionId');
 
+  // ── New state hooks MUST be declared before activePins useMemo references them.
+  // Don't move below activePins or you'll trigger a TDZ at render time.
+  const [pinModal, setPinModal] = useState<any>(null);
+  const [iframeDetections, setIframeDetections] = useState<any[] | null>(null);
+  useEffect(() => {
+    function onMsg(e: MessageEvent) {
+      const d = e?.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'mira-twin-pin-click' && d.payload) setPinModal(d.payload);
+      if (d.type === 'mira-twin-detections' && d.payload?.detections) {
+        setIframeDetections(d.payload.detections);
+      }
+    }
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  const MID = MID_CONST;
+
   const { data: detectionsData } = useQuery({
     queryKey: ['mission-detections', missionId],
     queryFn: () => missionsApi.getDetections(missionId!),
@@ -129,18 +189,37 @@ export default function ViewerPage() {
   });
 
   const activePins = useMemo(() => {
-    if (!missionId || !detectionsData?.length) return DEMO_PINS;
-    return detectionsData.map((d, i) => ({
-      id: d.id,
-      label: d.label,
-      severity: d.severity ?? 'S2',
-      confidence: d.confidence,
-      structure: i % 3,
-      zone: `Mission · ${d.label}`,
-      firstSeen: new Date().toISOString().slice(0, 10),
-      trend: 'stable' as const,
-    }));
-  }, [missionId, detectionsData]);
+    // Priority 1: detections broadcast from the iframed /twin/ viewer
+    //             (these have the real photos + zones the user uploaded)
+    if (iframeDetections && iframeDetections.length) {
+      return iframeDetections.map((d: any) => ({
+        id: d.id,
+        label: d.label,
+        severity: (d.severity ?? 'S2') as 'S1'|'S2'|'S3'|'S4',
+        confidence: d.confidence ?? 0.8,
+        structure: structToIdx(d.structure),
+        zone: d.zone ?? d.structure ?? '',
+        firstSeen: d.first_seen ?? new Date().toISOString().slice(0, 10),
+        trend: (d.trend ?? 'stable') as 'worsening'|'stable'|'new',
+        photo: d.photo,
+      }));
+    }
+    // Priority 2: legacy backend detections (when missionId is in URL)
+    if (missionId && detectionsData?.length) {
+      return detectionsData.map((d, i) => ({
+        id: d.id,
+        label: d.label,
+        severity: d.severity ?? 'S2',
+        confidence: d.confidence,
+        structure: i % 3,
+        zone: `Mission · ${d.label}`,
+        firstSeen: new Date().toISOString().slice(0, 10),
+        trend: 'stable' as const,
+      }));
+    }
+    // Fallback: demo
+    return DEMO_PINS;
+  }, [iframeDetections, missionId, detectionsData]);
 
   const scene3dPins = useMemo(() => {
     if (!missionId || !detectionsData?.length) return undefined;
@@ -148,6 +227,10 @@ export default function ViewerPage() {
   }, [missionId, detectionsData]);
 
   const [selectedPin, setSelectedPin] = useState<string | null>(null);
+
+  // pinModal / iframeDetections / MID / postMessage useEffect — declared at the
+  // top of the component (above activePins) to avoid a TDZ. See top of function.
+
   const [filterStructure, setFilterStructure] = useState<number | null>(null);
   const [rightTab, setRightTab] = useState<'detections' | 'timeline' | 'environment'>('detections');
   const [showLayers, setShowLayers] = useState({ pins: true, structures: true, zones: true, thermal: false });
@@ -180,40 +263,19 @@ export default function ViewerPage() {
       {/* ═══ TOP TOOLBAR ═══ */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none px-4 py-3">
         <div className="flex items-center justify-between">
-          {/* Left: Back + Asset name */}
+          {/* Left: Just the Back button now. The Governors Island / coords
+              card moved to the right cluster so it doesn't overlap with the
+              iframe's own title at top-left. */}
           <div className="pointer-events-auto flex items-center gap-3">
             <Link href="/digital-twin"
               className="inline-flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-xl text-white/80 px-3 py-2 rounded-lg shadow-lg border border-white/10 text-xs font-medium hover:bg-slate-900/90 transition-all">
               <ArrowLeft size={13} />
             </Link>
-            <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-lg shadow-lg px-4 py-2 flex items-center gap-3">
-              <div className="w-7 h-7 rounded-md bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
-                <Building2 size={13} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-[12px] font-bold text-white leading-none">Governors Island</h3>
-                <p className="text-[9px] text-slate-400 mt-0.5">40.6892° N, 74.0167° W · New York Harbor</p>
-              </div>
-              <div className="w-px h-6 bg-white/10 mx-1" />
-              {/* Health Score Gauge */}
-              <div className="flex items-center gap-2">
-                <div className="relative w-8 h-8">
-                  <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
-                    <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="14" fill="none" stroke={healthInfo.color} strokeWidth="3"
-                      strokeDasharray={`${healthScore * 0.88} 88`} strokeLinecap="round" />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white">{healthScore}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] font-bold block" style={{ color: healthInfo.color }}>{healthInfo.label}</span>
-                  <span className="text-[8px] text-slate-500">Health</span>
-                </div>
-              </div>
-            </div>
           </div>
 
-          {/* Right: Action buttons + controls hint */}
+          {/* Right: Quick stats + Health badge + controls hint
+              (Quick stats moved to LEFT of Health badge per request — health is now
+              the rightmost data card, just before the controls hint.) */}
           <div className="pointer-events-auto flex items-center gap-2">
             {/* Quick stats */}
             <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-lg shadow-lg px-3 py-2 flex items-center gap-3 text-[10px]">
@@ -229,6 +291,31 @@ export default function ViewerPage() {
                 <Camera size={10} /> {INSPECTION_HISTORY.length} Surveys
               </span>
             </div>
+            {/* Governors Island name + coords + Health Score Gauge — combined
+                into ONE card on the right so they're paired and clear of any
+                overlap with the iframe's own title at top-left. */}
+            <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-lg shadow-lg px-3 py-2 flex items-center gap-3">
+              <div className="w-7 h-7 rounded-md bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
+                <Building2 size={13} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-[12px] font-bold text-white leading-none">Governors Island</h3>
+                <p className="text-[9px] text-slate-400 mt-0.5">40.6892° N, 74.0167° W · New York Harbor</p>
+              </div>
+              <div className="w-px h-6 bg-white/10 mx-1" />
+              <div className="relative w-8 h-8">
+                <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
+                  <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="14" fill="none" stroke={healthInfo.color} strokeWidth="3"
+                    strokeDasharray={`${healthScore * 0.88} 88`} strokeLinecap="round" />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white">{healthScore}</span>
+              </div>
+              <div>
+                <span className="text-[9px] font-bold block" style={{ color: healthInfo.color }}>{healthInfo.label}</span>
+                <span className="text-[8px] text-slate-500">Health</span>
+              </div>
+            </div>
             {/* Controls hint */}
             <div className="bg-slate-900/80 backdrop-blur-xl text-white/50 px-3 py-2 rounded-lg shadow-lg border border-white/10 text-[10px] flex items-center gap-2">
               <MousePointer size={9} /> Click
@@ -239,19 +326,22 @@ export default function ViewerPage() {
         </div>
       </div>
 
-      {/* ═══ MAIN 3D VIEWER ═══ */}
+      {/* ═══ MAIN 3D VIEWER ═══
+          Org-aware iframe: the twin is resolved from the logged-in user's
+          assets via lib/twinMap.ts so gov_island sees Yankee Pier and
+          brooklynarmyterminal sees BAT Pier 4 v1. Overlays stay on top. */}
       <div className="flex-1 relative">
         <div className="absolute inset-0">
-          <TurbineScene
-            selectedPin={selectedPin}
-            onSelectPin={setSelectedPin}
-            pins={scene3dPins}
-            showThermal={showLayers.thermal}
-          />
+          <ViewerTwinIframe />
         </div>
 
-        {/* ═══ LEFT: LAYER CONTROLS + MINI MAP ═══ */}
-        <div className="absolute top-16 left-4 z-10 pointer-events-auto flex flex-col gap-2" style={{ width: 200 }}>
+        {/* ═══ LEFT COLUMN — LAYERS / STRUCTURES / CONDITIONS ═══
+            The three cards fill the vertical space between the iframe's
+            ASSET DIMENSIONS panel (top-left, ends ≈ y:280) and the bottom
+            controls toolbar (starts ≈ y:820). Anchored to BOTH top and bottom
+            so the cards space themselves evenly with `justify-between`. */}
+        <div className="absolute z-10 pointer-events-auto flex flex-col justify-between"
+             style={{ top: 290, bottom: 210, left: 10, width: 240 }}>
           {/* Layer toggles */}
           <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-3">
             <div className="flex items-center gap-1.5 mb-2">
@@ -437,7 +527,25 @@ export default function ViewerPage() {
                     const isSelected = pin.id === selectedPin;
                     const struct = STRUCTURE_LABELS[pin.structure];
                     return (
-                      <button key={pin.id} onClick={() => setSelectedPin(isSelected ? null : pin.id)}
+                      <button key={pin.id} onClick={() => {
+                          setSelectedPin(isSelected ? null : pin.id);
+                          // If this pin has a real photo attached (from detections.json),
+                          // also open the photo modal so the user can see the damage image
+                          // straight from the side panel (not just by clicking the 3D pin).
+                          if ((pin as any).photo) {
+                            setPinModal({
+                              id: pin.id,
+                              label: pin.label,
+                              severity: pin.severity,
+                              confidence: pin.confidence,
+                              structure: STRUCTURE_LABELS[pin.structure]?.label,
+                              zone: pin.zone,
+                              first_seen: pin.firstSeen,
+                              trend: pin.trend,
+                              photo: (pin as any).photo,
+                            });
+                          }
+                        }}
                         className={`w-full text-left p-2.5 rounded-lg transition-all ${
                           isSelected ? 'bg-white/10 ring-1 ring-white/20' : 'hover:bg-white/5'
                         }`}>
@@ -630,7 +738,176 @@ export default function ViewerPage() {
             ))}
           </div>
         </div>
+
+        {/* ═══ DAMAGE PIN MODAL — shown when user clicks a pin in the 3D twin ═══ */}
+        {pinModal && (
+          <div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
+            onClick={() => setPinModal(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-w-[920px] w-[92%] max-h-[88vh] flex flex-col"
+            >
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="text-[10px] font-black px-2.5 py-1 rounded uppercase tracking-wider"
+                    style={{
+                      background: (SEVERITY_COLORS[pinModal.severity]?.color || '#94A3B8') + '22',
+                      color: SEVERITY_COLORS[pinModal.severity]?.color || '#94A3B8',
+                      border: `1px solid ${SEVERITY_COLORS[pinModal.severity]?.color || '#94A3B8'}55`,
+                    }}
+                  >
+                    {pinModal.severity} · {pinModal.id}
+                  </span>
+                  <h3 className="text-[15px] font-bold text-white">{pinModal.label}</h3>
+                </div>
+                <button
+                  onClick={() => setPinModal(null)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body: photo + meta */}
+              <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 bg-black flex items-center justify-center relative">
+                  <DamagePhotoWithBoxes
+                    src={`/twin-data/${MID}/damage_photos/${pinModal.photo}?v=${Date.now()}`}
+                    label={pinModal.label}
+                    bboxes={pinModal.bboxes ?? []}
+                  />
+                </div>
+                <div className="w-[280px] border-l border-white/10 p-4 flex flex-col gap-3 overflow-y-auto">
+                  <Row label="Structure" value={pinModal.structure} />
+                  <Row label="Zone" value={pinModal.zone} />
+                  <Row label="Confidence" value={`${Math.round((pinModal.confidence ?? 0) * 100)} %`} />
+                  <Row label="First seen" value={pinModal.first_seen} />
+                  <Row label="Trend" value={
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{
+                        background:
+                          pinModal.trend === 'worsening' ? '#ef444422'
+                          : pinModal.trend === 'new'    ? '#0ea5e922'
+                                                        : '#10b98122',
+                        color:
+                          pinModal.trend === 'worsening' ? '#ef4444'
+                          : pinModal.trend === 'new'    ? '#0ea5e9'
+                                                        : '#10b981',
+                      }}
+                    >
+                      {pinModal.trend}
+                    </span>
+                  } />
+                  <div className="mt-2 p-3 rounded-lg bg-white/5 text-[11px] text-slate-400 leading-relaxed">
+                    Photo captured during the Yankee Pier H20T inspection. Position pinned in the 3D twin at the originating GPS coords.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">{label}</div>
+      <div className="text-[13px] font-medium text-white">{value}</div>
+    </div>
+  );
+}
+
+// Severity → color mapping used for bbox overlays. Matches the same scheme
+// as the inspection page (green S0/S1, amber S2, orange S3, red S4).
+const BBOX_SEVERITY: Record<string, string> = {
+  S0: '#10B981', S1: '#10B981',
+  S2: '#F59E0B',
+  S3: '#FB923C',
+  S4: '#EF4444',
+};
+
+type BBox = {
+  type?: string;
+  severity?: string;
+  confidence?: number;
+  bbox: [number, number, number, number]; // [x1, y1, x2, y2] in original-image pixels
+};
+
+/** Renders the damage photo with severity-colored bbox overlays.
+    The bbox coords are in the SOURCE image's native pixel space; we use an
+    SVG with a viewBox matching those native dimensions, layered absolutely
+    over the <img>, so the boxes scale automatically with the rendered image. */
+function DamagePhotoWithBoxes({
+  src, label, bboxes,
+}: { src: string; label: string; bboxes: BBox[] }) {
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  return (
+    <div className="relative inline-block max-w-full max-h-[70vh]">
+      <img
+        src={src}
+        alt={label}
+        className="block max-w-full max-h-[70vh] object-contain"
+        onLoad={(e) => {
+          const img = e.currentTarget as HTMLImageElement;
+          setDims({ w: img.naturalWidth, h: img.naturalHeight });
+        }}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = 'none';
+        }}
+      />
+      {dims && bboxes && bboxes.length > 0 && (
+        <svg
+          viewBox={`0 0 ${dims.w} ${dims.h}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="absolute inset-0 w-full h-full pointer-events-none"
+        >
+          {bboxes.map((b, i) => {
+            const [x1, y1, x2, y2] = b.bbox;
+            const col = BBOX_SEVERITY[b.severity ?? 'S1'] ?? '#94A3B8';
+            // Stroke width + label text size are in image-pixel units (viewBox).
+            // ~0.4% of width gives a nice 14-18px line on 4K images.
+            const stroke = Math.max(6, Math.round(dims.w * 0.003));
+            const fontSize = Math.max(28, Math.round(dims.w * 0.015));
+            const padX = fontSize * 0.5;
+            const padY = fontSize * 0.5;
+            const tag = `${b.severity ?? ''} ${b.type ?? ''}`.trim();
+            const tagW = tag.length * fontSize * 0.55 + padX * 2;
+            const tagH = fontSize + padY;
+            return (
+              <g key={i}>
+                <rect
+                  x={x1} y={y1} width={x2 - x1} height={y2 - y1}
+                  fill="none" stroke={col} strokeWidth={stroke}
+                />
+                {/* label background */}
+                <rect
+                  x={x1} y={Math.max(0, y1 - tagH)}
+                  width={tagW} height={tagH}
+                  fill={col} opacity={0.95}
+                />
+                <text
+                  x={x1 + padX}
+                  y={Math.max(0, y1 - tagH) + fontSize}
+                  fill="white"
+                  fontSize={fontSize}
+                  fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+                  fontWeight={700}
+                >
+                  {tag}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
     </div>
   );
 }
