@@ -1,7 +1,8 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { dashboardApi, sensorsApi, missionsApi } from '@/lib/api';
+import { dashboardApi, sensorsApi, missionsApi, assetsApi, type LiveMission } from '@/lib/api';
+import { resolveTwinForUser } from '@/lib/twinMap';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, ArrowRight,
@@ -26,6 +27,33 @@ const TurbineScene = dynamic(
     </div>
   )}
 );
+
+/* ── Org-aware twin iframe.
+   Fetches the user's assets and resolves the right photogrammetric twin per
+   org via lib/twinMap.ts. Falls back gracefully while the assets request is
+   in flight (renders the dark canvas so the layout doesn't jump). */
+function DashboardTwinIframe() {
+  const { data: assets } = useQuery({
+    queryKey: ['assets-for-twin'],
+    queryFn: () => assetsApi.list(),
+  });
+  const twin = resolveTwinForUser(assets ?? []);
+  if (!twin) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">
+        No twin available for this account yet
+      </div>
+    );
+  }
+  return (
+    <iframe
+      src={`/twin/?mid=${twin.mid}&name=${encodeURIComponent(twin.name)}`}
+      title={`${twin.name} digital twin`}
+      className="w-full h-full block border-0"
+      allow="fullscreen"
+    />
+  );
+}
 
 const TEAL  = '#082E29';
 const MINT  = '#EDF6F0';
@@ -175,6 +203,14 @@ export default function DashboardPage() {
     refetchInterval: 120_000,
   });
 
+  const { data: liveMissionsData } = useQuery({
+    queryKey: ['live-missions'],
+    queryFn: dashboardApi.getLiveMissions,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+  const liveMissions: LiveMission[] = liveMissionsData?.live_missions ?? [];
+
   const queryClient = useQueryClient();
   const { data: envData, isFetching: envFetching } = useQuery({
     queryKey: ['sensors-live'],
@@ -231,6 +267,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Live Missions widget removed per request */}
 
       {/* ── 3 Shortcut Cards ── */}
       <div className="grid grid-cols-3 gap-3">
@@ -416,15 +454,11 @@ export default function DashboardPage() {
         </div>
         <div className="relative bg-[#0A1A2F]"
           style={{ height: 'calc(100vh - 28rem)', minHeight: 220, maxHeight: 500 }}>
-          <TurbineScene
-            selectedPin={selectedPin}
-            onSelectPin={setSelectedPin}
-            cameraPosition={[3, 2.5, 5]}
-            cameraFov={42}
-            controlsTarget={[0, 0.5, -0.5]}
-            minDistance={1.5}
-            maxDistance={12}
-          />
+          {/* Real photogrammetric twin — iframed standalone viewer.
+              The src is resolved per-logged-in-user from their first asset → twin
+              mapping so different orgs see their own twin (gov_island → Yankee Pier,
+              brooklyn → BAT Pier 4 v1, etc.). */}
+          <DashboardTwinIframe />
 
           {/* ── Glass overlay: stats on 3D ── */}
           <div className="absolute inset-0 pointer-events-none z-10">

@@ -4,9 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetsApi, inspectionsApi, missionsApi } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation, Box, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation, Box, CheckCircle2, Maximize2 } from 'lucide-react';
 import { InfrastructureType } from '@/types';
 import AnalyticsPanel from './AnalyticsPanel';
+import { resolveTwinByAssetId } from '@/lib/twinMap';
 
 const PRESET_LOCATIONS = [
   { name: 'Hornsea Wind Farm, UK',       lat: 53.885,  lng: 1.791 },
@@ -308,6 +309,58 @@ export default function AssetDetailPage() {
           </div>
         )}
       </div>
+
+      {/* 3D Digital Twin preview — embeds the standalone Three.js viewer.
+          Resolution order:
+            1. lib/twinMap.ts — hard-pin for known assets (BAT → v1, Yankee Pier → 2abe1a45)
+               so a fresher mission (e.g. "BAT Pier 4 Wall v1") doesn't replace the canonical twin.
+            2. Falls back to oldest mission with a twin-bearing status for unknown assets.
+       */}
+      {(() => {
+        const pinned = resolveTwinByAssetId(assetId);
+        const TWIN_STATUSES = new Set(['processing_3d', 'completed', 'analyzed']);
+        const withTwin = missions.filter((m: any) => TWIN_STATUSES.has(m.status));
+        const sortByOldest = (arr: any[]) => [...arr].sort((a: any, b: any) =>
+          new Date(a.created_at || a.actual_start || 0).getTime() -
+          new Date(b.created_at || b.actual_start || 0).getTime()
+        );
+        const fallback = withTwin.length > 0 ? sortByOldest(withTwin)[0] : missions[0];
+
+        // If neither a pinned twin nor any mission exists, render nothing.
+        if (!pinned && !fallback) return null;
+
+        const mid  = pinned?.mid  ?? fallback.id;
+        const name = pinned?.name ?? asset.name;
+        const twinUrl = `/twin/?mid=${mid}&name=${encodeURIComponent(name)}`;
+        const processing = !pinned && fallback?.odm_status
+          && fallback.odm_status !== 'completed' && fallback.odm_status !== 'failed';
+
+        return (
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <Box size={16} className="text-violet-500" />
+                3D Digital Twin
+              </h2>
+              <a href={twinUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-sky-600 hover:text-sky-800 transition-colors">
+                <Maximize2 size={14} /> Open fullscreen
+              </a>
+            </div>
+            <p className="text-sm text-slate-400 mb-3">
+              {pinned
+                ? <>Pinned reconstruction for {name}.</>
+                : <>Latest reconstruction from mission &quot;{fallback.name}&quot;.</>}
+              {processing && (
+                <span className="ml-1 text-amber-600">Processing — viewer loads once ODM finishes.</span>
+              )}
+            </p>
+            <div className="w-full rounded-lg overflow-hidden border border-slate-200 bg-slate-900" style={{ height: 600 }}>
+              <iframe src={twinUrl} className="w-full h-full block" title={`3D Twin — ${name}`} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Twin Updates */}
       {missions.length > 0 && (
