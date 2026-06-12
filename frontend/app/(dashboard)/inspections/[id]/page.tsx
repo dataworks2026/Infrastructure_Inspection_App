@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inspectionsApi, imagesApi, assetsApi, analysisApi, reviewApi } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
@@ -16,6 +16,7 @@ import ReviewPanel, {
 } from '@/components/review/ReviewPanel';
 import ReviewToolbar, { type ReviewTool } from '@/components/review/ReviewToolbar';
 import { industryCategoryOf, damageTypeNameOf } from '@/lib/annotationTaxonomy';
+import { verifiedDetections } from '@/lib/reviewUtils';
 import type { BoundingBox, CorrectedDetection, Detection, DetectionReviewItem, SubmitReviewRequest } from '@/types';
 
 const roundBbox = (b: BoundingBox): BoundingBox => ({
@@ -240,6 +241,25 @@ export default function InspectionDetailPage() {
   useEffect(() => {
     if (batchDetections) setAnalysisResults(batchDetections);
   }, [batchDetections]);
+
+  // ── Final verified set (everything OUTSIDE review mode) ────────────────────
+  // Rejected CV detections and stale CV originals replaced by a modification are
+  // dropped; accepted, unreviewed and engineer-added survive. This is a no-op
+  // pre-review (review_action is null everywhere). Review mode keeps the
+  // unfiltered set so the engineer always sees everything.
+  const viewResults = useMemo(() => {
+    const out: Record<string, any> = {};
+    for (const [imgId, r] of Object.entries(analysisResults)) {
+      if (!r || r.error || !Array.isArray(r.detections)) { out[imgId] = r; continue; }
+      const dets = verifiedDetections(r.detections);
+      out[imgId] = dets.length === r.detections.length
+        ? r
+        : { ...r, detections: dets, total_detections: dets.length };
+    }
+    return out;
+  }, [analysisResults]);
+  const displayResults: Record<string, any> =
+    inspection?.status === 'pending_review' ? analysisResults : viewResults;
 
   // ── Engineer Review Mode state ──────────────────────────────────────────────
   const [showStartReviewConfirm, setShowStartReviewConfirm] = useState(false);
@@ -601,14 +621,14 @@ export default function InspectionDetailPage() {
 
   if (!inspection) return <div className="text-red-500">Inspection not found.</div>;
 
-  // Live-updating summary stats
+  // Live-updating summary stats — verified set outside review mode
   const completedCount = images.filter((img: any) => img.analysis_status === 'completed').length;
-  const totalDetections = Object.values(analysisResults).reduce((sum: number, r: any) => sum + (r?.total_detections || 0), 0);
-  const allSeverities = Object.values(analysisResults).flatMap((r: any) =>
+  const totalDetections = Object.values(displayResults).reduce((sum: number, r: any) => sum + (r?.total_detections || 0), 0);
+  const allSeverities = Object.values(displayResults).flatMap((r: any) =>
     (r?.detections || []).map((d: any) => d.severity)
   ).filter(Boolean);
   const worstSeverity = allSeverities.sort().reverse()[0];
-  const cleanCount = Object.values(analysisResults).filter((r: any) => r && !r.error && r.total_detections === 0).length;
+  const cleanCount = Object.values(displayResults).filter((r: any) => r && !r.error && r.total_detections === 0).length;
 
   // Sort images — computed inline (not useMemo) because this runs after early returns
   const sortedImages = (() => {
@@ -617,11 +637,11 @@ export default function InspectionDetailPage() {
     if (imageSort === 'name') {
       arr.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true }));
     } else if (imageSort === 'detections') {
-      arr.sort((a: any, b: any) => (analysisResults[b.id]?.total_detections ?? -1) - (analysisResults[a.id]?.total_detections ?? -1));
+      arr.sort((a: any, b: any) => (displayResults[b.id]?.total_detections ?? -1) - (displayResults[a.id]?.total_detections ?? -1));
     } else if (imageSort === 'severity') {
       arr.sort((a: any, b: any) => {
-        const ra = analysisResults[a.id];
-        const rb = analysisResults[b.id];
+        const ra = displayResults[a.id];
+        const rb = displayResults[b.id];
         const worstA = (ra?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[normSev(d.severity) || ''] ?? 99), 99);
         const worstB = (rb?.detections || []).reduce((w: number, d: any) => Math.min(w, sevRank[normSev(d.severity) || ''] ?? 99), 99);
         if (worstA !== worstB) return worstA - worstB;
@@ -632,7 +652,8 @@ export default function InspectionDetailPage() {
   })();
 
   const currentImg = images.find((img: any) => img.id === selectedImage);
-  const currentResult = currentImg ? analysisResults[currentImg.id] : null;
+  // Verified set in view mode; unfiltered while reviewing (displayResults switches)
+  const currentResult = currentImg ? displayResults[currentImg.id] : null;
   const currentImgLoading = loadingDetections && currentImg?.analysis_status === 'completed' && !currentResult;
 
   // ── Review-mode derived values ────────────────────────────────────────────
@@ -725,7 +746,12 @@ export default function InspectionDetailPage() {
   const overlayStates: Record<string, ReviewState> = {};
   for (const [id, st] of Object.entries(currentStates)) {
     // While a modified bbox is being edited, BboxEditor renders it — suppress the overlay copy
-    overlayStates[id] = { action: st.action, modifiedBbox: editingDetId === id ? undefined : st.modifiedBbox };
+    overlayStates[id] = {
+      action: st.action,
+      modifiedBbox: editingDetId === id ? undefined : st.modifiedBbox,
+      // Staged severity colors the modified box/label in the overlay
+      modifiedSeverity: st.severity,
+    };
   }
 
   // BboxEditor composition (rendered inside ReviewOverlay's svg)
@@ -742,7 +768,22 @@ export default function InspectionDetailPage() {
     : editingDraft
       ? editingDraft.shapeType
       : (editingCvDet?.shape_type ?? 'rect');
-  const editorColor = drawing || editingDraft ? '#10b981' : '#f59e0b';
+  // Editor handles/box follow the item's severity color (same palette as the
+  // overlay) — slate for drafts without a severity, amber for a modified
+  // detection whose staged severity is somehow unset.
+  const editorColor = (() => {
+    const hexOf = (s: string | null | undefined): string | null => {
+      const n = normSev(s || null);
+      return n && severityConfig[n] ? severityConfig[n].hex : null;
+    };
+    if (drawing) return '#64748b';
+    if (editingDraft) return hexOf(editingDraft.severity) ?? '#64748b';
+    if (editingCvDet) {
+      const staged = currentStates[editingCvDet.id]?.severity;
+      return hexOf(staged) ?? hexOf(editingCvDet.severity) ?? '#f59e0b';
+    }
+    return '#f59e0b';
+  })();
 
   return (
     <div>
@@ -751,7 +792,7 @@ export default function InspectionDetailPage() {
           images={images}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          analysisResults={analysisResults}
+          analysisResults={displayResults}
           showLabels={showLabels}
         />
       )}
@@ -1035,7 +1076,7 @@ export default function InspectionDetailPage() {
               </div>
               <div className="max-h-[calc(100vh-320px)] overflow-y-auto p-2 space-y-1.5">
                 {sortedImages.map((img: any) => {
-                  const r = analysisResults[img.id];
+                  const r = displayResults[img.id];
                   const hasDetections = r && !r.error && r.total_detections > 0;
                   const isPendingLoad = loadingDetections && img.analysis_status === 'completed' && !r;
                   const isSelected = img.id === selectedImage;

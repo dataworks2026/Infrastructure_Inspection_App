@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import type { Detection, BoundingBox } from '@/types';
+import type { Detection, BoundingBox, Severity } from '@/types';
 import { buildAnnotationLabel } from '@/lib/annotationTaxonomy';
 
 // ─── Severity (view mode keeps legacy hex palette — pixel-identical) ─────────
@@ -19,15 +19,11 @@ const normSev = (s: string | null | undefined): string | null => {
   return map[s] || s;
 };
 
-// ─── Review-mode palette (Engineer Review Flow spec) ─────────────────────────
-const REVIEW_COLORS = {
-  cv: '#3b82f6',        // blue-500 — unreviewed CV detection
-  cvFill: 'rgba(59, 130, 246, 0.08)',
-  accepted: '#10b981',  // green
-  rejected: '#ef4444',  // red
-  modified: '#f59e0b',  // amber
-  added: '#10b981',     // green
-} as const;
+// ─── Review-mode accents ──────────────────────────────────────────────────────
+// Boxes/ellipses are colored by SEVERITY (same palette as view mode); status is
+// conveyed by markers only (label prefix, opacity, strikethrough, dashes).
+const REJECT_STRIKE = '#ef4444'; // red strikethrough — reads as rejection
+const NEUTRAL_HEX = '#64748b';   // slate — drafts before a severity is picked
 
 const damageCode = (damageType: string): string =>
   (damageType || '??').slice(0, 2).toUpperCase();
@@ -70,6 +66,8 @@ export interface ReviewState {
   action: 'accepted' | 'rejected' | 'modified' | 'added' | null;
   modifiedBbox?: BoundingBox;
   modifiedShapeType?: 'rect' | 'ellipse';
+  /** Staged severity for a 'modified' detection — colors the new box/label. */
+  modifiedSeverity?: Severity;
 }
 
 export interface ReviewOverlayProps {
@@ -146,9 +144,13 @@ export default function ReviewOverlay({
               if (isReview) {
                 const state = reviewStates?.[d.id];
                 const action = state?.action ?? (d.source === 'engineer_added' ? 'added' : null);
+                // Modified detections show (and are colored by) the staged severity
+                const labelSev = action === 'modified' && state?.modifiedSeverity
+                  ? (normSev(state.modifiedSeverity) || sev)
+                  : sev;
                 const annLabel = buildAnnotationLabel({
                   damageCode: d.domain_metadata?.code ?? damageCode(d.damage_type),
-                  severity: (['S1', 'S2', 'S3', 'S4'].includes(sev) ? sev : null) as
+                  severity: (['S1', 'S2', 'S3', 'S4'].includes(labelSev) ? labelSev : null) as
                     | 'S1' | 'S2' | 'S3' | 'S4' | null,
                   segments: d.domain_metadata?.segments,
                 });
@@ -156,6 +158,8 @@ export default function ReviewOverlay({
                   mainLabel = `NEW: ${annLabel}`;
                 } else if (action === null) {
                   mainLabel = `CV: ${annLabel}`;
+                } else if (action === 'accepted') {
+                  mainLabel = `✓ ${annLabel}`;
                 } else {
                   mainLabel = annLabel;
                 }
@@ -205,12 +209,21 @@ export default function ReviewOverlay({
               let labelBgOp: number;
               let dashed = false;
 
+              // Original severity color — slate while a draft has no severity yet
+              const origHex = SEVERITY_HEX[normSev(d.severity) || ''] || NEUTRAL_HEX;
+
               if (isReview) {
-                if (action === 'accepted') stroke = REVIEW_COLORS.accepted;
-                else if (action === 'rejected') stroke = REVIEW_COLORS.rejected;
-                else if (action === 'modified') stroke = REVIEW_COLORS.modified;
-                else if (action === 'added') { stroke = REVIEW_COLORS.added; dashed = true; }
-                else stroke = REVIEW_COLORS.cv;
+                if (action === 'modified') {
+                  // New box/label take the staged severity's color
+                  const newSev = normSev(state?.modifiedSeverity) || normSev(d.severity) || '';
+                  stroke = SEVERITY_HEX[newSev] || origHex;
+                } else if (action === 'added') {
+                  stroke = origHex; // severity color once chosen, slate until then
+                  dashed = true;
+                } else {
+                  // unactioned CV / accepted / rejected — own severity color
+                  stroke = origHex;
+                }
                 fill = stroke;
                 fillOp = action === 'rejected' ? 0.04 : 0.08;
                 strokeOp = action === 'rejected' ? 0.4 : 0.9;
@@ -249,10 +262,10 @@ export default function ReviewOverlay({
                     fill: 'none', stroke, strokeWidth: effStrokeW * 2.2,
                     strokeOpacity: 0.25,
                   }, 2 * scale)}
-                  {/* Original bbox — faint dashed blue when modified */}
+                  {/* Original bbox — faint dash in the ORIGINAL severity's color when modified */}
                   {modBbox ? (
                     bboxShape(d.bbox, shapeType, {
-                      fill: 'none', stroke: REVIEW_COLORS.cv, strokeWidth: strokeW,
+                      fill: 'none', stroke: origHex, strokeWidth: strokeW,
                       strokeOpacity: 0.35, strokeDasharray: `${6 * scale} ${4 * scale}`,
                     }, 2 * scale)
                   ) : (
@@ -275,20 +288,20 @@ export default function ReviewOverlay({
                       )}
                     </>
                   )}
-                  {/* Rejected — diagonal strikethrough */}
+                  {/* Rejected — red diagonal strikethrough (rejection marker) */}
                   {action === 'rejected' && (
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke={REVIEW_COLORS.rejected} strokeWidth={strokeW}
+                      stroke={REJECT_STRIKE} strokeWidth={strokeW}
                       strokeOpacity={0.6} strokeLinecap="round" />
                   )}
-                  {/* Modified — solid amber shape at new position */}
+                  {/* Modified — solid shape at new position in the NEW severity's color */}
                   {modBbox && (
                     <>
                       {bboxShape(modBbox, modShapeType, {
-                        fill: REVIEW_COLORS.modified, fillOpacity: 0.08,
+                        fill: stroke, fillOpacity: 0.08,
                       }, 2 * scale)}
                       {bboxShape(modBbox, modShapeType, {
-                        fill: 'none', stroke: REVIEW_COLORS.modified,
+                        fill: 'none', stroke,
                         strokeWidth: effStrokeW, strokeOpacity: 0.95,
                       }, 2 * scale)}
                     </>

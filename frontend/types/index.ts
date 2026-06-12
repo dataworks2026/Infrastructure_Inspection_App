@@ -58,6 +58,9 @@ export interface Detection {
   is_locked?: boolean;
   reviewed?: boolean;
   reviewed_by?: string | null;
+  // Engineer review outcome — CV: 'accepted' | 'rejected' | 'modified' | null (unreviewed);
+  // engineer_added: 'modified' | 'added'.
+  review_action?: 'accepted' | 'rejected' | 'modified' | 'added' | null;
   // Annotation-taxonomy fields (upgraded Engineer Review Mode)
   shape_type?: 'rect' | 'ellipse';
   domain_metadata?: { code?: string; segments?: string[]; segment?: string; defect_id?: string } | null;

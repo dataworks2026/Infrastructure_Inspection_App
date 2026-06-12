@@ -9,7 +9,8 @@ import {
   ImageIcon, ScanSearch, X, Check, Scan,
 } from 'lucide-react';
 import { assetsApi, inspectionsApi, imagesApi, analysisApi, comparisonPairsApi } from '@/lib/api';
-import type { Inspection, ImageRecord } from '@/types';
+import { verifiedDetections } from '@/lib/reviewUtils';
+import type { Detection, Inspection, ImageRecord } from '@/types';
 
 const CACHE_BUST = Date.now();
 const bust = (url: string | null) => url ? `${url}?v=${CACHE_BUST}` : url;
@@ -219,7 +220,10 @@ function PhotoCard({
     staleTime: Infinity,
   });
 
-  const detections: any[] = (detData as any)?.detections ?? [];
+  // Final verified set only — rejected CV detections and replaced CV originals are dropped
+  const detections: any[] = verifiedDetections(
+    (((detData as any)?.detections ?? []) as Detection[]),
+  );
 
   return (
     <div className="relative w-full h-full bg-slate-900">
