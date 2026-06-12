@@ -57,7 +57,10 @@ _SEVERITY_LABELS: dict[str, str] = {
     "S4": "4 - Severe",
 }
 
-# damage-code display labels (used by report_builder and pdf_report)
+# damage-code display labels (used by report_builder, pdf_report and
+# review_report). Full annotation-app taxonomy — the original 8 report codes
+# (CR/SP/CO/LO/DE/BG/CF/RS) keep their labels for backward compat, the rest
+# mirror the Annotation App's DAMAGE_CODES vocabulary.
 CODE_LABELS: dict[str, str] = {
     "CR": "Cracking",
     "SP": "Spalling",
@@ -67,6 +70,19 @@ CODE_LABELS: dict[str, str] = {
     "BG": "Biological Growth",
     "CF": "Coating Failure",
     "RS": "Rust Staining",
+    "ER": "Erosion",
+    "SC": "Scour",
+    "MG": "Marine Growth",
+    "WR": "Wear",
+    "DF": "Deformation",
+    "BK": "Broken Component",
+    "MS": "Missing Component",
+    "AL": "Alignment Issue",
+    "LT": "Lightning Damage",
+    "IC": "Ice Damage",
+    "DL": "Delamination",
+    "IM": "Impact Damage",
+    "OL": "Oil Leak",
 }
 
 CANONICAL_CODES: list[str] = ["CR", "SP", "CO", "LO", "DE", "BG", "CF", "RS"]

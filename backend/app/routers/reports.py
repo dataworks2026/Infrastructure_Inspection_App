@@ -1,3 +1,4 @@
+import re
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
+from app.models.inspection import Inspection, InspectionStatus
 from app.models.user import User
 from app.services.reports.db_loader import load_inspection_records
 from app.services.reports.metrics import calculate_metrics
@@ -12,8 +14,13 @@ from app.services.reports.narrative import generate_narrative
 from app.services.reports.pdf_report import generate_pdf
 from app.services.reports.report_builder import build_report_data
 from app.services.reports.review_diff import compute_review_diff, has_review_data
+from app.services.reports.review_report import generate_review_report_pdf
 
 router = APIRouter()
+
+# Mounted at /api/v1 (NOT /api/v1/reports) so the download URL matches the
+# review flow's /inspections/{id}/... endpoint family.
+review_report_router = APIRouter()
 
 
 def _require_org(user: User) -> str:
@@ -97,6 +104,55 @@ def report_pdf(
     pdf_bytes   = generate_pdf(report_data)
 
     filename = f"{_slug(meta['asset_name'])}-inspection-report.pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _sanitize_filename(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", (name or "inspection").strip())
+    return cleaned.strip("_") or "inspection"
+
+
+@review_report_router.get("/inspections/{inspection_id}/review-report.pdf")
+def review_report_pdf(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dedicated Engineer Review Report — per-detection CV vs Correction PDF.
+
+    Available while the review is in progress (pending_review — rendered with
+    a REVIEW IN PROGRESS watermark) and after completion (review_completed).
+    """
+    org_id = _require_org(current_user)
+    inspection = db.query(Inspection).filter(
+        Inspection.id == inspection_id,
+        Inspection.organization_id == org_id,
+    ).first()
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    if inspection.status not in (
+        InspectionStatus.pending_review.value,
+        InspectionStatus.review_completed.value,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Inspection status is '{inspection.status}' — the review report "
+                   "is only available once an engineer review has been started.",
+        )
+    if not has_review_data(db, inspection_id):
+        raise HTTPException(
+            status_code=409,
+            detail="This inspection has no engineer review data yet — "
+                   "submit at least one image review first.",
+        )
+
+    pdf_bytes, inspection_name = generate_review_report_pdf(db, inspection_id)
+    filename = f"{_sanitize_filename(inspection_name)}_review_report.pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",

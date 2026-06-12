@@ -85,6 +85,9 @@ app.include_router(odm.router, prefix="/api/v1/odm", tags=["odm"])
 app.include_router(thermal.router, prefix="/api/v1/thermal", tags=["thermal"])
 app.include_router(predictive.router, prefix="/api/v1/predictive", tags=["predictive"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
+# Review report download lives beside the other /inspections/{id}/... review
+# endpoints (no /reports prefix) — see reports.review_report_router.
+app.include_router(reports.review_report_router, prefix="/api/v1", tags=["reports"])
 
 # ── Phase D: GCS fleet, drone, pilot, geofence, alert, mission record ─────────
 app.include_router(drones.router, prefix="/api/v1/drones", tags=["drones"])
