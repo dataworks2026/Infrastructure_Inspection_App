@@ -10,12 +10,15 @@ import { useToast } from '@/components/ui/Toast';
 import ReviewOverlay, { type ReviewState } from '@/components/review/ReviewOverlay';
 import BboxEditor from '@/components/review/BboxEditor';
 import ReviewPanel, {
-  FIXED_DAMAGE_TYPES,
   normSeverity,
+  deriveDamageCode,
+  segmentsOf,
   type AddedDraft,
   type LocalDetectionReview,
 } from '@/components/review/ReviewPanel';
-import type { BoundingBox, Detection, DetectionReviewItem, Severity, SubmitReviewRequest } from '@/types';
+import ReviewToolbar, { type ReviewTool } from '@/components/review/ReviewToolbar';
+import { industryCategoryOf, damageTypeNameOf } from '@/lib/annotationTaxonomy';
+import type { BoundingBox, CorrectedDetection, Detection, DetectionReviewItem, SubmitReviewRequest } from '@/types';
 
 const roundBbox = (b: BoundingBox): BoundingBox => ({
   x1: Math.round(b.x1), y1: Math.round(b.y1), x2: Math.round(b.x2), y2: Math.round(b.y2),
@@ -248,17 +251,26 @@ export default function InspectionDetailPage() {
   // Images whose review was submitted in this session (server also flags det.reviewed)
   const [submittedImages, setSubmittedImages] = useState<Set<string>>(new Set());
   const [selectedDetectionId, setSelectedDetectionId] = useState<string | null>(null);
-  const [editingDetId, setEditingDetId] = useState<string | null>(null);
-  const [drawingNew, setDrawingNew] = useState(false);
+  // Active canvas tool — Select (V) / Box (B) / Oval (O), annotation-app style
+  const [tool, setTool] = useState<ReviewTool>('select');
+  // Bumped after each draw so the panel scrolls to LABELS and focuses Damage Type
+  const [labelsFocusToken, setLabelsFocusToken] = useState(0);
+  // Image asset types saved this session (PATCH succeeded): imageId → asset_type
+  const [assetTypeOverrides, setAssetTypeOverrides] = useState<Record<string, string>>({});
   const [naturalDims, setNaturalDims] = useState<{ w: number; h: number } | null>(null);
 
   // Reset per-image editing UI when switching images
   useEffect(() => {
     setSelectedDetectionId(null);
-    setEditingDetId(null);
-    setDrawingNew(false);
+    setTool('select');
     setNaturalDims(null);
   }, [selectedImage]);
+
+  // Industry category for taxonomy lists — from the asset, else any detection.
+  const firstDetInfraType = Object.values(analysisResults)
+    .flatMap((r: any) => r?.detections ?? [])
+    .find((d: any) => d?.infrastructure_type)?.infrastructure_type;
+  const category = industryCategoryOf(asset?.infrastructure_type ?? firstDetInfraType);
 
   const cvDetsOf = (imgId: string): Detection[] =>
     ((analysisResults[imgId]?.detections ?? []) as Detection[]).filter(d => d.source !== 'engineer_added');
@@ -295,8 +307,8 @@ export default function InspectionDetailPage() {
       setSubmittedImages(done);
       setReviewState(prev => { const n = { ...prev }; delete n[imageId]; return n; });
       setAddedDrafts(prev => { const n = { ...prev }; delete n[imageId]; return n; });
-      setEditingDetId(null);
-      setDrawingNew(false);
+      setSelectedDetectionId(null);
+      setTool('select');
       queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
       toast.success('Image review submitted');
       // Advance to the next image that still needs review
@@ -333,6 +345,33 @@ export default function InspectionDetailPage() {
     },
   });
 
+  // Image asset type — mirrors the annotation app: fires on change, optimistic,
+  // rolls back on error, toasts on success.
+  const assetTypeMutation = useMutation({
+    mutationFn: ({ imageId, assetType }: { imageId: string; assetType: string }) =>
+      reviewApi.updateImageAssetType(imageId, assetType),
+    onMutate: async ({ imageId, assetType }) => {
+      const prev = assetTypeOverrides[imageId];
+      setAssetTypeOverrides(p => ({ ...p, [imageId]: assetType }));
+      return { imageId, prev };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['images', inspectionId] });
+      toast.success('Asset type updated');
+    },
+    onError: (err: any, _vars, ctx) => {
+      if (ctx) {
+        setAssetTypeOverrides(p => {
+          const n = { ...p };
+          if (ctx.prev === undefined) delete n[ctx.imageId];
+          else n[ctx.imageId] = ctx.prev;
+          return n;
+        });
+      }
+      toast.error(err?.response?.data?.detail || 'Failed to update asset type');
+    },
+  });
+
   // ── Review handlers ─────────────────────────────────────────────────────────
   function handleReviewAction(det: Detection, action: 'accepted' | 'rejected' | 'modified') {
     const imgId = selectedImage;
@@ -348,8 +387,10 @@ export default function InspectionDetailPage() {
         img[det.id] = {
           action: 'modified',
           modifiedBbox: cur?.modifiedBbox ?? { ...det.bbox },
-          damageType: cur?.damageType ?? det.damage_type,
+          damageCode: cur?.damageCode ?? deriveDamageCode(det, category),
           severity: cur?.severity ?? normSeverity(det.severity),
+          segments: cur?.segments ?? segmentsOf(det),
+          defectId: cur?.defectId ?? det.domain_metadata?.defect_id ?? '',
           notes: cur?.notes ?? '',
         };
       } else {
@@ -358,15 +399,21 @@ export default function InspectionDetailPage() {
       return { ...prev, [imgId]: img };
     });
 
-    setDrawingNew(false);
-    if (togglingOff || action !== 'modified') {
-      if (editingDetId === det.id) setEditingDetId(null);
-      if (!togglingOff) setSelectedDetectionId(det.id);
-    } else {
-      // Modify: activate bbox editing for this detection immediately
-      setEditingDetId(det.id);
-      setSelectedDetectionId(det.id);
-    }
+    setTool('select');
+    if (!togglingOff) setSelectedDetectionId(det.id);
+  }
+
+  /** Accept All / Reject All — only fills in unactioned CV detections. */
+  function handleBulkAction(action: 'accepted' | 'rejected') {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    setReviewState(prev => {
+      const img = { ...(prev[imgId] ?? {}) };
+      for (const d of cvDetsOf(imgId)) {
+        if (!img[d.id]?.action) img[d.id] = { ...(img[d.id] ?? { action: null }), action };
+      }
+      return { ...prev, [imgId]: img };
+    });
   }
 
   function handleUpdateReviewState(detId: string, patch: Partial<LocalDetectionReview>) {
@@ -381,27 +428,26 @@ export default function InspectionDetailPage() {
     });
   }
 
-  function handleToggleEditBbox(detId: string) {
-    setDrawingNew(false);
-    setEditingDetId(prev => (prev === detId ? null : detId));
-    setSelectedDetectionId(detId);
-  }
-
   function handleDrawComplete(b: BoundingBox) {
     const imgId = selectedImage;
     if (!imgId) return;
     const tempId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const damageTypeOptions = damageTypeOptionsOf();
     const draft: AddedDraft = {
       tempId,
       bbox: roundBbox(b),
-      damageType: damageTypeOptions[0] ?? 'corrosion',
-      severity: 'S2',
+      shapeType: tool === 'oval' ? 'ellipse' : 'rect',
+      damageCode: '',
+      severity: '',
+      segments: [],
+      defectId: '',
       notes: '',
     };
     setAddedDrafts(prev => ({ ...prev, [imgId]: [...(prev[imgId] ?? []), draft] }));
-    setDrawingNew(false);
+    // Annotation-app flow: tool snaps back to Select, the new draft is selected
+    // (and therefore editable) and the panel jumps to LABELS.
+    setTool('select');
     setSelectedDetectionId(tempId);
+    setLabelsFocusToken(t => t + 1);
   }
 
   function handleUpdateDraft(tempId: string, patch: Partial<AddedDraft>) {
@@ -417,27 +463,19 @@ export default function InspectionDetailPage() {
     const imgId = selectedImage;
     if (!imgId) return;
     setAddedDrafts(prev => ({ ...prev, [imgId]: (prev[imgId] ?? []).filter(d => d.tempId !== tempId) }));
-    if (editingDetId === tempId) setEditingDetId(null);
     if (selectedDetectionId === tempId) setSelectedDetectionId(null);
   }
 
   function handleEditorChange(b: BoundingBox) {
     const imgId = selectedImage;
-    if (!imgId || !editingDetId) return;
+    if (!imgId || !selectedDetectionId) return;
     const bb = roundBbox(b);
     const drafts = addedDrafts[imgId] ?? [];
-    if (drafts.some(d => d.tempId === editingDetId)) {
-      handleUpdateDraft(editingDetId, { bbox: bb });
+    if (drafts.some(d => d.tempId === selectedDetectionId)) {
+      handleUpdateDraft(selectedDetectionId, { bbox: bb });
     } else {
-      handleUpdateReviewState(editingDetId, { modifiedBbox: bb });
+      handleUpdateReviewState(selectedDetectionId, { modifiedBbox: bb });
     }
-  }
-
-  function damageTypeOptionsOf(): string[] {
-    const detected = Object.values(analysisResults)
-      .flatMap((r: any) => (r?.detections || []).map((d: any) => d.damage_type))
-      .filter(Boolean);
-    return Array.from(new Set([...detected, ...FIXED_DAMAGE_TYPES]));
   }
 
   function handleSubmitImageReview() {
@@ -451,15 +489,22 @@ export default function InspectionDetailPage() {
       const st = states[d.id];
       if (!st?.action) return; // guard — button is disabled in this case
       if (st.action === 'modified') {
+        if (!st.damageCode || !st.severity || !(st.segments?.length)) return; // guard
+        const corrected: CorrectedDetection = {
+          damage_type: damageTypeNameOf(st.damageCode, category),
+          damage_code: st.damageCode,
+          severity: st.severity,
+          bbox: st.modifiedBbox ?? d.bbox,
+          confidence_score: 1.0,
+          structural_segments: st.segments,
+          shape_type: d.shape_type ?? 'rect',
+        };
+        const defectId = st.defectId?.trim();
+        if (defectId) corrected.defect_id = defectId;
         reviews.push({
           cv_detection_id: d.id,
           action: 'modified',
-          corrected_detection: {
-            damage_type: (st.damageType || d.damage_type).trim(),
-            severity: st.severity ?? normSeverity(d.severity),
-            bbox: st.modifiedBbox ?? d.bbox,
-            confidence_score: 1.0,
-          },
+          corrected_detection: corrected,
           notes: st.notes?.trim() || undefined,
         });
       } else {
@@ -472,21 +517,57 @@ export default function InspectionDetailPage() {
     }
 
     for (const draft of addedDrafts[imgId] ?? []) {
+      if (!draft.damageCode || !draft.severity || draft.segments.length === 0) return; // guard
+      const corrected: CorrectedDetection = {
+        damage_type: damageTypeNameOf(draft.damageCode, category),
+        damage_code: draft.damageCode,
+        severity: draft.severity,
+        bbox: draft.bbox,
+        confidence_score: 1.0,
+        structural_segments: draft.segments,
+        shape_type: draft.shapeType,
+      };
+      const defectId = draft.defectId.trim();
+      if (defectId) corrected.defect_id = defectId;
       reviews.push({
         cv_detection_id: null,
         action: 'added',
-        corrected_detection: {
-          damage_type: draft.damageType.trim(),
-          severity: draft.severity,
-          bbox: draft.bbox,
-          confidence_score: 1.0,
-        },
+        corrected_detection: corrected,
         notes: draft.notes.trim() || undefined,
       });
     }
 
     submitReviewMutation.mutate({ imageId: imgId, body: { reviews } });
   }
+
+  // ── Review-mode keyboard shortcuts (annotation-app style) ──────────────────
+  // V = Select, B = Box, O = Oval, Esc = back to Select, Del/Backspace = remove
+  // the selected engineer draft. Never fires while typing or in the lightbox.
+  useEffect(() => {
+    if (inspection?.status !== 'pending_review') return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (lightboxIndex !== null) return;
+      const imgId = selectedImage;
+      if (!imgId || isImageSubmitted(imgId)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'v') setTool('select');
+      else if (k === 'b') setTool('box');
+      else if (k === 'o') setTool('oval');
+      else if (e.key === 'Escape') setTool('select');
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Only engineer DRAFTS are deletable — CV detections get Reject instead.
+        if (selectedDetectionId && (addedDrafts[imgId] ?? []).some(d => d.tempId === selectedDetectionId)) {
+          e.preventDefault();
+          handleRemoveDraft(selectedDetectionId);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspection?.status, lightboxIndex, selectedImage, selectedDetectionId, addedDrafts, submittedImages, analysisResults]);
 
   async function handleAnalyze(imageId: string) {
     setAnalyzing(imageId);
@@ -556,16 +637,63 @@ export default function InspectionDetailPage() {
   const currentSubmitted = currentImg ? isImageSubmitted(currentImg.id) : false;
 
   const actionedCount = currentCvDets.filter(d => currentStates[d.id]?.action).length;
-  const draftsValid = currentDrafts.every(d => d.damageType.trim().length > 0);
-  const modifiedValid = currentCvDets.every(d => {
+  const unactionedCount = currentCvDets.length - actionedCount;
+
+  // Effective asset type for the current image (session PATCH override wins)
+  const currentAssetType: string = currentImg
+    ? (assetTypeOverrides[currentImg.id] ?? currentImg.domain_metadata?.asset_type ?? '')
+    : '';
+
+  // ── Save gating (deliberately stricter than the annotation app) ────────────
+  const invalidModified = currentCvDets.filter(d => {
     const st = currentStates[d.id];
-    return st?.action !== 'modified' || ((st.damageType ?? '').trim().length > 0 && !!st.modifiedBbox);
+    return st?.action === 'modified' &&
+      (!st.damageCode || !st.severity || !(st.segments?.length) || !st.modifiedBbox);
   });
+  const invalidDrafts = currentDrafts.filter(
+    d => !d.damageCode || !d.severity || d.segments.length === 0,
+  );
+  // Labels exist (modified or added) → image asset type becomes mandatory
+  const requiresAssetType =
+    currentDrafts.length > 0 || currentCvDets.some(d => currentStates[d.id]?.action === 'modified');
+  const assetTypeMissing = requiresAssetType && !currentAssetType;
+
+  const missingHints: string[] = [];
+  if (!currentSubmitted && (currentCvDets.length > 0 || currentDrafts.length > 0)) {
+    if (unactionedCount > 0) {
+      missingHints.push(`${unactionedCount} CV detection${unactionedCount !== 1 ? 's' : ''} need${unactionedCount === 1 ? 's' : ''} Accept / Reject / Modify`);
+    }
+    if (invalidModified.length > 0) {
+      missingHints.push(`${invalidModified.length} modified detection${invalidModified.length !== 1 ? 's' : ''} missing damage type, severity or structural segment`);
+    }
+    if (invalidDrafts.length > 0) {
+      missingHints.push(`${invalidDrafts.length} new annotation${invalidDrafts.length !== 1 ? 's' : ''} missing damage type, severity or structural segment`);
+    }
+    if (assetTypeMissing) {
+      missingHints.push('Image asset type is required when annotations are modified or added');
+    }
+  }
+
   const canSubmitReview =
     !currentSubmitted &&
     (currentCvDets.length > 0 || currentDrafts.length > 0) &&
-    actionedCount === currentCvDets.length &&
-    draftsValid && modifiedValid;
+    missingHints.length === 0;
+
+  // Current image has local (unsaved) review state
+  const hasUnsavedChanges =
+    !currentSubmitted && (currentDrafts.length > 0 || Object.values(currentStates).some(s => !!s.action));
+
+  // ── Selection / editing resolution (selection drives the bbox editor) ──────
+  const selectedDraft = currentDrafts.find(d => d.tempId === selectedDetectionId) ?? null;
+  const selectedCvDet = selectedDraft ? null : currentCvDets.find(d => d.id === selectedDetectionId) ?? null;
+  const drawing = !currentSubmitted && tool !== 'select';
+  // Editable while selected: any engineer draft, or a CV detection in 'modified' state
+  const editingDraft = !drawing && !currentSubmitted ? selectedDraft : null;
+  const editingCvDet =
+    !drawing && !currentSubmitted && selectedCvDet && currentStates[selectedCvDet.id]?.action === 'modified'
+      ? selectedCvDet
+      : null;
+  const editingDetId = editingDraft?.tempId ?? editingCvDet?.id ?? null;
 
   // Overlay composition: server detections + draft (engineer) boxes not being edited
   const allServerDets: Detection[] = (currentResult?.detections ?? []) as Detection[];
@@ -575,12 +703,14 @@ export default function InspectionDetailPage() {
       id: dr.tempId,
       image_id: currentImg?.id ?? '',
       infrastructure_type: (allServerDets[0]?.infrastructure_type ?? 'coastal') as Detection['infrastructure_type'],
-      damage_type: dr.damageType || 'new damage',
+      damage_type: dr.damageCode ? damageTypeNameOf(dr.damageCode, category) : 'new damage',
       confidence: 1,
       bbox: dr.bbox,
-      severity: dr.severity,
+      severity: dr.severity || undefined,
       created_at: '',
       source: 'engineer_added' as const,
+      shape_type: dr.shapeType,
+      domain_metadata: { code: dr.damageCode || undefined, segments: dr.segments },
     }));
   const overlayDetections = currentSubmitted ? allServerDets : [...allServerDets, ...draftOverlayDets];
   const overlayStates: Record<string, ReviewState> = {};
@@ -590,17 +720,20 @@ export default function InspectionDetailPage() {
   }
 
   // BboxEditor composition (rendered inside ReviewOverlay's svg)
-  const editingDraft = currentDrafts.find(d => d.tempId === editingDetId) ?? null;
-  const editingCvDet = editingDraft ? null : currentCvDets.find(d => d.id === editingDetId) ?? null;
-  const editorBbox: BoundingBox | null = drawingNew
+  const editorBbox: BoundingBox | null = drawing
     ? null
     : editingDraft
       ? editingDraft.bbox
       : editingCvDet
         ? (currentStates[editingCvDet.id]?.modifiedBbox ?? editingCvDet.bbox)
         : null;
-  const editorMode: 'draw' | 'edit' | 'idle' = drawingNew ? 'draw' : editingDetId && editorBbox ? 'edit' : 'idle';
-  const editorColor = drawingNew || editingDraft ? '#10b981' : '#f59e0b';
+  const editorMode: 'draw' | 'edit' | 'idle' = drawing ? 'draw' : editingDetId && editorBbox ? 'edit' : 'idle';
+  const editorShapeType: 'rect' | 'ellipse' = drawing
+    ? (tool === 'oval' ? 'ellipse' : 'rect')
+    : editingDraft
+      ? editingDraft.shapeType
+      : (editingCvDet?.shape_type ?? 'rect');
+  const editorColor = drawing || editingDraft ? '#10b981' : '#f59e0b';
 
   return (
     <div>
@@ -975,6 +1108,26 @@ export default function InspectionDetailPage() {
                   </button>
                 </div>
 
+                {/* Annotation-style toolbar (active review only) */}
+                {!currentSubmitted && (
+                  <ReviewToolbar
+                    tool={tool}
+                    onToolChange={setTool}
+                    canDelete={!!selectedDraft}
+                    onDelete={() => { if (selectedDraft) handleRemoveDraft(selectedDraft.tempId); }}
+                    reviewedImages={reviewedImageCount}
+                    totalImages={images.length}
+                    hasUnsaved={hasUnsavedChanges}
+                    unactionedCount={unactionedCount}
+                    onAcceptAll={() => handleBulkAction('accepted')}
+                    onRejectAll={() => handleBulkAction('rejected')}
+                    canSubmit={canSubmitReview}
+                    submitting={submitReviewMutation.isPending}
+                    missingHints={missingHints}
+                    onSubmit={handleSubmitImageReview}
+                  />
+                )}
+
                 <div className="flex items-stretch">
                   {/* Canvas */}
                   <div className="flex-1 min-w-0 p-5">
@@ -1000,18 +1153,22 @@ export default function InspectionDetailPage() {
                             imageNaturalWidth={naturalDims.w}
                             imageNaturalHeight={naturalDims.h}
                             mode={editorMode}
+                            shapeType={editorShapeType}
                             color={editorColor}
                             onChange={handleEditorChange}
                             onDrawComplete={handleDrawComplete}
+                            onDrawCancel={() => { /* <5px or Escape mid-drag — stay in tool for retry */ }}
                           />
                         )}
                       </ReviewOverlay>
                     )}
-                    {drawingNew && (
-                      <p className="text-sm text-emerald-700 mt-2 font-medium">Drag on the image to draw the new detection box.</p>
+                    {drawing && (
+                      <p className="text-sm text-emerald-700 mt-2 font-medium">
+                        Drag on the image to draw the new {tool === 'oval' ? 'oval' : 'box'}. Press Esc to cancel.
+                      </p>
                     )}
-                    {!drawingNew && editingDetId && editorMode === 'edit' && (
-                      <p className="text-sm text-amber-700 mt-2 font-medium">Drag the box to move it, or pull the handles to resize. Changes are saved with your review.</p>
+                    {!drawing && editingDetId && editorMode === 'edit' && (
+                      <p className="text-sm text-amber-700 mt-2 font-medium">Drag the shape to move it, or pull the handles to resize. Changes are saved with your review.</p>
                     )}
                   </div>
 
@@ -1023,20 +1180,20 @@ export default function InspectionDetailPage() {
                       states={currentStates}
                       imageSubmitted={currentSubmitted}
                       selectedDetectionId={selectedDetectionId}
-                      editingDetId={editingDetId}
-                      drawingNew={drawingNew}
-                      damageTypeOptions={damageTypeOptionsOf()}
-                      submitting={submitReviewMutation.isPending}
-                      canSubmit={canSubmitReview}
+                      category={category}
+                      assetType={currentAssetType}
+                      assetTypeSaving={assetTypeMutation.isPending}
+                      assetTypeMissing={assetTypeMissing}
+                      labelsFocusToken={labelsFocusToken}
+                      missingHints={missingHints}
+                      onAssetTypeChange={v => {
+                        if (v && currentImg) assetTypeMutation.mutate({ imageId: currentImg.id, assetType: v });
+                      }}
                       onSelectDetection={id => setSelectedDetectionId(id)}
                       onAction={handleReviewAction}
                       onUpdateState={handleUpdateReviewState}
-                      onToggleEditBbox={handleToggleEditBbox}
-                      onStartDraw={() => { setDrawingNew(true); setEditingDetId(null); }}
-                      onCancelDraw={() => setDrawingNew(false)}
                       onUpdateDraft={handleUpdateDraft}
                       onRemoveDraft={handleRemoveDraft}
-                      onSubmit={handleSubmitImageReview}
                     />
                   </div>
                 </div>

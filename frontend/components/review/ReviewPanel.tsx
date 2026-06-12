@@ -2,33 +2,48 @@
 
 /**
  * ReviewPanel — right-hand sidebar for Engineer Review Mode on the inspection
- * detail page. Pure presentation + callbacks; all review state lives in the page.
+ * detail page, mirroring the Mira Asset Annotation App layout:
+ *   1. IMAGE ASSET TYPE (required when labels exist; saves instantly via PATCH)
+ *   2. ANNOTATIONS list (CV detections + engineer drafts)
+ *   3. CV detection cards (Accept / Reject / Modify)
+ *   4. LABELS editor (classification + structural segments) for the selected
+ *      draft or modified CV detection
+ * Pure presentation + callbacks; all review state lives in the page.
  */
 
-import { useState } from 'react';
-import { Check, X, Pencil, Plus, Trash2, Loader, CheckCircle, Move } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Check, X, Pencil, CheckCircle, AlertTriangle, Loader } from 'lucide-react';
 import type { Detection, BoundingBox, Severity } from '@/types';
+import {
+  ASSET_TYPES_BY_CATEGORY,
+  DAMAGE_TYPES_BY_CATEGORY,
+  SEVERITY_LEVELS,
+  STRUCTURAL_SEGMENTS,
+  buildAnnotationLabel,
+  type IndustryCategory,
+} from '@/lib/annotationTaxonomy';
 
 // ─── Shared review-mode types (page-level state shapes) ──────────────────────
 export interface LocalDetectionReview {
   action: 'accepted' | 'rejected' | 'modified' | null;
   modifiedBbox?: BoundingBox;
-  damageType?: string;
+  damageCode?: string;
   severity?: Severity;
+  segments?: string[];
+  defectId?: string;
   notes?: string;
 }
 
 export interface AddedDraft {
   tempId: string;
   bbox: BoundingBox;
-  damageType: string;
-  severity: Severity;
+  shapeType: 'rect' | 'ellipse';
+  damageCode: string;
+  severity: Severity | '';
+  segments: string[];
+  defectId: string;
   notes: string;
 }
-
-export const FIXED_DAMAGE_TYPES = [
-  'corrosion', 'crack', 'spalling', 'rust', 'erosion', 'vegetation', 'structural_damage',
-];
 
 // Severity colors — Engineer Review Flow spec (must match exactly)
 export const REVIEW_SEVERITY_HEX: Record<Severity, string> = {
@@ -40,7 +55,6 @@ export const REVIEW_SEVERITY_HEX: Record<Severity, string> = {
 const SEVERITY_LABELS: Record<Severity, string> = {
   S1: 'Minor', S2: 'Moderate', S3: 'Advanced', S4: 'Severe',
 };
-const SEVERITIES: Severity[] = ['S1', 'S2', 'S3', 'S4'];
 
 /** Normalize legacy severity values ('S0', '2', …) to S1–S4. */
 export const normSeverity = (s: string | null | undefined): Severity => {
@@ -52,6 +66,29 @@ export const normSeverity = (s: string | null | undefined): Severity => {
   return map[s] ?? 'S1';
 };
 
+/**
+ * Best-effort damage code for a CV detection: explicit domain_metadata.code,
+ * else match its damage_type name against the category taxonomy.
+ */
+export function deriveDamageCode(det: Detection, category: IndustryCategory): string {
+  if (det.domain_metadata?.code) return det.domain_metadata.code;
+  const name = (det.damage_type || '').toLowerCase().replace(/_/g, ' ').trim();
+  if (!name) return '';
+  const list = DAMAGE_TYPES_BY_CATEGORY[category];
+  const exact = list.find(d => d.label.toLowerCase() === name);
+  if (exact) return exact.code;
+  const partial = list.find(d =>
+    name.includes(d.label.toLowerCase()) || d.label.toLowerCase().includes(name));
+  return partial?.code ?? '';
+}
+
+/** Segments of a CV detection from domain metadata (plural or legacy singular). */
+export function segmentsOf(det: Detection): string[] {
+  if (det.domain_metadata?.segments?.length) return det.domain_metadata.segments;
+  if (det.domain_metadata?.segment) return [det.domain_metadata.segment];
+  return [];
+}
+
 function SevBadge({ severity }: { severity: string | null | undefined }) {
   const s = normSeverity(severity);
   const hex = REVIEW_SEVERITY_HEX[s];
@@ -62,54 +99,6 @@ function SevBadge({ severity }: { severity: string | null | undefined }) {
     >
       {s} {SEVERITY_LABELS[s]}
     </span>
-  );
-}
-
-// ─── Damage type select with free-text option ────────────────────────────────
-function DamageTypeSelect({ value, options, onChange }: {
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  const inList = options.includes(value);
-  const [custom, setCustom] = useState(!inList && value !== '');
-  const showCustom = custom || (!inList && value !== '');
-  return (
-    <div className="flex flex-col gap-1.5">
-      <select
-        value={showCustom ? '__custom__' : value}
-        onChange={e => {
-          if (e.target.value === '__custom__') { setCustom(true); onChange(''); }
-          else { setCustom(false); onChange(e.target.value); }
-        }}
-        className="w-full text-xs font-medium border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none focus:border-sky-300"
-      >
-        {options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
-        <option value="__custom__">Other (type below)…</option>
-      </select>
-      {showCustom && (
-        <input
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder="Custom damage type"
-          className="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none focus:border-sky-300"
-        />
-      )}
-    </div>
-  );
-}
-
-function SeveritySelect({ value, onChange }: { value: Severity; onChange: (s: Severity) => void }) {
-  return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value as Severity)}
-      className="w-full text-xs font-medium border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none focus:border-sky-300"
-    >
-      {SEVERITIES.map(s => (
-        <option key={s} value={s}>{s} — {SEVERITY_LABELS[s]}</option>
-      ))}
-    </select>
   );
 }
 
@@ -129,6 +118,117 @@ const ACTION_STYLES = {
   },
 } as const;
 
+// ─── LABELS editor (shared by drafts and modified CV detections) ─────────────
+interface LabelValues {
+  damageCode: string;
+  severity: Severity | '';
+  segments: string[];
+  defectId: string;
+  notes: string;
+}
+
+function LabelsEditor({ category, value, onPatch, damageSelectRef }: {
+  category: IndustryCategory;
+  value: LabelValues;
+  onPatch: (patch: Partial<LabelValues>) => void;
+  damageSelectRef: React.MutableRefObject<HTMLSelectElement | null>;
+}) {
+  const toggleSegment = (code: string) => {
+    onPatch({
+      segments: value.segments.includes(code)
+        ? value.segments.filter(s => s !== code)
+        : [...value.segments, code],
+    });
+  };
+
+  const inputCls = 'w-full text-xs font-medium border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none focus:border-sky-300';
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Classification</p>
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-500 mb-1">Damage Type</label>
+        <select
+          ref={damageSelectRef}
+          value={value.damageCode}
+          onChange={e => onPatch({ damageCode: e.target.value })}
+          className={inputCls}
+        >
+          <option value="">-- Select --</option>
+          {DAMAGE_TYPES_BY_CATEGORY[category].map(d => (
+            <option key={d.code} value={d.code}>{d.code} - {d.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-500 mb-1">Severity</label>
+        <select
+          value={value.severity}
+          onChange={e => onPatch({ severity: e.target.value as Severity | '' })}
+          className={inputCls}
+        >
+          <option value="">-- Select --</option>
+          {SEVERITY_LEVELS.map(s => (
+            <option key={s.sev} value={s.sev}>{s.level} - {s.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">Structural Segments *</label>
+        <p className="text-[11px] text-slate-400 mb-1.5">Select all structural components affected by this damage</p>
+        <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-md bg-white divide-y divide-slate-50">
+          {STRUCTURAL_SEGMENTS.map(seg => (
+            <label
+              key={seg.code}
+              className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 cursor-pointer hover:bg-slate-50"
+            >
+              <input
+                type="checkbox"
+                checked={value.segments.includes(seg.code)}
+                onChange={() => toggleSegment(seg.code)}
+                className="accent-sky-600 flex-shrink-0"
+              />
+              <span className="flex-1 min-w-0 truncate font-medium">{seg.code} - {seg.name}</span>
+              <span className="text-[10px] text-slate-400 flex-shrink-0">{seg.category}</span>
+            </label>
+          ))}
+        </div>
+        {value.segments.length === 0 && (
+          <p className="flex items-center gap-1 text-[11px] font-semibold text-amber-600 mt-1.5">
+            <AlertTriangle size={12} /> At least one structural segment is required
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-500 mb-1">Defect ID (optional)</label>
+        <input
+          value={value.defectId}
+          onChange={e => onPatch({ defectId: e.target.value.toUpperCase() })}
+          placeholder="E.G., PIER-CR-001"
+          pattern="[A-Z0-9-]*"
+          className={`${inputCls} uppercase`}
+        />
+        <p className="text-[11px] text-slate-400 mt-1">Track this defect across inspections</p>
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-semibold text-slate-500 mb-1">Notes</label>
+        <textarea
+          value={value.notes}
+          onChange={e => onPatch({ notes: e.target.value })}
+          placeholder="Optional notes..."
+          rows={2}
+          className={`${inputCls} resize-none font-normal`}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Props ───────────────────────────────────────────────────────────────────
 export interface ReviewPanelProps {
   /** All server detections for the current image (CV + engineer_added). */
@@ -137,20 +237,22 @@ export interface ReviewPanelProps {
   states: Record<string, LocalDetectionReview>;
   imageSubmitted: boolean;
   selectedDetectionId: string | null;
-  editingDetId: string | null;
-  drawingNew: boolean;
-  damageTypeOptions: string[];
-  submitting: boolean;
-  canSubmit: boolean;
+  category: IndustryCategory;
+  /** Effective asset type for the current image ('' when unset). */
+  assetType: string;
+  assetTypeSaving: boolean;
+  /** Labels exist but no asset type — highlight the select as required. */
+  assetTypeMissing: boolean;
+  /** Incremented by the page after a draw — scrolls to LABELS and focuses Damage Type. */
+  labelsFocusToken: number;
+  /** What is still blocking Save (shown inline at the bottom). */
+  missingHints: string[];
+  onAssetTypeChange: (assetType: string) => void;
   onSelectDetection: (id: string) => void;
   onAction: (det: Detection, action: 'accepted' | 'rejected' | 'modified') => void;
   onUpdateState: (detId: string, patch: Partial<LocalDetectionReview>) => void;
-  onToggleEditBbox: (detId: string) => void;
-  onStartDraw: () => void;
-  onCancelDraw: () => void;
   onUpdateDraft: (tempId: string, patch: Partial<AddedDraft>) => void;
   onRemoveDraft: (tempId: string) => void;
-  onSubmit: () => void;
 }
 
 export default function ReviewPanel({
@@ -159,23 +261,34 @@ export default function ReviewPanel({
   states,
   imageSubmitted,
   selectedDetectionId,
-  editingDetId,
-  drawingNew,
-  damageTypeOptions,
-  submitting,
-  canSubmit,
+  category,
+  assetType,
+  assetTypeSaving,
+  assetTypeMissing,
+  labelsFocusToken,
+  missingHints,
+  onAssetTypeChange,
   onSelectDetection,
   onAction,
   onUpdateState,
-  onToggleEditBbox,
-  onStartDraw,
-  onCancelDraw,
   onUpdateDraft,
   onRemoveDraft,
-  onSubmit,
 }: ReviewPanelProps) {
+  const labelsRef = useRef<HTMLDivElement | null>(null);
+  const damageSelectRef = useRef<HTMLSelectElement>(null) as React.MutableRefObject<HTMLSelectElement | null>;
+
   const cvDetections = detections.filter(d => d.source !== 'engineer_added');
   const actionedCount = cvDetections.filter(d => states[d.id]?.action).length;
+
+  // After a draw, scroll to the LABELS section and focus the Damage Type select.
+  useEffect(() => {
+    if (labelsFocusToken <= 0) return;
+    const t = setTimeout(() => {
+      labelsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      damageSelectRef.current?.focus();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [labelsFocusToken]);
 
   // ── Read-only view for already-submitted images ────────────────────────────
   if (imageSubmitted) {
@@ -210,192 +323,266 @@ export default function ReviewPanel({
     );
   }
 
+  // ── Selected item resolution ────────────────────────────────────────────────
+  const selectedDraft = drafts.find(d => d.tempId === selectedDetectionId) ?? null;
+  const selectedCvDet = selectedDraft
+    ? null
+    : cvDetections.find(d => d.id === selectedDetectionId) ?? null;
+  const selectedModified =
+    selectedCvDet && states[selectedCvDet.id]?.action === 'modified' ? selectedCvDet : null;
+  const labelsTarget = selectedDraft ?? selectedModified;
+
+  // Annotation list labels
+  const cvListLabel = (d: Detection, idx: number): string => {
+    const st = states[d.id];
+    const code = st?.action === 'modified'
+      ? (st.damageCode || deriveDamageCode(d, category))
+      : deriveDamageCode(d, category);
+    const segs = st?.action === 'modified' ? (st.segments ?? []) : segmentsOf(d);
+    const sev = st?.action === 'modified' ? (st.severity ?? normSeverity(d.severity)) : normSeverity(d.severity);
+    const label = buildAnnotationLabel({ damageCode: code || null, severity: sev, segments: segs });
+    return label || `CV Detection ${idx + 1}`;
+  };
+
+  let boxN = 0;
+  let ovalN = 0;
+  const draftNames = drafts.map(d => (d.shapeType === 'ellipse' ? `Oval ${++ovalN}` : `Box ${++boxN}`));
+
+  // LABELS editor values + patch routing
+  const labelValues: LabelValues | null = selectedDraft
+    ? {
+        damageCode: selectedDraft.damageCode,
+        severity: selectedDraft.severity,
+        segments: selectedDraft.segments,
+        defectId: selectedDraft.defectId,
+        notes: selectedDraft.notes,
+      }
+    : selectedModified
+      ? {
+          damageCode: states[selectedModified.id]?.damageCode ?? '',
+          severity: states[selectedModified.id]?.severity ?? normSeverity(selectedModified.severity),
+          segments: states[selectedModified.id]?.segments ?? [],
+          defectId: states[selectedModified.id]?.defectId ?? '',
+          notes: states[selectedModified.id]?.notes ?? '',
+        }
+      : null;
+
+  const patchLabels = (patch: Partial<LabelValues>) => {
+    if (selectedDraft) {
+      onUpdateDraft(selectedDraft.tempId, patch);
+    } else if (selectedModified) {
+      // LocalDetectionReview stores severity as Severity | undefined ('' → unset)
+      const { severity, ...rest } = patch;
+      onUpdateState(selectedModified.id, {
+        ...rest,
+        ...(severity !== undefined ? { severity: severity === '' ? undefined : severity } : {}),
+      });
+    }
+  };
+
   // ── Active review view ──────────────────────────────────────────────────────
   return (
     <div className="p-4 flex flex-col max-h-[calc(100vh-260px)]">
-      <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-3 flex-shrink-0">
-        Review Detections
-        <span className="ml-2 text-xs font-mono text-slate-400 normal-case">{actionedCount}/{cvDetections.length}</span>
-      </h3>
-
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-        {cvDetections.length === 0 && (
-          <p className="text-sm text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2.5">
-            No CV detections on this image. You can still add detections the model missed.
-          </p>
-        )}
-
-        {cvDetections.map(det => {
-          const st = states[det.id];
-          const action = st?.action ?? null;
-          const selected = selectedDetectionId === det.id;
-          return (
-            <div
-              key={det.id}
-              onClick={() => onSelectDetection(det.id)}
-              className={`bg-white rounded-lg border p-3 cursor-pointer transition-all ${
-                selected ? 'border-sky-300 ring-2 ring-sky-200' : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-sm font-bold text-slate-700 truncate">{det.damage_type}</span>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <SevBadge severity={det.severity} />
-                  <span className="text-xs font-mono text-slate-400">{Math.round(det.confidence * 100)}%</span>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  onClick={e => { e.stopPropagation(); onAction(det, 'accepted'); }}
-                  className={`flex items-center justify-center gap-1 text-xs font-semibold border rounded-md py-1.5 transition-all ${
-                    action === 'accepted' ? ACTION_STYLES.accepted.on : ACTION_STYLES.accepted.off
-                  }`}
-                >
-                  <Check size={13} /> Accept
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onAction(det, 'rejected'); }}
-                  className={`flex items-center justify-center gap-1 text-xs font-semibold border rounded-md py-1.5 transition-all ${
-                    action === 'rejected' ? ACTION_STYLES.rejected.on : ACTION_STYLES.rejected.off
-                  }`}
-                >
-                  <X size={13} /> Reject
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onAction(det, 'modified'); }}
-                  className={`flex items-center justify-center gap-1 text-xs font-semibold border rounded-md py-1.5 transition-all ${
-                    action === 'modified' ? ACTION_STYLES.modified.on : ACTION_STYLES.modified.off
-                  }`}
-                >
-                  <Pencil size={13} /> Modify
-                </button>
-              </div>
-
-              {/* Inline modify form */}
-              {action === 'modified' && st && (
-                <div className="mt-2 space-y-2 bg-amber-50/60 border border-amber-100 rounded-lg p-2.5" onClick={e => e.stopPropagation()}>
-                  <DamageTypeSelect
-                    value={st.damageType ?? ''}
-                    options={damageTypeOptions}
-                    onChange={v => onUpdateState(det.id, { damageType: v })}
-                  />
-                  <SeveritySelect
-                    value={st.severity ?? normSeverity(det.severity)}
-                    onChange={s => onUpdateState(det.id, { severity: s })}
-                  />
-                  <button
-                    onClick={() => onToggleEditBbox(det.id)}
-                    className={`w-full flex items-center justify-center gap-1.5 text-xs font-semibold border rounded-md py-1.5 transition-all ${
-                      editingDetId === det.id
-                        ? 'bg-amber-500 text-white border-amber-500'
-                        : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Move size={13} /> {editingDetId === det.id ? 'Done editing box' : 'Edit box on image'}
-                  </button>
-                </div>
-              )}
-
-              {/* Notes */}
-              <input
-                value={st?.notes ?? ''}
-                onChange={e => onUpdateState(det.id, { notes: e.target.value })}
-                onClick={e => e.stopPropagation()}
-                placeholder="Notes (optional)"
-                className="mt-2 w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none focus:border-sky-300"
-              />
-            </div>
-          );
-        })}
-
-        {/* ── Engineer-added drafts ── */}
-        <div className="pt-3 border-t border-slate-200">
-          {drawingNew ? (
-            <button
-              onClick={onCancelDraw}
-              className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded-lg py-2 hover:bg-slate-200 transition-all"
-            >
-              <X size={15} /> Cancel drawing
-            </button>
-          ) : (
-            <button
-              onClick={onStartDraw}
-              className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-dashed border-emerald-300 rounded-lg py-2 hover:bg-emerald-100 transition-all"
-            >
-              <Plus size={15} /> Add Detection
-            </button>
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+        {/* 1 ── IMAGE ASSET TYPE ─────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Image Asset Type *</h3>
+            {assetTypeSaving && <Loader size={12} className="animate-spin text-sky-500" />}
+          </div>
+          <select
+            value={assetType}
+            onChange={e => onAssetTypeChange(e.target.value)}
+            className={`w-full text-xs font-medium rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none border ${
+              assetTypeMissing ? 'border-red-400 focus:border-red-400' : 'border-slate-200 focus:border-sky-300'
+            }`}
+          >
+            <option value="">-- Select Asset Type --</option>
+            {ASSET_TYPES_BY_CATEGORY[category].map(a => (
+              <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
+          </select>
+          {assetTypeMissing && (
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-red-600 mt-1">
+              <AlertTriangle size={12} /> Required: Select asset type before saving annotations
+            </p>
           )}
+        </div>
 
-          <div className="space-y-2 mt-2">
-            {drafts.map(d => {
-              const selected = selectedDetectionId === d.tempId;
+        {/* 2 ── ANNOTATIONS list ─────────────────────────────────────────────── */}
+        <div>
+          <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            Annotations ({cvDetections.length + drafts.length})
+          </h3>
+          <div className="border border-slate-200 rounded-md bg-white divide-y divide-slate-50">
+            {cvDetections.length === 0 && drafts.length === 0 && (
+              <p className="text-xs text-slate-400 px-2 py-2">
+                No annotations — use the Box or Oval tool to add detections the model missed.
+              </p>
+            )}
+            {cvDetections.map((d, i) => (
+              <button
+                key={d.id}
+                onClick={() => onSelectDetection(d.id)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors ${
+                  selectedDetectionId === d.id ? 'bg-sky-50 text-sky-800' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1 py-0.5 rounded flex-shrink-0">CV</span>
+                <span className="flex-1 min-w-0 truncate font-medium">{cvListLabel(d, i)}</span>
+                {states[d.id]?.action && (
+                  <span className={`text-[10px] font-bold flex-shrink-0 ${
+                    states[d.id].action === 'accepted' ? 'text-emerald-600' :
+                    states[d.id].action === 'rejected' ? 'text-red-500' : 'text-amber-600'
+                  }`}>
+                    {states[d.id].action === 'accepted' ? '✓' : states[d.id].action === 'rejected' ? '✗' : '✎'}
+                  </span>
+                )}
+              </button>
+            ))}
+            {drafts.map((d, i) => (
+              <div
+                key={d.tempId}
+                onClick={() => onSelectDetection(d.tempId)}
+                className={`flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer transition-colors ${
+                  selectedDetectionId === d.tempId ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded flex-shrink-0">NEW</span>
+                <span className="flex-1 min-w-0 truncate font-medium">
+                  {draftNames[i]}{d.damageCode ? ` — ${d.damageCode}` : ''}
+                </span>
+                <button
+                  title="Remove draft"
+                  onClick={e => { e.stopPropagation(); onRemoveDraft(d.tempId); }}
+                  className="p-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 3 ── CV detection cards ───────────────────────────────────────────── */}
+        <div>
+          <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            CV Detections
+            <span className="ml-2 font-mono text-slate-400 normal-case">{actionedCount}/{cvDetections.length}</span>
+          </h3>
+          <div className="space-y-2">
+            {cvDetections.length === 0 && (
+              <p className="text-xs text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                No CV detections on this image.
+              </p>
+            )}
+            {cvDetections.map(det => {
+              const st = states[det.id];
+              const action = st?.action ?? null;
+              const selected = selectedDetectionId === det.id;
               return (
                 <div
-                  key={d.tempId}
-                  onClick={() => onSelectDetection(d.tempId)}
+                  key={det.id}
+                  onClick={() => onSelectDetection(det.id)}
                   className={`bg-white rounded-lg border p-3 cursor-pointer transition-all ${
-                    selected ? 'border-emerald-300 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-slate-300'
+                    selected ? 'border-sky-300 ring-2 ring-sky-200' : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">NEW</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        title="Edit box on image"
-                        onClick={e => { e.stopPropagation(); onToggleEditBbox(d.tempId); }}
-                        className={`p-1 rounded transition-all ${
-                          editingDetId === d.tempId ? 'bg-emerald-600 text-white' : 'text-emerald-600 hover:bg-emerald-50'
-                        }`}
-                      >
-                        <Move size={13} />
-                      </button>
-                      <button
-                        title="Remove"
-                        onClick={e => { e.stopPropagation(); onRemoveDraft(d.tempId); }}
-                        className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-sm font-bold text-slate-700 truncate">{det.damage_type}</span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <SevBadge severity={det.severity} />
+                      <span className="text-xs font-mono text-slate-400">{Math.round(det.confidence * 100)}%</span>
                     </div>
                   </div>
-                  <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                    <DamageTypeSelect
-                      value={d.damageType}
-                      options={damageTypeOptions}
-                      onChange={v => onUpdateDraft(d.tempId, { damageType: v })}
-                    />
-                    <SeveritySelect value={d.severity} onChange={s => onUpdateDraft(d.tempId, { severity: s })} />
-                    <input
-                      value={d.notes}
-                      onChange={e => onUpdateDraft(d.tempId, { notes: e.target.value })}
-                      placeholder="Notes (optional)"
-                      className="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none focus:border-sky-300"
-                    />
+
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      onClick={e => { e.stopPropagation(); onAction(det, 'accepted'); }}
+                      className={`flex items-center justify-center gap-1 text-xs font-semibold border rounded-md py-1.5 transition-all ${
+                        action === 'accepted' ? ACTION_STYLES.accepted.on : ACTION_STYLES.accepted.off
+                      }`}
+                    >
+                      <Check size={13} /> Accept
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); onAction(det, 'rejected'); }}
+                      className={`flex items-center justify-center gap-1 text-xs font-semibold border rounded-md py-1.5 transition-all ${
+                        action === 'rejected' ? ACTION_STYLES.rejected.on : ACTION_STYLES.rejected.off
+                      }`}
+                    >
+                      <X size={13} /> Reject
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); onAction(det, 'modified'); }}
+                      className={`flex items-center justify-center gap-1 text-xs font-semibold border rounded-md py-1.5 transition-all ${
+                        action === 'modified' ? ACTION_STYLES.modified.on : ACTION_STYLES.modified.off
+                      }`}
+                    >
+                      <Pencil size={13} /> Modify
+                    </button>
                   </div>
+
+                  {action === 'modified' && (
+                    <p className="text-[11px] text-amber-700 font-medium mt-2">
+                      Edit the box on the image and fill in the LABELS section below.
+                    </p>
+                  )}
+
+                  {/* Per-detection notes for accepted / rejected */}
+                  {(action === 'accepted' || action === 'rejected') && (
+                    <input
+                      value={st?.notes ?? ''}
+                      onChange={e => onUpdateState(det.id, { notes: e.target.value })}
+                      onClick={e => e.stopPropagation()}
+                      placeholder="Notes (optional)"
+                      className="mt-2 w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 outline-none focus:border-sky-300"
+                    />
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
+
+        {/* 4 ── LABELS ───────────────────────────────────────────────────────── */}
+        {labelsTarget && labelValues && (
+          <div
+            ref={labelsRef}
+            className={`rounded-lg border p-3 ${
+              selectedDraft ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-200 bg-amber-50/40'
+            }`}
+          >
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+              Labels — {selectedDraft
+                ? draftNames[drafts.findIndex(d => d.tempId === selectedDraft.tempId)]
+                : `Modified: ${selectedModified?.damage_type}`}
+            </h3>
+            <LabelsEditor
+              category={category}
+              value={labelValues}
+              onPatch={patchLabels}
+              damageSelectRef={damageSelectRef}
+            />
+          </div>
+        )}
       </div>
 
-      {/* ── Submit ── */}
-      <div className="pt-3 mt-3 border-t border-slate-200 flex-shrink-0">
-        <p className="text-xs text-slate-500 mb-2 font-medium">
-          {actionedCount} / {cvDetections.length} detections actioned
-          {drafts.length > 0 && ` · ${drafts.length} added`}
-        </p>
-        <button
-          onClick={onSubmit}
-          disabled={!canSubmit || submitting}
-          className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm py-2.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-        >
-          {submitting ? <Loader size={15} className="animate-spin" /> : <Check size={15} />}
-          Submit Review for This Image
-        </button>
-      </div>
+      {/* ── Save gating hints ── */}
+      {missingHints.length > 0 && (
+        <div className="pt-3 mt-3 border-t border-slate-200 flex-shrink-0">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <p className="text-[11px] font-bold text-amber-800 mb-1">Before saving this image:</p>
+            <ul className="space-y-0.5">
+              {missingHints.map((h, i) => (
+                <li key={i} className="text-[11px] text-amber-700 flex items-start gap-1">
+                  <AlertTriangle size={11} className="mt-0.5 flex-shrink-0" /> {h}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
