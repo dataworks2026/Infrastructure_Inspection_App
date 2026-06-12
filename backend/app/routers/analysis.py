@@ -7,6 +7,7 @@ from app.models.image import Image
 from app.models.inspection import Inspection
 from app.models.asset import Asset
 from app.models.detection import Detection
+from app.models.detection_review import DetectionReview
 from app.schemas.detection import AnalysisResponse, DetectionResponse, BoundingBox
 from app.services.model_router import ModelRouter
 import os
@@ -90,6 +91,31 @@ def analyze_image(
         db.commit()
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
+def _review_action_maps(reviews: list) -> tuple[dict, dict]:
+    """Build {cv_detection_id: action} and {engineer_detection_id: action}
+    lookups from a list of DetectionReview rows (fetched in ONE query by the
+    caller — avoids per-detection queries)."""
+    cv_map = {r.cv_detection_id: r.action for r in reviews if r.cv_detection_id}
+    eng_map = {r.engineer_detection_id: r.action for r in reviews if r.engineer_detection_id}
+    return cv_map, eng_map
+
+
+def _detection_payload(d: Detection, cv_map: dict, eng_map: dict) -> dict:
+    # review_action: verdict from the review trail —
+    #   CV detections      → 'accepted' | 'rejected' | 'modified' | None (unreviewed)
+    #   engineer detections → 'modified' | 'added' (provenance)        | None
+    if d.source == "engineer_added":
+        review_action = eng_map.get(d.id)
+    else:
+        review_action = cv_map.get(d.id)
+    return {"id": d.id, "damage_type": d.damage_type, "confidence": d.confidence,
+            "bbox": {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2},
+            "severity": d.severity, "source": d.source, "is_locked": d.is_locked,
+            "reviewed": d.reviewed, "reviewed_by": d.reviewed_by,
+            "shape_type": d.shape_type, "domain_metadata": d.domain_metadata or {},
+            "review_action": review_action}
+
+
 @router.get("/inspections/{inspection_id}/all-detections")
 def get_all_detections(inspection_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Return all detections for every image in an inspection in a single query."""
@@ -105,6 +131,11 @@ def get_all_detections(inspection_id: str, db: Session = Depends(get_db), curren
 
     dets = db.query(Detection).filter(Detection.image_id.in_(image_ids)).all() if image_ids else []
 
+    reviews = db.query(DetectionReview).filter(
+        DetectionReview.inspection_id == inspection_id
+    ).all()
+    cv_map, eng_map = _review_action_maps(reviews)
+
     # Group detections by image_id
     by_image: dict = {}
     for d in dets:
@@ -117,11 +148,7 @@ def get_all_detections(inspection_id: str, db: Session = Depends(get_db), curren
             "image_id": img.id,
             "analysis_status": img.analysis_status,
             "total_detections": len(img_dets),
-            "detections": [{"id": d.id, "damage_type": d.damage_type, "confidence": d.confidence,
-                            "bbox": {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2},
-                            "severity": d.severity, "source": d.source, "is_locked": d.is_locked,
-                            "reviewed": d.reviewed, "reviewed_by": d.reviewed_by,
-                            "shape_type": d.shape_type, "domain_metadata": d.domain_metadata or {}} for d in img_dets],
+            "detections": [_detection_payload(d, cv_map, eng_map) for d in img_dets],
             "annotated_image_url": f"/storage/{img_dets[0].annotated_image_path}" if img_dets and img_dets[0].annotated_image_path else None
         }
     return result
@@ -133,14 +160,14 @@ def get_detections(image_id: str, db: Session = Depends(get_db), current_user: U
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
     dets = db.query(Detection).filter(Detection.image_id == image_id).all()
+    reviews = db.query(DetectionReview).filter(
+        DetectionReview.image_id == image_id
+    ).all()
+    cv_map, eng_map = _review_action_maps(reviews)
     return {
         "image_id": image_id,
         "analysis_status": img.analysis_status,
         "total_detections": len(dets),
-        "detections": [{"id": d.id, "damage_type": d.damage_type, "confidence": d.confidence,
-                        "bbox": {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2},
-                        "severity": d.severity, "source": d.source, "is_locked": d.is_locked,
-                        "reviewed": d.reviewed, "reviewed_by": d.reviewed_by,
-                        "shape_type": d.shape_type, "domain_metadata": d.domain_metadata or {}} for d in dets],
+        "detections": [_detection_payload(d, cv_map, eng_map) for d in dets],
         "annotated_image_url": f"/storage/{dets[0].annotated_image_path}" if dets and dets[0].annotated_image_path else None
     }

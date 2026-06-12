@@ -973,6 +973,77 @@ def test_review_export_other_org_404(other_org_client, review_data):
     assert _export(other_org_client, d["inspection_id"]).status_code == 404
 
 
+# ─── review_action on detection payloads (analysis router) ───────
+
+def test_detections_review_action_null_before_review(client, review_data):
+    d = review_data
+    resp = client.get(f"/api/v1/inspections/{d['inspection_id']}/all-detections")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    all_dets = [det for img in body.values() for det in img["detections"]]
+    assert len(all_dets) == 4
+    for det in all_dets:
+        assert "review_action" in det
+        assert det["review_action"] is None
+
+    # per-image endpoint too
+    resp = client.get(f"/api/v1/images/{d['img1']}/detections")
+    assert resp.status_code == 200, resp.text
+    for det in resp.json()["detections"]:
+        assert det["review_action"] is None
+
+
+def test_detections_review_action_after_full_review(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+    client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review")
+
+    resp = client.get(f"/api/v1/inspections/{d['inspection_id']}/all-detections")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    by_id = {det["id"]: det for img in body.values() for det in img["detections"]}
+
+    # CV detections carry the engineer's verdict
+    assert by_id[d["det_a"]]["review_action"] == "accepted"
+    assert by_id[d["det_b"]]["review_action"] == "rejected"
+    assert by_id[d["det_c"]]["review_action"] == "modified"
+    assert by_id[d["det_d"]]["review_action"] == "accepted"
+
+    # Engineer detections carry their provenance ('modified' / 'added')
+    eng = [det for det in by_id.values() if det["source"] == "engineer_added"]
+    assert len(eng) == 2
+    actions = sorted(det["review_action"] for det in eng)
+    assert actions == ["added", "modified"]
+    # the 'modified' engineer det lives on img1, 'added' on img2
+    img1_eng = [det for det in body[d["img1"]]["detections"] if det["source"] == "engineer_added"]
+    img2_eng = [det for det in body[d["img2"]]["detections"] if det["source"] == "engineer_added"]
+    assert [det["review_action"] for det in img1_eng] == ["modified"]
+    assert [det["review_action"] for det in img2_eng] == ["added"]
+
+    # existing keys unchanged
+    sample = by_id[d["det_a"]]
+    for key in ("id", "damage_type", "confidence", "bbox", "severity",
+                "source", "is_locked", "reviewed", "reviewed_by",
+                "shape_type", "domain_metadata"):
+        assert key in sample
+
+
+def test_image_detections_review_action_after_review(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+
+    resp = client.get(f"/api/v1/images/{d['img1']}/detections")
+    assert resp.status_code == 200, resp.text
+    by_id = {det["id"]: det for det in resp.json()["detections"]}
+    assert by_id[d["det_a"]]["review_action"] == "accepted"
+    assert by_id[d["det_b"]]["review_action"] == "rejected"
+    assert by_id[d["det_c"]]["review_action"] == "modified"
+    eng = [det for det in by_id.values() if det["source"] == "engineer_added"]
+    assert [det["review_action"] for det in eng] == ["modified"]
+
+
 # ─── org isolation ────────────────────────────────────────────────
 
 def test_other_org_user_gets_404_on_all_endpoints(other_org_client, review_data):
