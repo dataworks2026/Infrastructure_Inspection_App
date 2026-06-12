@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.asset import Asset
 from app.models.detection import Detection
+from app.models.detection_review import DetectionReview
 from app.models.image import Image
 from app.models.inspection import Inspection
 from app.models.organization import Organization
@@ -103,6 +104,29 @@ def load_inspection_records(
         if image_lookup
         else []
     )
+
+    # Engineer review filter — if this inspection has been (even partially)
+    # reviewed, report only the VERIFIED detection set:
+    #   - rejected CV detections are excluded
+    #   - modified CV detections are excluded (the engineer's corrected
+    #     duplicate is a normal Detection row on the image, so it is
+    #     already in `detections` — keeping the stale original would
+    #     double-count)
+    #   - accepted CV detections, unreviewed CV detections (mid-review),
+    #     and engineer-added detections stay included.
+    # Inspections with no review rows are untouched.
+    reviews = (
+        db.query(DetectionReview.cv_detection_id, DetectionReview.action)
+        .filter(DetectionReview.inspection_id == inspection_id)
+        .all()
+    )
+    if reviews:
+        excluded_ids = {
+            cv_id
+            for cv_id, action in reviews
+            if cv_id and action in ("rejected", "modified")
+        }
+        detections = [d for d in detections if d.id not in excluded_ids]
 
     records: list[dict] = []
     for det in detections:
