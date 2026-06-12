@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import type { Detection, BoundingBox } from '@/types';
+import { buildAnnotationLabel } from '@/lib/annotationTaxonomy';
 
 // ─── Severity (view mode keeps legacy hex palette — pixel-identical) ─────────
 const SEVERITY_HEX: Record<string, string> = {
@@ -31,9 +32,44 @@ const REVIEW_COLORS = {
 const damageCode = (damageType: string): string =>
   (damageType || '??').slice(0, 2).toUpperCase();
 
+type ShapeType = 'rect' | 'ellipse';
+
+/** Common SVG presentation props shared by <rect> and <ellipse>. */
+type ShapeProps = {
+  fill?: string;
+  fillOpacity?: number;
+  stroke?: string;
+  strokeWidth?: number;
+  strokeOpacity?: number;
+  strokeDasharray?: string;
+};
+
+/** Renders a bbox as <rect> or, when shapeType === 'ellipse', as an inscribed <ellipse>. */
+function bboxShape(
+  bbox: BoundingBox,
+  shapeType: ShapeType | undefined,
+  props: ShapeProps,
+  rectRx?: number,
+) {
+  const { x1, y1, x2, y2 } = bbox;
+  if (shapeType === 'ellipse') {
+    return (
+      <ellipse
+        cx={(x1 + x2) / 2}
+        cy={(y1 + y2) / 2}
+        rx={(x2 - x1) / 2}
+        ry={(y2 - y1) / 2}
+        {...props}
+      />
+    );
+  }
+  return <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} rx={rectRx} {...props} />;
+}
+
 export interface ReviewState {
   action: 'accepted' | 'rejected' | 'modified' | 'added' | null;
   modifiedBbox?: BoundingBox;
+  modifiedShapeType?: 'rect' | 'ellipse';
 }
 
 export interface ReviewOverlayProps {
@@ -107,11 +143,18 @@ export default function ReviewOverlay({
               if (isReview) {
                 const state = reviewStates?.[d.id];
                 const action = state?.action ?? (d.source === 'engineer_added' ? 'added' : null);
-                const sevNum = sev.replace('S', '');
+                const annLabel = buildAnnotationLabel({
+                  damageCode: d.domain_metadata?.code ?? damageCode(d.damage_type),
+                  severity: (['S1', 'S2', 'S3', 'S4'].includes(sev) ? sev : null) as
+                    | 'S1' | 'S2' | 'S3' | 'S4' | null,
+                  segments: d.domain_metadata?.segments,
+                });
                 if (action === 'added') {
-                  mainLabel = `NEW: ${damageCode(d.damage_type)}${sevNum ? ` | Sev ${sevNum}` : ''}`;
+                  mainLabel = `NEW: ${annLabel}`;
+                } else if (action === null) {
+                  mainLabel = `CV: ${annLabel} | ${Math.round(d.confidence * 100)}%`;
                 } else {
-                  mainLabel = `CV: ${damageCode(d.damage_type)}${sevNum ? ` | Sev ${sevNum}` : ''} | ${Math.round(d.confidence * 100)}%`;
+                  mainLabel = annLabel;
                 }
               } else if (d.source === 'engineer_added') {
                 mainLabel = `✓ ${sev ? `${sev} ${d.damage_type}` : d.damage_type}`;
@@ -189,6 +232,9 @@ export default function ReviewOverlay({
                 : undefined;
 
               const modBbox = action === 'modified' ? state?.modifiedBbox : undefined;
+              const shapeType: ShapeType | undefined = d.shape_type;
+              const modShapeType: ShapeType | undefined =
+                state?.modifiedShapeType ?? shapeType;
 
               return (
                 <g key={d.id || i}
@@ -196,27 +242,27 @@ export default function ReviewOverlay({
                   style={handleSelect ? { cursor: 'pointer' } : undefined}
                 >
                   {/* Selection glow */}
-                  {isSelected && (
-                    <rect x={x1} y={y1} width={bw} height={bh}
-                      fill="none" stroke={stroke} strokeWidth={effStrokeW * 2.2}
-                      strokeOpacity={0.25} rx={2 * scale} />
-                  )}
+                  {isSelected && bboxShape(d.bbox, shapeType, {
+                    fill: 'none', stroke, strokeWidth: effStrokeW * 2.2,
+                    strokeOpacity: 0.25,
+                  }, 2 * scale)}
                   {/* Original bbox — faint dashed blue when modified */}
                   {modBbox ? (
-                    <rect x={x1} y={y1} width={bw} height={bh}
-                      fill="none" stroke={REVIEW_COLORS.cv} strokeWidth={strokeW}
-                      strokeOpacity={0.35} strokeDasharray={`${6 * scale} ${4 * scale}`}
-                      rx={2 * scale} />
+                    bboxShape(d.bbox, shapeType, {
+                      fill: 'none', stroke: REVIEW_COLORS.cv, strokeWidth: strokeW,
+                      strokeOpacity: 0.35, strokeDasharray: `${6 * scale} ${4 * scale}`,
+                    }, 2 * scale)
                   ) : (
                     <>
-                      <rect x={x1} y={y1} width={bw} height={bh}
-                        fill={fill} fillOpacity={fillOp} rx={2 * scale} />
-                      <rect x={x1} y={y1} width={bw} height={bh}
-                        fill="none" stroke={stroke} strokeWidth={effStrokeW}
-                        strokeOpacity={strokeOp}
-                        strokeDasharray={dashed ? `${8 * scale} ${5 * scale}` : undefined}
-                        rx={2 * scale} />
-                      {!dashed && (
+                      {bboxShape(d.bbox, shapeType, {
+                        fill, fillOpacity: fillOp,
+                      }, 2 * scale)}
+                      {bboxShape(d.bbox, shapeType, {
+                        fill: 'none', stroke, strokeWidth: effStrokeW,
+                        strokeOpacity: strokeOp,
+                        strokeDasharray: dashed ? `${8 * scale} ${5 * scale}` : undefined,
+                      }, 2 * scale)}
+                      {!dashed && shapeType !== 'ellipse' && (
                         <>
                           <line x1={x1} y1={y1 + bh * 0.12} x2={x1} y2={y1} stroke={stroke} strokeWidth={effStrokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
                           <line x1={x1} y1={y1} x2={x1 + bw * 0.12} y2={y1} stroke={stroke} strokeWidth={effStrokeW * 2} strokeOpacity={cornerOp} strokeLinecap="round" />
@@ -232,16 +278,16 @@ export default function ReviewOverlay({
                       stroke={REVIEW_COLORS.rejected} strokeWidth={strokeW}
                       strokeOpacity={0.6} strokeLinecap="round" />
                   )}
-                  {/* Modified — solid amber rect at new position */}
+                  {/* Modified — solid amber shape at new position */}
                   {modBbox && (
                     <>
-                      <rect x={modBbox.x1} y={modBbox.y1}
-                        width={modBbox.x2 - modBbox.x1} height={modBbox.y2 - modBbox.y1}
-                        fill={REVIEW_COLORS.modified} fillOpacity={0.08} rx={2 * scale} />
-                      <rect x={modBbox.x1} y={modBbox.y1}
-                        width={modBbox.x2 - modBbox.x1} height={modBbox.y2 - modBbox.y1}
-                        fill="none" stroke={REVIEW_COLORS.modified}
-                        strokeWidth={effStrokeW} strokeOpacity={0.95} rx={2 * scale} />
+                      {bboxShape(modBbox, modShapeType, {
+                        fill: REVIEW_COLORS.modified, fillOpacity: 0.08,
+                      }, 2 * scale)}
+                      {bboxShape(modBbox, modShapeType, {
+                        fill: 'none', stroke: REVIEW_COLORS.modified,
+                        strokeWidth: effStrokeW, strokeOpacity: 0.95,
+                      }, 2 * scale)}
                     </>
                   )}
                   {/* Label chip */}

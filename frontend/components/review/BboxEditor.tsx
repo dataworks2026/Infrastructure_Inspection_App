@@ -28,18 +28,31 @@ import type { BoundingBox } from '@/types';
 
 export type BboxEditorMode = 'edit' | 'draw' | 'idle';
 
+export type BboxShapeType = 'rect' | 'ellipse';
+
 export interface BboxEditorProps {
   /** Box being edited (natural-image pixel coords); null in draw mode before drawing. */
   bbox: BoundingBox | null;
   imageNaturalWidth: number;
   imageNaturalHeight: number;
   mode: BboxEditorMode;
+  /**
+   * Geometry rendered for the bbox. An ellipse is stored as its axis-aligned
+   * bounding box {x1,y1,x2,y2} (Annotation App convention) and rendered with
+   * rx=(x2-x1)/2, ry=(y2-y1)/2 centered in the box. Default 'rect'.
+   */
+  shapeType?: BboxShapeType;
   /** Stroke/fill color. Default amber (modified). */
   color?: string;
   /** Fired with the updated bbox while dragging and on drag end. */
   onChange: (bbox: BoundingBox) => void;
   /** Fired on mouseup after drawing a new box in 'draw' mode. */
   onDrawComplete?: (bbox: BoundingBox) => void;
+  /**
+   * Fired when a draw attempt is discarded: released below MIN_SIZE (5px in
+   * either dimension) or cancelled via Escape while dragging.
+   */
+  onDrawCancel?: () => void;
 }
 
 /** Ensure x1<x2 and y1<y2. */
@@ -52,7 +65,7 @@ export function normalizeBbox(b: BoundingBox): BoundingBox {
   };
 }
 
-const MIN_SIZE = 4; // px in natural-image space
+const MIN_SIZE = 5; // px in natural-image space (annotation app rule)
 
 type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -92,9 +105,11 @@ export default function BboxEditor({
   imageNaturalWidth,
   imageNaturalHeight,
   mode,
+  shapeType = 'rect',
   color = '#f59e0b',
   onChange,
   onDrawComplete,
+  onDrawCancel,
 }: BboxEditorProps) {
   const gRef = useRef<SVGGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -104,8 +119,10 @@ export default function BboxEditor({
   // Keep latest callbacks in refs so document-level listeners stay fresh.
   const onChangeRef = useRef(onChange);
   const onDrawCompleteRef = useRef(onDrawComplete);
+  const onDrawCancelRef = useRef(onDrawCancel);
   onChangeRef.current = onChange;
   onDrawCompleteRef.current = onDrawComplete;
+  onDrawCancelRef.current = onDrawCancel;
 
   /** Convert a pointer event's client coords into the parent svg's viewBox coords. */
   const toSvgPoint = useCallback((e: { clientX: number; clientY: number }) => {
@@ -171,18 +188,37 @@ export default function BboxEditor({
         setDrawPreview(null);
         if (next.x2 - next.x1 >= MIN_SIZE && next.y2 - next.y1 >= MIN_SIZE) {
           onDrawCompleteRef.current?.(next);
+        } else {
+          // Discard shapes smaller than MIN_SIZE in width OR height.
+          onDrawCancelRef.current?.();
         }
       } else {
         onChangeRef.current(next);
       }
     };
+    // Escape cancels an in-progress drag: draw drags are discarded
+    // (onDrawCancel), move/resize drags revert to their original bbox.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const drag = dragRef.current;
+      if (!drag) return;
+      dragRef.current = null;
+      if (drag.kind === 'draw') {
+        setDrawPreview(null);
+        onDrawCancelRef.current?.();
+      } else {
+        onChangeRef.current(drag.orig);
+      }
+    };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
     document.addEventListener('pointercancel', onUp);
+    document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onUp);
+      document.removeEventListener('keydown', onKeyDown);
     };
   }, [applyDrag]);
 
@@ -219,7 +255,21 @@ export default function BboxEditor({
             setDrawPreview({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
           }}
         />
-        {drawPreview && (
+        {drawPreview && (shapeType === 'ellipse' ? (
+          // Live preview: ellipse inscribed in the drag box.
+          <ellipse
+            cx={(drawPreview.x1 + drawPreview.x2) / 2}
+            cy={(drawPreview.y1 + drawPreview.y2) / 2}
+            rx={(drawPreview.x2 - drawPreview.x1) / 2}
+            ry={(drawPreview.y2 - drawPreview.y1) / 2}
+            fill={color}
+            fillOpacity={0.12}
+            stroke={color}
+            strokeWidth={strokeW}
+            strokeDasharray={`${6 * scale} ${4 * scale}`}
+            pointerEvents="none"
+          />
+        ) : (
           <rect
             x={drawPreview.x1}
             y={drawPreview.y1}
@@ -232,7 +282,7 @@ export default function BboxEditor({
             strokeDasharray={`${6 * scale} ${4 * scale}`}
             pointerEvents="none"
           />
-        )}
+        ))}
       </g>
     );
   }
@@ -246,20 +296,38 @@ export default function BboxEditor({
   return (
     <g ref={gRef}>
       {/* Body: drag to reposition */}
-      <rect
-        x={b.x1}
-        y={b.y1}
-        width={w}
-        height={h}
-        fill={color}
-        fillOpacity={0.12}
-        stroke={color}
-        strokeWidth={strokeW}
-        strokeDasharray={`${6 * scale} ${4 * scale}`}
-        style={{ cursor: 'move', pointerEvents: 'all', touchAction: 'none' }}
-        onPointerDown={(e) => startDrag(e, { kind: 'move', start: toSvgPoint(e), orig: b })}
-      />
-      {/* 8 resize handles: 4 corners + 4 edge midpoints */}
+      {shapeType === 'ellipse' ? (
+        // Ellipse inscribed in the bbox; the ellipse itself (fill included)
+        // is the drag-capture body. Handles below still sit on the bbox.
+        <ellipse
+          cx={b.x1 + w / 2}
+          cy={b.y1 + h / 2}
+          rx={w / 2}
+          ry={h / 2}
+          fill={color}
+          fillOpacity={0.12}
+          stroke={color}
+          strokeWidth={strokeW}
+          strokeDasharray={`${6 * scale} ${4 * scale}`}
+          style={{ cursor: 'move', pointerEvents: 'all', touchAction: 'none' }}
+          onPointerDown={(e) => startDrag(e, { kind: 'move', start: toSvgPoint(e), orig: b })}
+        />
+      ) : (
+        <rect
+          x={b.x1}
+          y={b.y1}
+          width={w}
+          height={h}
+          fill={color}
+          fillOpacity={0.12}
+          stroke={color}
+          strokeWidth={strokeW}
+          strokeDasharray={`${6 * scale} ${4 * scale}`}
+          style={{ cursor: 'move', pointerEvents: 'all', touchAction: 'none' }}
+          onPointerDown={(e) => startDrag(e, { kind: 'move', start: toSvgPoint(e), orig: b })}
+        />
+      )}
+      {/* 8 resize handles: 4 corners + 4 edge midpoints (always on the bbox) */}
       {HANDLES.map((hd) => {
         const cx = b.x1 + w * hd.fx;
         const cy = b.y1 + h * hd.fy;
