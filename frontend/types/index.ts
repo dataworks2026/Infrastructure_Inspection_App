@@ -58,6 +58,9 @@ export interface Detection {
   is_locked?: boolean;
   reviewed?: boolean;
   reviewed_by?: string | null;
+  // Annotation-taxonomy fields (upgraded Engineer Review Mode)
+  shape_type?: 'rect' | 'ellipse';
+  domain_metadata?: { code?: string; segments?: string[]; segment?: string; defect_id?: string } | null;
 }
 
 // ── Engineer Review Flow ────────────────────────────────────
@@ -70,6 +73,11 @@ export interface CorrectedDetection {
   severity: Severity;
   bbox: BoundingBox;
   confidence_score: number;
+  // Annotation-taxonomy fields (upgraded Engineer Review Mode)
+  damage_code?: string;
+  structural_segments?: string[];
+  defect_id?: string;
+  shape_type?: 'rect' | 'ellipse';
 }
 
 export interface DetectionReviewItem {
@@ -201,12 +209,18 @@ export interface ReviewStatsResponse {
   recent: ReviewStatsRecent[];
 }
 
+export interface UpdateAssetTypeResponse {
+  image_id: string;
+  asset_type: string;
+}
+
 export interface ImageRecord {
   id: string;
   filename: string;
   component_type?: string;
   analysis_status: AnalysisStatus;
   url: string;
+  domain_metadata?: { asset_type?: string } | null;
 }
 
 export interface AnalysisResult {

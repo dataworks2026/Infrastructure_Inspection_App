@@ -7,6 +7,7 @@ import type {
   PredictiveRunSummary, PredictiveRunTriggerResponse,
   StartReviewResponse, SubmitReviewRequest, SubmitReviewResponse,
   CompleteReviewResponse, ReviewDiffResponse, ReviewStatsResponse,
+  UpdateAssetTypeResponse,
 } from '@/types';
 
 const api = axios.create({ baseURL: '/api/v1' });
@@ -144,6 +145,8 @@ export const reviewApi = {
     api.get<ReviewDiffResponse>(`/inspections/${inspectionId}/review-diff`).then(r => r.data),
   getReviewStats: () =>
     api.get<ReviewStatsResponse>('/review-stats').then(r => r.data),
+  updateImageAssetType: (imageId: string, assetType: string) =>
+    api.patch<UpdateAssetTypeResponse>(`/images/${imageId}/asset-type`, { asset_type: assetType }).then(r => r.data),
 };
 
 // Predictive Analytics (deterioration / anomaly / priority / TTI)
