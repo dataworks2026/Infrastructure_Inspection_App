@@ -1,9 +1,25 @@
+import re
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel, field_validator, model_validator
 
 from app.schemas.detection import BoundingBox
+
+# ── Annotation App reference vocabularies (must match exactly) ────────────────
+
+# Global structural segment codes
+STRUCTURAL_SEGMENT_CODES = {
+    "DT", "DU", "CP", "PT", "PS", "SZ", "FD", "BH", "SS", "AR", "AP", "BP",
+}
+
+# Damage type codes (flat union across domains)
+DAMAGE_CODES = {
+    "CR", "SP", "CO", "LO", "DE", "BG", "CF", "ER", "SC", "MG",
+    "WR", "DF", "BK", "MS", "AL", "LT", "IC", "DL", "IM", "OL",
+}
+
+DEFECT_ID_RE = re.compile(r"^[A-Z0-9-]+$")
 
 
 class ReviewAction(str, Enum):
@@ -18,12 +34,49 @@ class CorrectedDetection(BaseModel):
     severity: str
     bbox: BoundingBox
     confidence_score: float = 1.0
+    # Annotation-label fields (all optional; mirror the Annotation App model)
+    damage_code: Optional[str] = None
+    structural_segments: Optional[List[str]] = None
+    defect_id: Optional[str] = None
+    shape_type: Literal["rect", "ellipse"] = "rect"
 
     @field_validator("severity")
     @classmethod
     def validate_severity(cls, v: str) -> str:
         if v not in ("S1", "S2", "S3", "S4"):
             raise ValueError("severity must be one of S1, S2, S3, S4")
+        return v
+
+    @field_validator("damage_code")
+    @classmethod
+    def validate_damage_code(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in DAMAGE_CODES:
+            raise ValueError(f"damage_code must be one of: {', '.join(sorted(DAMAGE_CODES))}")
+        return v
+
+    @field_validator("structural_segments")
+    @classmethod
+    def validate_structural_segments(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        # None/empty is allowed — the frontend enforces "at least one" advisory
+        if v:
+            for code in v:
+                if code not in STRUCTURAL_SEGMENT_CODES:
+                    raise ValueError(
+                        f"invalid structural segment code '{code}' — must be one of: "
+                        f"{', '.join(sorted(STRUCTURAL_SEGMENT_CODES))}"
+                    )
+        return v
+
+    @field_validator("defect_id")
+    @classmethod
+    def validate_defect_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.upper()  # coerce before regex, matching the annotation app
+        if len(v) > 50:
+            raise ValueError("defect_id must be at most 50 characters")
+        if not DEFECT_ID_RE.match(v):
+            raise ValueError("defect_id must match ^[A-Z0-9-]+$")
         return v
 
 
@@ -46,6 +99,30 @@ class DetectionReviewItem(BaseModel):
 
 class SubmitReviewRequest(BaseModel):
     reviews: List[DetectionReviewItem]
+
+
+# Image asset_type values (flat union across domains)
+ASSET_TYPES = {
+    "pier", "bulkhead", "seawall", "wharf", "dock",
+    "bridge", "retaining_wall", "track", "tunnel", "station", "signal",
+    "turbine", "foundation", "blade", "nacelle", "tower", "other",
+}
+
+
+class UpdateAssetTypeRequest(BaseModel):
+    asset_type: str
+
+    @field_validator("asset_type")
+    @classmethod
+    def validate_asset_type(cls, v: str) -> str:
+        if v not in ASSET_TYPES:
+            raise ValueError(f"asset_type must be one of: {', '.join(sorted(ASSET_TYPES))}")
+        return v
+
+
+class UpdateAssetTypeResponse(BaseModel):
+    image_id: str
+    asset_type: str
 
 
 # ── Responses ─────────────────────────────────────────────────────────────────

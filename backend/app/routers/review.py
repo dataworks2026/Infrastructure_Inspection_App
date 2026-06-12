@@ -22,6 +22,8 @@ from app.schemas.review import (
     OverallReviewStats,
     RecentReviewedInspection,
     ReviewStatsResponse,
+    UpdateAssetTypeRequest,
+    UpdateAssetTypeResponse,
 )
 from app.services.reports.review_diff import compute_review_diff
 
@@ -84,7 +86,61 @@ def _compute_delta(original: Detection, corrected) -> dict:
     else:
         delta["severity_changed"] = False
 
+    # Structural segments (order-insensitive comparison)
+    original_meta = original.domain_metadata or {}
+    old_segments = original_meta.get("segments", []) or []
+    new_segments = corrected.structural_segments or []
+    if set(old_segments) != set(new_segments):
+        delta["segments_changed"] = True
+        delta["segments_before"] = old_segments
+        delta["segments_after"] = new_segments
+    else:
+        delta["segments_changed"] = False
+
+    # Shape type
+    old_shape = original.shape_type or "rect"
+    new_shape = corrected.shape_type or "rect"
+    if old_shape != new_shape:
+        delta["shape_changed"] = True
+        delta["shape_before"] = old_shape
+        delta["shape_after"] = new_shape
+    else:
+        delta["shape_changed"] = False
+
     return delta
+
+
+def _build_domain_metadata(corrected, base: Optional[dict] = None) -> dict:
+    """Build the annotation-label domain_metadata dict for an engineer detection.
+
+    Mirrors the Annotation App data model. `base` is the ORIGINAL cv detection's
+    domain_metadata (for 'modified' actions) and is used for fallbacks only.
+    Keys are included only when meaningful, except "segments" which is always
+    present. "segment" (singular, comma-joined) is kept because the digital-twin
+    compare page reads domain_metadata.segment.
+    """
+    base = base or {}
+    meta: dict = {}
+
+    code = corrected.damage_code or base.get("code")
+    if not code and corrected.damage_type:
+        code = corrected.damage_type[:2].upper()
+    if code:
+        meta["code"] = code
+
+    if corrected.structural_segments is not None:
+        segments = list(corrected.structural_segments)
+    else:
+        segments = list(base.get("segments") or [])
+    meta["segments"] = segments
+    if segments:
+        meta["segment"] = ", ".join(segments)
+
+    defect_id = corrected.defect_id or base.get("defect_id")
+    if defect_id:
+        meta["defect_id"] = defect_id
+
+    return meta
 
 
 def _compute_totals(db: Session, inspection_id: str) -> dict:
@@ -196,9 +252,11 @@ def submit_image_review(
         det.reviewed_by = current_user.email
         det.review_date = now
 
-    def _new_engineer_detection(item, infrastructure_type: Optional[str]) -> Detection:
+    def _new_engineer_detection(item, infrastructure_type: Optional[str], base_meta: Optional[dict] = None) -> Detection:
         cd = item.corrected_detection
         return Detection(
+            shape_type=cd.shape_type,
+            domain_metadata=_build_domain_metadata(cd, base_meta),
             image_id=image_id,
             organization_id=current_user.organization_id,
             infrastructure_type=infrastructure_type,
@@ -238,7 +296,7 @@ def submit_image_review(
 
         elif item.action == ReviewAction.modified:
             original = _load_cv_detection(item.cv_detection_id)
-            new_det = _new_engineer_detection(item, original.infrastructure_type)
+            new_det = _new_engineer_detection(item, original.infrastructure_type, original.domain_metadata)
             db.add(new_det)
             db.flush()  # populate new_det.id
             delta = _compute_delta(original, item.corrected_detection)
@@ -460,3 +518,26 @@ def get_review_diff(
     # inspection_id only.
     _get_org_inspection(inspection_id, db, current_user)
     return ReviewDiffResponse(**compute_review_diff(db, inspection_id))
+
+
+@router.patch("/images/{image_id}/asset-type", response_model=UpdateAssetTypeResponse)
+def update_image_asset_type(
+    image_id: str,
+    body: UpdateAssetTypeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Image metadata update, mirrors the annotation app's instant PATCH.
+    # Allowed regardless of inspection status.
+    img = db.query(Image).filter(
+        Image.id == image_id,
+        Image.organization_id == current_user.organization_id,
+    ).first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # SQLAlchemy JSON columns don't detect in-place mutation — assign a NEW dict
+    img.domain_metadata = {**(img.domain_metadata or {}), "asset_type": body.asset_type}
+    db.commit()
+
+    return UpdateAssetTypeResponse(image_id=image_id, asset_type=body.asset_type)

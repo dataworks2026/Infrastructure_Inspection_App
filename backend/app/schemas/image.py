@@ -51,6 +51,9 @@ class ImageRecord(BaseModel):
     annotation_status: str = "not_started"
     num_annotations: int = 0
 
+    # Domain metadata (e.g. {"asset_type": "pier"} set during engineer review)
+    domain_metadata: Optional[dict] = None
+
     created_at: datetime
 
     class Config:

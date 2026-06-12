@@ -37,6 +37,7 @@ def _image_to_record(img: Image) -> ImageRecord:
         image_quality_score=img.image_quality_score,
         annotation_status=img.annotation_status,
         num_annotations=img.num_annotations,
+        domain_metadata=img.domain_metadata,
         created_at=img.created_at,
     )
 

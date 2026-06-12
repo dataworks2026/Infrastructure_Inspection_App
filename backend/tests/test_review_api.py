@@ -599,6 +599,200 @@ def test_review_stats_org_isolation(db_session, other_org_client, review_data, t
     assert body["recent"] == []
 
 
+# ─── annotation labels (segments / damage codes / shape / defect_id) ──
+
+LABELED_CORRECTED = {
+    **CORRECTED,
+    "damage_code": "SP",
+    "structural_segments": ["DT", "PS"],
+    "defect_id": "pier-1",     # lowercase — must be coerced to PIER-1
+    "shape_type": "ellipse",
+}
+
+LABELED_ADDED = {
+    **ADDED,
+    "damage_code": "DL",
+    "structural_segments": ["BH"],
+    "defect_id": "BH-002",
+    "shape_type": "ellipse",
+}
+
+
+def test_modified_with_annotation_labels(client, db_session, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": LABELED_CORRECTED},
+    ])
+    assert resp.status_code == 200, resp.text
+
+    row = db_session.query(DetectionReview).filter(
+        DetectionReview.cv_detection_id == d["det_c"]).one()
+    new_det = db_session.get(Detection, row.engineer_detection_id)
+    assert new_det.shape_type == "ellipse"
+    meta = new_det.domain_metadata
+    assert meta["code"] == "SP"
+    assert meta["segments"] == ["DT", "PS"]
+    assert meta["segment"] == "DT, PS"
+    assert meta["defect_id"] == "PIER-1"    # uppercase coercion
+
+    delta = row.delta_json
+    # original CV detection has no domain_metadata → segments [] vs ["DT","PS"]
+    assert delta["segments_changed"] is True
+    assert delta["segments_before"] == []
+    assert delta["segments_after"] == ["DT", "PS"]
+    # original shape_type defaults to rect → ellipse
+    assert delta["shape_changed"] is True
+    assert delta["shape_before"] == "rect"
+    assert delta["shape_after"] == "ellipse"
+
+
+def test_modified_same_segments_and_shape_not_flagged(client, db_session, review_data):
+    d = review_data
+    # Give the original CV detection matching labels (order differs deliberately)
+    original = db_session.get(Detection, d["det_c"])
+    original.shape_type = "ellipse"
+    original.domain_metadata = {"code": "CO", "segments": ["PS", "DT"], "segment": "PS, DT"}
+    db_session.commit()
+
+    _start(client, d["inspection_id"])
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": LABELED_CORRECTED},
+    ])
+    assert resp.status_code == 200, resp.text
+
+    row = db_session.query(DetectionReview).filter(
+        DetectionReview.cv_detection_id == d["det_c"]).one()
+    delta = row.delta_json
+    assert delta["segments_changed"] is False    # order-insensitive
+    assert "segments_before" not in delta
+    assert delta["shape_changed"] is False
+    assert "shape_before" not in delta
+
+
+def test_added_with_annotation_labels(client, db_session, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    resp = _submit(client, d["img2"], [
+        {"action": "added", "corrected_detection": LABELED_ADDED},
+    ])
+    assert resp.status_code == 200, resp.text
+    row = db_session.query(DetectionReview).filter(
+        DetectionReview.image_id == d["img2"], DetectionReview.action == "added").one()
+    new_det = db_session.get(Detection, row.engineer_detection_id)
+    assert new_det.shape_type == "ellipse"
+    assert new_det.domain_metadata == {
+        "code": "DL", "segments": ["BH"], "segment": "BH", "defect_id": "BH-002",
+    }
+
+
+def test_labels_optional_defaults(client, db_session, review_data):
+    # Existing payload shape with no label fields must still work
+    d = review_data
+    _start(client, d["inspection_id"])
+    resp = _submit(client, d["img2"], [
+        {"action": "added", "corrected_detection": ADDED},
+    ])
+    assert resp.status_code == 200, resp.text
+    row = db_session.query(DetectionReview).filter(
+        DetectionReview.image_id == d["img2"], DetectionReview.action == "added").one()
+    new_det = db_session.get(Detection, row.engineer_detection_id)
+    assert new_det.shape_type == "rect"
+    # fallback code = first 2 letters of damage_type, uppercase
+    assert new_det.domain_metadata["code"] == "DE"   # delamination
+    assert new_det.domain_metadata["segments"] == []
+    assert "segment" not in new_det.domain_metadata
+    assert "defect_id" not in new_det.domain_metadata
+
+
+def test_invalid_segment_code_422(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    bad = dict(LABELED_CORRECTED, structural_segments=["DT", "XX"])
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": bad},
+    ])
+    assert resp.status_code == 422
+
+
+def test_invalid_damage_code_422(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    bad = dict(LABELED_CORRECTED, damage_code="ZZ")
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": bad},
+    ])
+    assert resp.status_code == 422
+
+
+def test_invalid_shape_type_422(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    bad = dict(LABELED_CORRECTED, shape_type="polygon")
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": bad},
+    ])
+    assert resp.status_code == 422
+
+
+def test_invalid_defect_id_422(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    # 'bad id!' stays invalid even after uppercase coercion (space and '!')
+    bad = dict(LABELED_CORRECTED, defect_id="bad id!")
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": bad},
+    ])
+    assert resp.status_code == 422
+
+
+def test_defect_id_too_long_422(client, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    bad = dict(LABELED_CORRECTED, defect_id="A" * 51)
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": bad},
+    ])
+    assert resp.status_code == 422
+
+
+# ─── PATCH asset-type ─────────────────────────────────────────────
+
+def test_patch_asset_type_happy_path(client, db_session, review_data):
+    d = review_data
+    resp = client.patch(f"/api/v1/images/{d['img1']}/asset-type", json={"asset_type": "pier"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"image_id": d["img1"], "asset_type": "pier"}
+
+    img = db_session.get(Image, d["img1"])
+    db_session.refresh(img)
+    assert img.domain_metadata["asset_type"] == "pier"
+
+
+def test_patch_asset_type_preserves_existing_metadata(client, db_session, review_data):
+    d = review_data
+    img = db_session.get(Image, d["img1"])
+    img.domain_metadata = {"existing_key": "keep-me"}
+    db_session.commit()
+
+    resp = client.patch(f"/api/v1/images/{d['img1']}/asset-type", json={"asset_type": "seawall"})
+    assert resp.status_code == 200, resp.text
+    db_session.refresh(img)
+    assert img.domain_metadata == {"existing_key": "keep-me", "asset_type": "seawall"}
+
+
+def test_patch_asset_type_invalid_value_422(client, review_data):
+    d = review_data
+    resp = client.patch(f"/api/v1/images/{d['img1']}/asset-type", json={"asset_type": "spaceship"})
+    assert resp.status_code == 422
+
+
+def test_patch_asset_type_other_org_404(other_org_client, review_data):
+    d = review_data
+    resp = other_org_client.patch(f"/api/v1/images/{d['img1']}/asset-type", json={"asset_type": "pier"})
+    assert resp.status_code == 404
+
+
 # ─── org isolation ────────────────────────────────────────────────
 
 def test_other_org_user_gets_404_on_all_endpoints(other_org_client, review_data):

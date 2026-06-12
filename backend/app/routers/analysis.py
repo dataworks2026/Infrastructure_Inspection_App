@@ -120,7 +120,8 @@ def get_all_detections(inspection_id: str, db: Session = Depends(get_db), curren
             "detections": [{"id": d.id, "damage_type": d.damage_type, "confidence": d.confidence,
                             "bbox": {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2},
                             "severity": d.severity, "source": d.source, "is_locked": d.is_locked,
-                            "reviewed": d.reviewed, "reviewed_by": d.reviewed_by} for d in img_dets],
+                            "reviewed": d.reviewed, "reviewed_by": d.reviewed_by,
+                            "shape_type": d.shape_type, "domain_metadata": d.domain_metadata or {}} for d in img_dets],
             "annotated_image_url": f"/storage/{img_dets[0].annotated_image_path}" if img_dets and img_dets[0].annotated_image_path else None
         }
     return result
@@ -139,6 +140,7 @@ def get_detections(image_id: str, db: Session = Depends(get_db), current_user: U
         "detections": [{"id": d.id, "damage_type": d.damage_type, "confidence": d.confidence,
                         "bbox": {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2},
                         "severity": d.severity, "source": d.source, "is_locked": d.is_locked,
-                        "reviewed": d.reviewed, "reviewed_by": d.reviewed_by} for d in dets],
+                        "reviewed": d.reviewed, "reviewed_by": d.reviewed_by,
+                        "shape_type": d.shape_type, "domain_metadata": d.domain_metadata or {}} for d in dets],
         "annotated_image_url": f"/storage/{dets[0].annotated_image_path}" if dets and dets[0].annotated_image_path else None
     }
