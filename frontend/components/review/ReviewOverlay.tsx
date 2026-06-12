@@ -230,9 +230,9 @@ export default function ReviewOverlay({
                 cornerOp = strokeOp;
                 labelBgOp = action === 'rejected' ? 0.45 : 0.85;
               } else {
-                const sevHex = d.source === 'engineer_added'
-                  ? '#10b981'
-                  : (SEVERITY_HEX[normSev(d.severity) || ''] || '#64748B');
+                // Severity drives the color for every detection, engineer-added
+                // included — provenance is conveyed by the ✓ label prefix only
+                const sevHex = SEVERITY_HEX[normSev(d.severity) || ''] || '#64748B';
                 stroke = sevHex;
                 fill = sevHex;
                 const hi = conf >= 0.5;

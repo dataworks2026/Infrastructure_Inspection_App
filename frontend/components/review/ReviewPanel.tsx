@@ -47,11 +47,12 @@ export interface AddedDraft {
 }
 
 // Severity colors — Engineer Review Flow spec (must match exactly)
+// Matches the canvas severityConfig palette so badges and boxes agree
 export const REVIEW_SEVERITY_HEX: Record<Severity, string> = {
-  S1: '#10b981',
-  S2: '#f59e0b',
-  S3: '#f97316',
-  S4: '#ef4444',
+  S1: '#4CAF50',
+  S2: '#E6A817',
+  S3: '#FF7043',
+  S4: '#B71C1C',
 };
 const SEVERITY_LABELS: Record<Severity, string> = {
   S1: 'Minor', S2: 'Moderate', S3: 'Advanced', S4: 'Severe',
