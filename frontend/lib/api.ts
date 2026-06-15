@@ -151,6 +151,9 @@ export const reviewApi = {
   // Training-data JSON export (annotations.json v1.1 superset) — full response for Content-Disposition
   downloadReviewExport: (inspectionId: string) =>
     api.get<Blob>(`/inspections/${inspectionId}/review-export.json`, { responseType: 'blob' }),
+  // Annotated images ZIP — full response for Content-Disposition
+  downloadAnnotatedImages: (inspectionId: string) =>
+    api.get<Blob>(`/inspections/${inspectionId}/annotated-images.zip`, { responseType: 'blob' }),
   updateImageAssetType: (imageId: string, assetType: string) =>
     api.patch<UpdateAssetTypeResponse>(`/images/${imageId}/asset-type`, { asset_type: assetType }).then(r => r.data),
 };

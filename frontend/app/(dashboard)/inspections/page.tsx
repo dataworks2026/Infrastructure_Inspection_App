@@ -1,10 +1,11 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { inspectionsApi, assetsApi } from '@/lib/api';
+import { inspectionsApi, assetsApi, reviewApi } from '@/lib/api';
 import {
   ClipboardList, ImageIcon, Calendar, ArrowRight,
   ChevronUp, ChevronDown, ChevronsUpDown, Trash2,
+  Download, Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
@@ -14,7 +15,7 @@ import { useToast } from '@/components/ui/Toast';
 const TEAL  = '#082E29';
 const BLUE  = '#93C5FD';
 
-type StatusFilter = 'all' | 'completed' | 'pending' | 'processing';
+type StatusFilter = 'all' | 'completed' | 'pending' | 'processing' | 'review_completed';
 type SortKey      = 'name' | 'asset' | 'images' | 'date' | 'status';
 type SortDir      = 'asc' | 'desc';
 
@@ -32,6 +33,16 @@ function StatusChip({ status }: { status: string }) {
   if (status === 'processing') return (
     <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-sky-50 text-sky-700 border border-sky-200">
       <span className="w-1.5 h-1.5 rounded-full bg-sky-400 flex-shrink-0" /> Processing
+    </span>
+  );
+  if (status === 'review_completed') return (
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" /> Reviewed
+    </span>
+  );
+  if (status === 'pending_review') return (
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" /> In Review
     </span>
   );
   return (
@@ -53,6 +64,7 @@ const FILTER_LABELS: { key: StatusFilter; label: string }[] = [
   { key: 'completed',  label: 'Completed'  },
   { key: 'pending',    label: 'Pending'    },
   { key: 'processing', label: 'Processing' },
+  { key: 'review_completed', label: 'Reviewed' },
 ];
 
 export default function InspectionsPage() {
@@ -64,6 +76,7 @@ export default function InspectionsPage() {
   const [sortDir, setSortDir]               = useState<SortDir>('desc');
   const [userHasSorted, setUserHasSorted]   = useState(false);
   const [deleteTarget, setDeleteTarget]     = useState<{ id: string; name: string } | null>(null);
+  const [downloadingId, setDownloadingId]   = useState<string | null>(null);
 
   const { data: inspections = [], isLoading } = useQuery({ queryKey: ['inspections'], queryFn: () => inspectionsApi.list() });
   const { data: assets = [] }                 = useQuery({ queryKey: ['assets'],      queryFn: () => assetsApi.list() });
@@ -83,6 +96,26 @@ export default function InspectionsPage() {
   });
 
   const assetMap = useMemo(() => Object.fromEntries((assets as any[]).map(a => [a.id, a])), [assets]);
+
+  async function handleDownloadImages(insp: { id: string; name?: string }) {
+    setDownloadingId(insp.id);
+    try {
+      const res = await reviewApi.downloadAnnotatedImages(insp.id);
+      const disposition = res.headers['content-disposition'] as string | undefined;
+      const match = disposition?.match(/filename="?([^"]+)"?/);
+      const filename = match?.[1] ?? `${insp.name || 'inspection'}_annotated_images.zip`;
+      const url = window.URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Download started');
+    } catch {
+      toast.error('Failed to download images');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   function handleSort(key: SortKey) {
     setUserHasSorted(true);
@@ -107,7 +140,7 @@ export default function InspectionsPage() {
   }, [inspections, assetMap, statusFilter, sortKey, sortDir]);
 
   const counts = useMemo(() => {
-    const c: Record<StatusFilter, number> = { all: 0, completed: 0, pending: 0, processing: 0 };
+    const c: Record<StatusFilter, number> = { all: 0, completed: 0, pending: 0, processing: 0, review_completed: 0 };
     (inspections as any[]).forEach(i => { c.all++; if (i.status in c) (c as any)[i.status]++; });
     return c;
   }, [inspections]);
@@ -181,13 +214,13 @@ export default function InspectionsPage() {
         <div className="bg-white border border-[#C8E6D4] rounded-xl shadow-sm overflow-x-auto">
           <div className="min-w-[700px]">
           {/* Table header */}
-          <div className="grid grid-cols-[2fr_1.5fr_80px_120px_120px_40px_40px] items-center gap-4 px-5 py-3 border-b border-[#C8E6D4]" style={{ background: '#EDF6F0' }}>
+          <div className="grid grid-cols-[2fr_1.5fr_80px_120px_120px_40px_40px_40px] items-center gap-4 px-5 py-3 border-b border-[#C8E6D4]" style={{ background: '#EDF6F0' }}>
             <button className={thClass('name')}   onClick={() => handleSort('name')}   style={userHasSorted && sortKey === 'name'   ? { color: TEAL } : {}}>Name   <SortIcon col="name"   active={sortKey} dir={sortDir} userSorted={userHasSorted} /></button>
             <button className={thClass('asset')}  onClick={() => handleSort('asset')}  style={userHasSorted && sortKey === 'asset'  ? { color: TEAL } : {}}>Asset  <SortIcon col="asset"  active={sortKey} dir={sortDir} userSorted={userHasSorted} /></button>
             <button className={thClass('images')} onClick={() => handleSort('images')} style={userHasSorted && sortKey === 'images' ? { color: TEAL } : {}}>Images <SortIcon col="images" active={sortKey} dir={sortDir} userSorted={userHasSorted} /></button>
             <button className={thClass('date')}   onClick={() => handleSort('date')}   style={userHasSorted && sortKey === 'date'   ? { color: TEAL } : {}}>Date   <SortIcon col="date"   active={sortKey} dir={sortDir} userSorted={userHasSorted} /></button>
             <button className={thClass('status')} onClick={() => handleSort('status')} style={userHasSorted && sortKey === 'status' ? { color: TEAL } : {}}>Status <SortIcon col="status" active={sortKey} dir={sortDir} userSorted={userHasSorted} /></button>
-            <div /><div />
+            <div /><div /><div />
           </div>
 
           {/* Table rows */}
@@ -195,7 +228,7 @@ export default function InspectionsPage() {
             {filtered.map((insp: any) => {
               const asset = assetMap[insp.asset_id];
               return (
-                <div key={insp.id} className="grid grid-cols-[2fr_1.5fr_80px_120px_120px_40px_40px] items-center gap-4 px-5 py-4 hover:bg-[#EDF6F0]/50 transition-colors group">
+                <div key={insp.id} className="grid grid-cols-[2fr_1.5fr_80px_120px_120px_40px_40px_40px] items-center gap-4 px-5 py-4 hover:bg-[#EDF6F0]/50 transition-colors group">
                   <Link href={`/inspections/${insp.id}`} className="min-w-0">
                     <p className="text-[13px] font-semibold text-slate-700 group-hover:text-[#082E29] transition-colors truncate">
                       {insp.name}
@@ -219,6 +252,19 @@ export default function InspectionsPage() {
                   <Link href={`/inspections/${insp.id}`}>
                     <StatusChip status={insp.status} />
                   </Link>
+                  <div className="flex justify-end">
+                    {insp.status === 'review_completed' ? (
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDownloadImages(insp); }}
+                        disabled={downloadingId === insp.id}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-[#082E29] hover:bg-[#EDF6F0] transition-all disabled:opacity-60"
+                        title="Download annotated images">
+                        {downloadingId === insp.id
+                          ? <Loader2 size={15} className="animate-spin" />
+                          : <Download size={15} />}
+                      </button>
+                    ) : null}
+                  </div>
                   <Link href={`/inspections/${insp.id}`} className="flex justify-end">
                     <ArrowRight size={16} className="text-slate-300 group-hover:text-[#0891B2] transition-colors" />
                   </Link>
