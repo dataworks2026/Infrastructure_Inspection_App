@@ -4,7 +4,7 @@ import { inspectionsApi, imagesApi, assetsApi, analysisApi, reviewApi } from '@/
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck, Download } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import ReviewOverlay, { type ReviewState } from '@/components/review/ReviewOverlay';
@@ -179,6 +179,7 @@ export default function InspectionDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [downloadingImages, setDownloadingImages] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editName, setEditName] = useState('');
   const [editingDate, setEditingDate] = useState(false);
@@ -195,6 +196,29 @@ export default function InspectionDetailPage() {
     },
     onError: () => toast.error('Failed to delete inspection'),
   });
+
+  async function handleDownloadImages() {
+    if (downloadingImages) return;
+    setDownloadingImages(true);
+    try {
+      const res = await reviewApi.downloadAnnotatedImages(inspectionId);
+      const match = /filename="?([^"]+)"?/.exec(res.headers['content-disposition'] || '');
+      const filename = match?.[1] || `${inspection?.name || 'inspection'}_annotated_images.zip`;
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Download started');
+    } catch {
+      toast.error('Failed to download images');
+    } finally {
+      setDownloadingImages(false);
+    }
+  }
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<{ name: string; inspected_at: string }>) => inspectionsApi.update(inspectionId, data),
@@ -899,6 +923,19 @@ export default function InspectionDetailPage() {
                 className="flex items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-all shadow-sm"
               >
                 <ClipboardCheck size={15} /> Start Review
+              </button>
+            )}
+            {inspection.status === 'review_completed' && (
+              <button
+                onClick={handleDownloadImages}
+                disabled={downloadingImages}
+                className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-[#082E29] bg-slate-50 hover:bg-[#EDF6F0] border border-slate-200 hover:border-[#C8E6D4] px-3 py-2 rounded-lg transition-all disabled:opacity-60"
+                title="Download annotated images"
+              >
+                {downloadingImages
+                  ? <Loader size={15} className="animate-spin" />
+                  : <Download size={15} />}
+                Download Images
               </button>
             )}
             <button
