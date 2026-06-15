@@ -7,6 +7,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
+from app.models.image import Image
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.user import User
 from app.services.reports.db_loader import load_inspection_records
@@ -14,6 +15,7 @@ from app.services.reports.metrics import calculate_metrics
 from app.services.reports.narrative import generate_narrative
 from app.services.reports.pdf_report import generate_pdf
 from app.services.reports.report_builder import build_report_data
+from app.services.reports.annotated_zip import build_annotated_zip
 from app.services.reports.review_diff import compute_review_diff, has_review_data
 from app.services.reports.review_export import build_review_export
 from app.services.reports.review_report import generate_review_report_pdf
@@ -205,5 +207,54 @@ def review_export_json(
     return Response(
         content=json.dumps(export, indent=2),
         media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@review_report_router.get("/inspections/{inspection_id}/annotated-images.zip")
+def annotated_images_zip(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """ZIP of the FINAL annotated images — the clean engineer-verified
+    deliverable. Available ONLY once the review is completed.
+
+    Every image is included: those with verified detections are burned in
+    (severity-coloured boxes + labels, on-screen palette), clean images are
+    passed through losslessly under their original filename.
+    """
+    org_id = _require_org(current_user)
+    inspection = db.query(Inspection).filter(
+        Inspection.id == inspection_id,
+        Inspection.organization_id == org_id,
+    ).first()
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    if inspection.status != InspectionStatus.review_completed.value:
+        raise HTTPException(
+            status_code=409,
+            detail="Annotated images are only available once the engineer "
+                   "review is completed.",
+        )
+
+    has_images = db.query(Image.id).filter(
+        Image.inspection_id == inspection_id
+    ).first() is not None
+    if not has_images:
+        raise HTTPException(status_code=409, detail="This inspection has no images.")
+
+    zip_bytes, inspection_name = build_annotated_zip(db, inspection_id)
+    if not zip_bytes:
+        raise HTTPException(
+            status_code=409,
+            detail="Source image files are not available on disk.",
+        )
+
+    filename = f"{_sanitize_filename(inspection_name)}_annotated_images.zip"
+    return StreamingResponse(
+        BytesIO(zip_bytes),
+        media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

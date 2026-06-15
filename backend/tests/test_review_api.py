@@ -1056,3 +1056,147 @@ def test_other_org_user_gets_404_on_all_endpoints(other_org_client, review_data)
     ).status_code == 404
     assert other_org_client.post(f"/api/v1/inspections/{insp}/complete-review").status_code == 404
     assert other_org_client.get(f"/api/v1/inspections/{insp}/review-diff").status_code == 404
+
+
+# ─── annotated-images.zip ─────────────────────────────────────────
+
+import io
+import zipfile as _zipfile
+
+from PIL import Image as _PILImage
+
+from app.core.config import settings as _settings
+
+
+def _write_jpeg(path, color=(120, 130, 140), size=(64, 48)):
+    import os as _os
+    _os.makedirs(_os.path.dirname(path), exist_ok=True)
+    _PILImage.new("RGB", size, color).save(path, format="JPEG")
+
+
+@pytest.fixture
+def zip_files(tmp_path, db_session, review_data, monkeypatch):
+    """Point STORAGE_BASE_PATH at a tmp dir and give both images a real
+    on-disk JPEG at their stored_path."""
+    monkeypatch.setattr(_settings, "STORAGE_BASE_PATH", str(tmp_path))
+    d = review_data
+    for img_id, rel in ((d["img1"], "img1/raw.jpg"), (d["img2"], "img2/raw.jpg")):
+        img = db_session.get(Image, img_id)
+        img.stored_path = rel
+        _write_jpeg(str(tmp_path / rel))
+    db_session.commit()
+    return d
+
+
+def _zip_get(client, insp_id):
+    return client.get(f"/api/v1/inspections/{insp_id}/annotated-images.zip")
+
+
+def test_annotated_zip_full_flow(client, zip_files):
+    d = zip_files
+    # 409 before review is completed (pending_review)
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+    assert _zip_get(client, d["inspection_id"]).status_code == 409
+
+    assert client.post(
+        f"/api/v1/inspections/{d['inspection_id']}/complete-review"
+    ).status_code == 200
+
+    resp = _zip_get(client, d["inspection_id"])
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "application/zip"
+    dispo = resp.headers["content-disposition"]
+    assert "attachment" in dispo
+    assert "Review_Test_Inspection_annotated_images.zip" in dispo
+
+    zf = _zipfile.ZipFile(io.BytesIO(resp.content))
+    names = zf.namelist()
+    # One entry per image present on disk (2). Both images have verified
+    # detections (img1: accepted+modified, img2: accepted+added) → annotated.
+    assert len(names) == 2
+    for n in names:
+        assert n.endswith(".jpg")
+        data = zf.read(n)
+        assert len(data) > 0
+        # bytes form a valid image PIL can reopen
+        _PILImage.open(io.BytesIO(data)).verify()
+    assert all("_annotated.jpg" in n for n in names)
+
+
+def test_annotated_zip_409_pending_review(client, zip_files):
+    d = zip_files
+    # status 'completed' — review never started
+    assert _zip_get(client, d["inspection_id"]).status_code == 409
+    _start(client, d["inspection_id"])
+    # pending_review — still 409
+    assert _zip_get(client, d["inspection_id"]).status_code == 409
+
+
+def test_annotated_zip_other_org_404(other_org_client, zip_files):
+    d = zip_files
+    assert _zip_get(other_org_client, d["inspection_id"]).status_code == 404
+
+
+def test_annotated_zip_excludes_rejected_detection(client, db_session, zip_files):
+    """A rejected CV detection must NOT be in the verified set the zip renders."""
+    from app.services.reports.annotated_zip import build_annotated_zip
+
+    d = zip_files
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+    client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review")
+
+    # Inspect the grouping directly: det_b was rejected on img1.
+    reviews = db_session.query(DetectionReview).filter(
+        DetectionReview.inspection_id == d["inspection_id"]
+    ).all()
+    verified_ids = set()
+    for r in reviews:
+        if r.action == "accepted":
+            verified_ids.add(r.cv_detection_id)
+        elif r.action in ("modified", "added"):
+            verified_ids.add(r.engineer_detection_id)
+    assert d["det_b"] not in verified_ids   # rejected excluded
+    assert d["det_a"] in verified_ids       # accepted included
+
+    # And the zip still builds with 2 entries.
+    zip_bytes, name = build_annotated_zip(db_session, d["inspection_id"])
+    assert name == "Review Test Inspection"
+    zf = _zipfile.ZipFile(io.BytesIO(zip_bytes))
+    assert len(zf.namelist()) == 2
+
+
+def test_annotated_zip_clean_image_passthrough(client, db_session, tmp_path, review_data, monkeypatch):
+    """An image with no verified detections is passed through unchanged."""
+    monkeypatch.setattr(_settings, "STORAGE_BASE_PATH", str(tmp_path))
+    d = review_data
+    # img1 gets a file; img2 deliberately has no detections reviewed as verified.
+    for img_id, rel in ((d["img1"], "a/x.jpg"), (d["img2"], "b/y.jpg")):
+        img = db_session.get(Image, img_id)
+        img.stored_path = rel
+        _write_jpeg(str(tmp_path / rel))
+    db_session.commit()
+
+    _start(client, d["inspection_id"])
+    # Reject everything on img1, reject det_d on img2 → no verified at all.
+    _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_a"], "action": "rejected"},
+        {"cv_detection_id": d["det_b"], "action": "rejected"},
+        {"cv_detection_id": d["det_c"], "action": "rejected"},
+    ])
+    _submit(client, d["img2"], [
+        {"cv_detection_id": d["det_d"], "action": "rejected"},
+    ])
+    client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review")
+
+    resp = _zip_get(client, d["inspection_id"])
+    assert resp.status_code == 200, resp.text
+    zf = _zipfile.ZipFile(io.BytesIO(resp.content))
+    names = sorted(zf.namelist())
+    # No verified detections → originals passed through under the image's
+    # original filename (img.filename), NOT re-encoded / not "_annotated".
+    assert names == ["img1.jpg", "img2.jpg"]
+    for n in names:
+        assert "_annotated" not in n
+        assert len(zf.read(n)) > 0
