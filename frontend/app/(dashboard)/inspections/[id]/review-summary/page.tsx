@@ -281,8 +281,8 @@ export default function ReviewSummaryPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <AlertCircle className="w-10 h-10 text-red-500 mb-3" />
-        <h2 className="text-lg font-semibold text-card-text mb-1">Failed to load review summary</h2>
-        <p className="text-sm text-card-muted mb-4">{detail || 'An unexpected error occurred while fetching the review diff.'}</p>
+        <h2 className="text-lg font-semibold text-slate-800 mb-1">Failed to load review summary</h2>
+        <p className="text-sm text-slate-500 mb-4">{detail || 'An unexpected error occurred while fetching the review diff.'}</p>
         <Link href={`/inspections/${inspectionId}`} className="inline-flex items-center gap-2 text-sm text-mira-blue hover:underline">
           <ArrowLeft className="w-4 h-4" /> Back to Inspection
         </Link>
@@ -295,9 +295,9 @@ export default function ReviewSummaryPage() {
   if (!data || !hasReviews) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <ClipboardList className="w-10 h-10 text-card-faint mb-3" />
-        <h2 className="text-lg font-semibold text-card-text mb-1">No review data yet</h2>
-        <p className="text-sm text-card-muted mb-4 max-w-md">
+        <ClipboardList className="w-10 h-10 text-slate-400 mb-3" />
+        <h2 className="text-lg font-semibold text-slate-800 mb-1">No review data yet</h2>
+        <p className="text-sm text-slate-500 mb-4 max-w-md">
           This inspection has not been reviewed by an engineer yet. Start a review from the inspection detail page to capture CV corrections.
         </p>
         <Link href={`/inspections/${inspectionId}`} className="inline-flex items-center gap-2 text-sm text-mira-blue hover:underline">
@@ -317,21 +317,21 @@ export default function ReviewSummaryPage() {
         <div>
           <Link
             href={`/inspections/${inspectionId}`}
-            className="inline-flex items-center gap-1.5 text-sm text-card-muted hover:text-card-text transition-colors mb-2 print:hidden"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-2 print:hidden"
           >
             <ArrowLeft className="w-4 h-4" /> Back to Inspection
           </Link>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-card-text">
+            <h1 className="text-2xl font-bold text-slate-800">
               Review Summary{inspection ? ` — ${inspection.name}` : ''}
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <CheckCircle className="w-3.5 h-3.5" /> Review Completed
             </span>
           </div>
-          <p className="text-sm text-card-muted mt-1">
-            Reviewed by <span className="font-medium text-card-text">{data.reviewed_by || 'Unknown'}</span>
-            {' '}on <span className="font-medium text-card-text">{formatDate(data.reviewed_at)}</span>
+          <p className="text-sm text-slate-500 mt-1">
+            Reviewed by <span className="font-medium text-slate-700">{data.reviewed_by || 'Unknown'}</span>
+            {' '}on <span className="font-medium text-slate-700">{formatDate(data.reviewed_at)}</span>
           </p>
         </div>
 
