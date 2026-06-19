@@ -24,8 +24,11 @@ from app.schemas.review import (
     ReviewStatsResponse,
     UpdateAssetTypeRequest,
     UpdateAssetTypeResponse,
+    ReopenImageReviewResponse,
+    ReopenInspectionReviewResponse,
 )
 from app.services.reports.review_diff import compute_review_diff
+from app.services.reports.damage_codes import CODE_LABELS
 
 router = APIRouter()
 
@@ -257,13 +260,17 @@ def submit_image_review(
 
     def _new_engineer_detection(item, infrastructure_type: Optional[str], base_meta: Optional[dict] = None) -> Detection:
         cd = item.corrected_detection
+        # Normalize to the CV/YOLO Title-Case convention (CODE_LABELS values)
+        # so engineer-added detections match CV detections. Fall back to the
+        # raw submitted value when the damage_code is missing/unknown.
+        canonical_damage_type = CODE_LABELS.get((cd.damage_code or "").upper()) or cd.damage_type
         return Detection(
             shape_type=cd.shape_type,
             domain_metadata=_build_domain_metadata(cd, base_meta),
             image_id=image_id,
             organization_id=current_user.organization_id,
             infrastructure_type=infrastructure_type,
-            damage_type=cd.damage_type,
+            damage_type=canonical_damage_type,
             severity=cd.severity,
             bbox_x1=cd.bbox.x1,
             bbox_y1=cd.bbox.y1,
@@ -386,6 +393,116 @@ def complete_review(
         inspection_id=inspection_id,
         status=inspection.status,
         summary=ReviewSummary(**totals),
+    )
+
+
+def _reset_image_review(db: Session, image_id: str) -> dict:
+    """Discard a prior review pass for one image and reset its CV detections.
+
+    Order matters: detection_reviews has no ondelete on the cv/engineer
+    detection FKs, so the review rows must be deleted BEFORE the engineer
+    detections they reference. CV detections stay locked/frozen but become
+    unreviewed again so the engineer can redo the pass from the CV baseline.
+    Returns per-image counts.
+    """
+    cleared_reviews = db.query(DetectionReview).filter(
+        DetectionReview.image_id == image_id
+    ).delete(synchronize_session=False)
+
+    removed_engineer = db.query(Detection).filter(
+        Detection.image_id == image_id,
+        Detection.source == "engineer_added",
+    ).delete(synchronize_session=False)
+
+    reset_cv = db.query(Detection).filter(
+        Detection.image_id == image_id,
+        Detection.source == "cv_model",
+    ).update(
+        {
+            Detection.reviewed: False,
+            Detection.reviewed_by: None,
+            Detection.review_date: None,
+        },
+        synchronize_session=False,
+    )
+
+    return {
+        "cleared_reviews": cleared_reviews,
+        "removed_engineer_detections": removed_engineer,
+        "reset_cv_detections": reset_cv,
+    }
+
+
+@router.post("/images/{image_id}/reopen-review", response_model=ReopenImageReviewResponse)
+def reopen_image_review(
+    image_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    img = db.query(Image).filter(
+        Image.id == image_id,
+        Image.organization_id == current_user.organization_id,
+    ).first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    inspection = db.query(Inspection).filter(Inspection.id == img.inspection_id).first()
+    if not inspection or inspection.status not in (
+        InspectionStatus.pending_review.value,
+        InspectionStatus.review_completed.value,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Inspection must be in 'pending_review' or 'review_completed' status to reopen an image review",
+        )
+
+    counts = _reset_image_review(db, image_id)
+
+    # An image is now unreviewed — a completed inspection drops back to pending
+    if inspection.status == InspectionStatus.review_completed.value:
+        inspection.status = InspectionStatus.pending_review.value
+
+    db.commit()
+
+    return ReopenImageReviewResponse(
+        image_id=image_id,
+        inspection_id=img.inspection_id,
+        status=inspection.status,
+        **counts,
+    )
+
+
+@router.post("/inspections/{inspection_id}/reopen-review", response_model=ReopenInspectionReviewResponse)
+def reopen_inspection_review(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    inspection = _get_org_inspection(inspection_id, db, current_user)
+
+    if inspection.status not in (
+        InspectionStatus.review_completed.value,
+        InspectionStatus.pending_review.value,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Inspection must be in 'review_completed' or 'pending_review' status to reopen its review",
+        )
+
+    image_ids = [row[0] for row in db.query(Image.id).filter(Image.inspection_id == inspection_id).all()]
+    totals = {"cleared_reviews": 0, "removed_engineer_detections": 0, "reset_cv_detections": 0}
+    for image_id in image_ids:
+        counts = _reset_image_review(db, image_id)
+        for k in totals:
+            totals[k] += counts[k]
+
+    inspection.status = InspectionStatus.pending_review.value
+    db.commit()
+
+    return ReopenInspectionReviewResponse(
+        inspection_id=inspection_id,
+        status=InspectionStatus.pending_review.value,
+        **totals,
     )
 
 

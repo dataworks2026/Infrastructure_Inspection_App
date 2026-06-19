@@ -1058,6 +1058,202 @@ def test_other_org_user_gets_404_on_all_endpoints(other_org_client, review_data)
     assert other_org_client.get(f"/api/v1/inspections/{insp}/review-diff").status_code == 404
 
 
+# ─── damage_type casing normalization ─────────────────────────────
+
+def test_modified_damage_type_normalized_to_title_case(client, db_session, review_data):
+    """A modify with damage_code 'CO' stores Detection.damage_type 'Corrosion'
+    (Title case), matching the CV/YOLO convention."""
+    d = review_data
+    _start(client, d["inspection_id"])
+    corrected = {**CORRECTED, "damage_type": "corrosion", "damage_code": "CO"}
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": corrected},
+    ])
+    assert resp.status_code == 200, resp.text
+    row = db_session.query(DetectionReview).filter(
+        DetectionReview.cv_detection_id == d["det_c"]).one()
+    new_det = db_session.get(Detection, row.engineer_detection_id)
+    assert new_det.damage_type == "Corrosion"
+
+
+def test_added_damage_type_normalized_to_title_case(client, db_session, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    added = {**ADDED, "damage_type": "delamination", "damage_code": "DL"}
+    resp = _submit(client, d["img2"], [
+        {"action": "added", "corrected_detection": added},
+    ])
+    assert resp.status_code == 200, resp.text
+    row = db_session.query(DetectionReview).filter(
+        DetectionReview.image_id == d["img2"], DetectionReview.action == "added").one()
+    new_det = db_session.get(Detection, row.engineer_detection_id)
+    assert new_det.damage_type == "Delamination"
+
+
+def test_modified_damage_type_falls_back_when_no_code(client, db_session, review_data):
+    """No damage_code → fall back to the raw submitted damage_type."""
+    d = review_data
+    _start(client, d["inspection_id"])
+    corrected = {**CORRECTED, "damage_type": "spalling"}  # no damage_code
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_c"], "action": "modified", "corrected_detection": corrected},
+    ])
+    assert resp.status_code == 200, resp.text
+    row = db_session.query(DetectionReview).filter(
+        DetectionReview.cv_detection_id == d["det_c"]).one()
+    new_det = db_session.get(Detection, row.engineer_detection_id)
+    assert new_det.damage_type == "spalling"
+
+
+# ─── reopen-review (per-image + whole-inspection) ─────────────────
+
+def test_reopen_image_review_after_completion(client, db_session, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+    assert client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review").status_code == 200
+
+    resp = client.post(f"/api/v1/images/{d['img1']}/reopen-review")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["image_id"] == d["img1"]
+    assert body["inspection_id"] == d["inspection_id"]
+    assert body["status"] == "pending_review"
+    # img1: 3 reviews (accept/reject/modify), 1 engineer detection (modified), 3 CV reset
+    assert body["cleared_reviews"] == 3
+    assert body["removed_engineer_detections"] == 1
+    assert body["reset_cv_detections"] == 3
+
+    # img1 reviews gone; img2 reviews intact
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.image_id == d["img1"]).count() == 0
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.image_id == d["img2"]).count() == 2
+
+    # img1 engineer detections gone; img2 engineer detection intact
+    assert db_session.query(Detection).filter(
+        Detection.image_id == d["img1"], Detection.source == "engineer_added").count() == 0
+    assert db_session.query(Detection).filter(
+        Detection.image_id == d["img2"], Detection.source == "engineer_added").count() == 1
+
+    # img1 CV detections unreviewed again, still locked
+    for det_key in ("det_a", "det_b", "det_c"):
+        det = db_session.get(Detection, d[det_key])
+        db_session.refresh(det)
+        assert det.reviewed is False
+        assert det.reviewed_by is None
+        assert det.review_date is None
+        assert det.is_locked is True
+        assert det.source == "cv_model"
+
+    # det_d (img2) still reviewed
+    det_d = db_session.get(Detection, d["det_d"])
+    db_session.refresh(det_d)
+    assert det_d.reviewed is True
+
+    insp = db_session.get(Inspection, d["inspection_id"])
+    db_session.refresh(insp)
+    assert insp.status == "pending_review"
+
+
+def test_reopen_inspection_review_after_completion(client, db_session, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+    assert client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review").status_code == 200
+
+    resp = client.post(f"/api/v1/inspections/{d['inspection_id']}/reopen-review")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "pending_review"
+    assert body["cleared_reviews"] == 5     # 3 on img1 + 2 on img2
+    assert body["removed_engineer_detections"] == 2  # 1 modified + 1 added
+    assert body["reset_cv_detections"] == 4  # all 4 CV detections
+
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.inspection_id == d["inspection_id"]).count() == 0
+    assert db_session.query(Detection).filter(
+        Detection.source == "engineer_added").count() == 0
+    for det_key in ("det_a", "det_b", "det_c", "det_d"):
+        det = db_session.get(Detection, d[det_key])
+        db_session.refresh(det)
+        assert det.reviewed is False
+        assert det.is_locked is True
+
+    insp = db_session.get(Inspection, d["inspection_id"])
+    db_session.refresh(insp)
+    assert insp.status == "pending_review"
+
+
+def test_reopen_then_resubmit_succeeds(client, db_session, review_data):
+    """After reopen the old 409 'already submitted' must NOT fire — a fresh
+    submit-review on the reopened image succeeds."""
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit_all(client, d)
+    client.post(f"/api/v1/inspections/{d['inspection_id']}/complete-review")
+
+    assert client.post(f"/api/v1/images/{d['img1']}/reopen-review").status_code == 200
+
+    resp = _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_a"], "action": "accepted"},
+        {"cv_detection_id": d["det_b"], "action": "accepted"},
+        {"cv_detection_id": d["det_c"], "action": "rejected"},
+    ])
+    assert resp.status_code == 200, resp.text
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.image_id == d["img1"]).count() == 3
+
+
+def test_reopen_inspection_merely_completed_409(client, review_data):
+    """An inspection that was never reviewed (status 'completed') cannot be reopened."""
+    d = review_data
+    resp = client.post(f"/api/v1/inspections/{d['inspection_id']}/reopen-review")
+    assert resp.status_code == 409
+
+
+def test_reopen_image_merely_completed_409(client, review_data):
+    d = review_data
+    resp = client.post(f"/api/v1/images/{d['img1']}/reopen-review")
+    assert resp.status_code == 409
+
+
+def test_reopen_image_pending_review_stays_pending(client, db_session, review_data):
+    """Reopening during an in-progress review leaves status as pending_review."""
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit(client, d["img1"], [
+        {"cv_detection_id": d["det_a"], "action": "accepted"},
+    ])
+    resp = client.post(f"/api/v1/images/{d['img1']}/reopen-review")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "pending_review"
+    insp = db_session.get(Inspection, d["inspection_id"])
+    db_session.refresh(insp)
+    assert insp.status == "pending_review"
+
+
+def test_reopen_org_isolation_404(other_org_client, review_data):
+    d = review_data
+    assert other_org_client.post(
+        f"/api/v1/images/{d['img1']}/reopen-review").status_code == 404
+    assert other_org_client.post(
+        f"/api/v1/inspections/{d['inspection_id']}/reopen-review").status_code == 404
+
+
+# ─── _display_name helper (upload filename convention) ─────────────
+
+def test_display_name_helper():
+    from app.routers.images import _display_name, _sanitize
+    assert _sanitize("Governors Island Pier") == "Governors-Island-Pier"
+    assert _sanitize("  --foo!!bar--  ") == "foo-bar"
+    assert _sanitize("") == "asset"
+    assert _display_name("Governors Island Pier", "2026-06-12", 3, ".JPG") == \
+        "Governors-Island-Pier_2026-06-12_03.jpg"
+    assert _display_name("", "2026-01-01", 1, ".png") == "asset_2026-01-01_01.png"
+    assert _display_name("Pier", "2026-01-01", 100, ".jpg") == "Pier_2026-01-01_100.jpg"
+
+
 # ─── annotated-images.zip ─────────────────────────────────────────
 
 import io

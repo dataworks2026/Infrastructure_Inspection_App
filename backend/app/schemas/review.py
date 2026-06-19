@@ -223,6 +223,23 @@ class ReviewStatsResponse(BaseModel):
     recent: List[RecentReviewedInspection]
 
 
+class ReopenImageReviewResponse(BaseModel):
+    image_id: str
+    inspection_id: str
+    status: str
+    cleared_reviews: int
+    removed_engineer_detections: int
+    reset_cv_detections: int
+
+
+class ReopenInspectionReviewResponse(BaseModel):
+    inspection_id: str
+    status: str
+    cleared_reviews: int
+    removed_engineer_detections: int
+    reset_cv_detections: int
+
+
 class ReviewDiffResponse(BaseModel):
     inspection_id: str
     reviewed_by: Optional[str] = None
