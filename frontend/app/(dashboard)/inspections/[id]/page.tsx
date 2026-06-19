@@ -4,7 +4,7 @@ import { inspectionsApi, imagesApi, assetsApi, analysisApi, reviewApi } from '@/
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck, Download } from 'lucide-react';
+import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck, Download, RotateCcw } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import ReviewOverlay, { type ReviewState } from '@/components/review/ReviewOverlay';
@@ -1289,10 +1289,25 @@ export default function InspectionDetailPage() {
                       <span className="text-sm px-2 py-0.5 rounded-md font-medium bg-amber-50 text-amber-700 flex-shrink-0">In review</span>
                     )}
                   </div>
-                  <button onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
-                    className="flex items-center gap-1.5 text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all flex-shrink-0">
-                    <ZoomIn size={14} /> Full Screen
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {currentSubmitted && (
+                      <button
+                        onClick={() => setReopenImageId(currentImg.id)}
+                        disabled={reopenImageMutation.isPending}
+                        title="Discard this image's review and review it again from the CV detections"
+                        className="flex items-center gap-1.5 text-sm text-amber-700 font-medium bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-md hover:bg-amber-100 transition-all disabled:opacity-50"
+                      >
+                        {reopenImageMutation.isPending
+                          ? <Loader size={14} className="animate-spin" />
+                          : <RotateCcw size={14} />}
+                        Review again
+                      </button>
+                    )}
+                    <button onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
+                      className="flex items-center gap-1.5 text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all">
+                      <ZoomIn size={14} /> Full Screen
+                    </button>
+                  </div>
                 </div>
 
                 {/* Annotation-style toolbar (active review only) */}
@@ -1386,8 +1401,6 @@ export default function InspectionDetailPage() {
                       onUpdateState={handleUpdateReviewState}
                       onUpdateDraft={handleUpdateDraft}
                       onRemoveDraft={handleRemoveDraft}
-                      onReopenImage={currentImg ? () => setReopenImageId(currentImg.id) : undefined}
-                      reopening={reopenImageMutation.isPending}
                     />
                   </div>
                 </div>
