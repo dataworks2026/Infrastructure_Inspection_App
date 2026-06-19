@@ -5,6 +5,8 @@ import { assetsApi, inspectionsApi, imagesApi, analysisApi } from '@/lib/api';
 import { useDropzone } from 'react-dropzone';
 import { Upload, CheckCircle, AlertCircle, X, ImageIcon, ArrowRight, FileText } from 'lucide-react';
 import Link from 'next/link';
+import ReviewOverlay from '@/components/review/ReviewOverlay';
+import { normSeverity, severityHex, SEVERITY_LABEL } from '@/lib/severity';
 
 const TEAL = '#082E29';
 const BLUE = '#93C5FD';
@@ -15,6 +17,7 @@ export default function UploadPage() {
   const [files, setFiles]               = useState<File[]>([]);
   const [step, setStep]                 = useState<'form' | 'uploading' | 'analyzing' | 'done'>('form');
   const [results, setResults]           = useState<any[]>([]);
+  const [inspectionId, setInspectionId] = useState('');
   const [error, setError]               = useState('');
   const [progress, setProgress]         = useState(0);
   const [progressLabel, setProgressLabel] = useState('');
@@ -39,6 +42,7 @@ export default function UploadPage() {
     setProgressLabel('Creating inspection...');
     try {
       const inspection = await inspectionsApi.create({ asset_id: assetId, name: inspectionName });
+      setInspectionId(inspection.id);
 
       const imageFiles = files.filter(f => f.type !== 'application/pdf');
       const pdfFiles = files.filter(f => f.type === 'application/pdf');
@@ -75,7 +79,15 @@ export default function UploadPage() {
         setProgress(40 + Math.round(((idx + 1) / allImages.length) * 55));
         try {
           const result = await analysisApi.analyze(img.id);
-          analysisResults.push({ ...img, analysis: result });
+          // The upload response item has no image URL; fetch the full record so we
+          // can render the ORIGINAL image (same `/storage/...` url the detail page
+          // uses) with severity-colored overlay boxes — not the YOLO image.
+          let imageUrl = '';
+          try {
+            const record = await imagesApi.get(img.id);
+            imageUrl = record.url;
+          } catch { /* leave imageUrl empty — card falls back gracefully */ }
+          analysisResults.push({ ...img, analysis: result, imageUrl });
         } catch {
           analysisResults.push({ ...img, analysis: null, failed: true });
         }
@@ -158,21 +170,27 @@ export default function UploadPage() {
                       <span className="font-semibold text-slate-700">{d.damage_type}</span>
                       <span className="text-slate-400">{(d.confidence * 100).toFixed(0)}%</span>
                       {d.severity && (() => {
-                        const ns = (d.severity === 'S0' || d.severity === '0') ? 'S1' : d.severity;
-                        return <span className={`px-2 py-0.5 rounded-md font-semibold ${
-                          ns === 'S1' ? 'bg-emerald-50 text-emerald-700' :
-                          ns === 'S2' ? 'bg-amber-50 text-amber-700' :
-                          ns === 'S3' ? 'bg-orange-50 text-orange-700' :
-                          ns === 'S4' ? 'bg-red-50 text-red-700' :
-                          'bg-purple-50 text-purple-700'
-                        }`}>{ns}</span>;
+                        const ns = normSeverity(d.severity);
+                        const hex = severityHex(d.severity);
+                        const label = ns ? SEVERITY_LABEL[ns] : '';
+                        return (
+                          <span className="flex items-center gap-1.5 font-semibold" style={{ color: hex }}>
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: hex }} />
+                            {ns || d.severity}{label ? ` · ${label}` : ''}
+                          </span>
+                        );
                       })()}
                     </div>
                   ))}
                 </div>
-                {r.analysis.annotated_image_url && (
-                  <img src={r.analysis.annotated_image_url} alt="Annotated"
-                    className="mt-3 rounded-lg border border-[#C8E6D4] max-h-64 object-contain" />
+                {r.imageUrl && r.analysis.detections.length > 0 && (
+                  <div className="mt-3 max-w-md">
+                    <ReviewOverlay
+                      imageUrl={r.imageUrl}
+                      detections={r.analysis.detections}
+                      mode="view"
+                    />
+                  </div>
                 )}
               </>
             )}
@@ -185,14 +203,14 @@ export default function UploadPage() {
         ))}
       </div>
       <div className="flex gap-3 mt-6">
-        <button onClick={() => { setStep('form'); setFiles([]); setResults([]); setInspectionName(''); setProgress(0); }}
+        <button onClick={() => { setStep('form'); setFiles([]); setResults([]); setInspectionName(''); setInspectionId(''); setProgress(0); }}
           className="px-6 py-2.5 rounded-xl text-base font-bold transition-all hover:opacity-90 shadow-sm"
           style={{ background: TEAL, color: BLUE }}>
           New Upload
         </button>
-        <Link href="/inspections"
+        <Link href={inspectionId ? `/inspections/${inspectionId}` : '/inspections'}
           className="flex items-center gap-2 border border-[#C8E6D4] text-slate-600 px-6 py-2.5 rounded-xl text-base font-medium hover:bg-[#EDF6F0] transition-all">
-          View Inspections <ArrowRight size={16} />
+          View Inspection <ArrowRight size={16} />
         </Link>
       </div>
     </div>
