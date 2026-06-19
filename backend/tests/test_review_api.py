@@ -1252,6 +1252,8 @@ def test_display_name_helper():
         "Governors-Island-Pier_2026-06-12_03.jpg"
     assert _display_name("", "2026-01-01", 1, ".png") == "asset_2026-01-01_01.png"
     assert _display_name("Pier", "2026-01-01", 100, ".jpg") == "Pier_2026-01-01_100.jpg"
+    # New convention: asset name + inspection name
+    assert _display_name("Yankee Pier", "Test 103", 2, ".jpg") == "Yankee-Pier_Test-103_02.jpg"
 
 
 # ─── annotated-images.zip ─────────────────────────────────────────

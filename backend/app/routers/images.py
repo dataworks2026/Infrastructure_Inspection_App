@@ -37,9 +37,17 @@ def _inspection_date_str(inspection: Inspection) -> str:
     return date.today().isoformat()
 
 
-def _display_name(asset_name: str, insp_date: str, nn: int, ext: str) -> str:
-    """Friendly display filename: {AssetName}_{InspectionDate}_{NN}{ext}."""
-    return f"{_sanitize(asset_name)}_{insp_date}_{nn:02d}{ext.lower()}"
+def _inspection_label(inspection: Inspection) -> str:
+    """Sanitized inspection name; falls back to the inspection date when blank."""
+    label = _sanitize(inspection.name) if inspection and inspection.name else ""
+    if label and label != "asset":
+        return label
+    return _inspection_date_str(inspection)
+
+
+def _display_name(asset_name: str, insp_label: str, nn: int, ext: str) -> str:
+    """Friendly display filename: {AssetName}_{InspectionName}_{NN}{ext}."""
+    return f"{_sanitize(asset_name)}_{_sanitize(insp_label)}_{nn:02d}{ext.lower()}"
 
 
 def _image_to_record(img: Image) -> ImageRecord:
@@ -87,7 +95,7 @@ async def upload_images(
 
     asset = db.query(Asset).filter(Asset.id == inspection.asset_id).first()
     asset_name = asset.name if asset else "asset"
-    insp_date = _inspection_date_str(inspection)
+    insp_label = _inspection_label(inspection)
     base = db.query(Image).filter(Image.inspection_id == inspection_id).count()
 
     uploaded: List[ImageUploadItem] = []
@@ -115,7 +123,7 @@ async def upload_images(
                 await f.write(chunk)
                 file_size += len(chunk)
 
-        display_name = _display_name(asset_name, insp_date, base + i + 1, ext)
+        display_name = _display_name(asset_name, insp_label, base + i + 1, ext)
 
         img = Image(
             id=file_id,
@@ -162,7 +170,7 @@ async def upload_pdf(
 
     asset = db.query(Asset).filter(Asset.id == inspection.asset_id).first()
     asset_name = asset.name if asset else "asset"
-    insp_date = _inspection_date_str(inspection)
+    insp_label = _inspection_label(inspection)
     base = db.query(Image).filter(Image.inspection_id == inspection_id).count()
 
     pdf_bytes = await file.read()
@@ -211,7 +219,7 @@ async def upload_pdf(
                 f"{os.path.splitext(file.filename)[0]}_p{page_num + 1}_img{img_index + 1}"
             )
             orig_name = (
-                f"{_sanitize(asset_name)}_{insp_date}_{base + img_index + 1:02d}"
+                f"{_sanitize(asset_name)}_{_sanitize(insp_label)}_{base + img_index + 1:02d}"
                 f"_{stem}{ext}"
             )
 
