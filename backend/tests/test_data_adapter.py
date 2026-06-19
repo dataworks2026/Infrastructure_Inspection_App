@@ -236,3 +236,85 @@ def test_multiple_detections_aggregate_to_max_severity(db_session, test_org):
 def test_missing_organization_id_raises(db_session, bad):
     with pytest.raises(ValueError):
         build_analytics_dataframe(db_session, organization_id=bad)
+
+
+# ─── engineer review flow: status + verified-set handling ─────────
+
+def _add_image_with_detection(db, *, org_id, inspection_id, severity, det_id=None):
+    """Helper: add one image + one CV detection, return the detection id."""
+    import uuid as _uuid
+    img_id = str(_uuid.uuid4())
+    det_id = det_id or str(_uuid.uuid4())
+    db.add(Image(
+        id=img_id, organization_id=org_id,
+        inspection_id=inspection_id, filename=f"{severity}.jpg",
+    ))
+    db.add(Detection(
+        id=det_id, image_id=img_id, organization_id=org_id,
+        severity=severity, damage_type="corrosion",
+        source="cv_model", is_locked=True,
+    ))
+    return img_id, det_id
+
+
+def test_reviewed_inspection_is_included(db_session, test_org):
+    """A review_completed inspection must still feed analytics — regression for
+    the bug where only status=='completed' was queried, so any reviewed
+    inspection silently dropped out ('0 assets analysed')."""
+    import uuid as _uuid
+    seed_asset(db_session, asset_id="REV",
+        organization_id=test_org.organization_id,
+        name="Reviewed Pier", infrastructure_type="pier")
+    insp_id = str(_uuid.uuid4())
+    db_session.add(Inspection(
+        id=insp_id, organization_id=test_org.organization_id,
+        asset_id="REV", inspection_date=date(2024, 3, 1),
+        status="review_completed", name="Reviewed", inspector_name="T",
+    ))
+    _add_image_with_detection(
+        db_session, org_id=test_org.organization_id,
+        inspection_id=insp_id, severity="S3")
+    db_session.commit()
+
+    df = build_analytics_dataframe(
+        db_session, organization_id=test_org.organization_id)
+    rows = df[df["asset_id"] == "REV"]
+    assert len(rows) == 1
+    assert rows.iloc[0]["severity_score"] == "S3"
+
+
+def test_rejected_and_modified_cv_detections_excluded(db_session, test_org):
+    """Analytics uses the verified set: a rejected CV detection and a modified
+    CV original are dropped; the accepted one (and any engineer copy) survive."""
+    import uuid as _uuid
+    from app.models.detection_review import DetectionReview
+
+    seed_asset(db_session, asset_id="VER",
+        organization_id=test_org.organization_id,
+        name="Verified Pier", infrastructure_type="pier")
+    insp_id = str(_uuid.uuid4())
+    db_session.add(Inspection(
+        id=insp_id, organization_id=test_org.organization_id,
+        asset_id="VER", inspection_date=date(2024, 4, 1),
+        status="review_completed", name="Verified", inspector_name="T",
+    ))
+    # Accepted S2, rejected S4 (the worst — must be excluded so max is S2)
+    _, accepted_id = _add_image_with_detection(
+        db_session, org_id=test_org.organization_id,
+        inspection_id=insp_id, severity="S2")
+    rej_img_id, rejected_id = _add_image_with_detection(
+        db_session, org_id=test_org.organization_id,
+        inspection_id=insp_id, severity="S4")
+    db_session.add(DetectionReview(
+        organization_id=test_org.organization_id, image_id=rej_img_id,
+        inspection_id=insp_id, cv_detection_id=rejected_id,
+        action="rejected",
+    ))
+    db_session.commit()
+
+    df = build_analytics_dataframe(
+        db_session, organization_id=test_org.organization_id)
+    rows = df[df["asset_id"] == "VER"]
+    assert len(rows) == 1
+    assert rows.iloc[0]["severity_score"] == "S2", \
+        "rejected S4 must be excluded, leaving accepted S2 as the max"
