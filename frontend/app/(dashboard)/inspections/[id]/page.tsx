@@ -554,6 +554,20 @@ export default function InspectionDetailPage() {
     if (selectedDetectionId === tempId) setSelectedDetectionId(null);
   }
 
+  function handleMarkClear() {
+    const imgId = selectedImage;
+    if (!imgId) return;
+    const done = new Set(submittedImages);
+    done.add(imgId);
+    setSubmittedImages(done);
+    setSelectedDetectionId(null);
+    setTool('select');
+    toast.success('Image marked all clear');
+    // Jump to the next image that still needs review (skips clean ones)
+    const next = images.find((im: any) => !isImageReviewed(im.id, done));
+    if (next) setSelectedImage(next.id);
+  }
+
   function handleEditorChange(b: BoundingBox) {
     const imgId = selectedImage;
     if (!imgId || !selectedDetectionId) return;
@@ -779,6 +793,11 @@ export default function InspectionDetailPage() {
     !currentSubmitted &&
     (currentCvDets.length > 0 || currentDrafts.length > 0) &&
     missingHints.length === 0;
+
+  // Clean image safety: no CV detections and nothing added — let the engineer
+  // affirmatively confirm "all clear" and move on (Save would otherwise be dead).
+  const currentIsClean =
+    !currentSubmitted && currentCvDets.length === 0 && currentDrafts.length === 0;
 
   // Current image has local (unsaved) review state
   const hasUnsavedChanges =
@@ -1295,6 +1314,8 @@ export default function InspectionDetailPage() {
                     submitting={submitReviewMutation.isPending}
                     missingHints={missingHints}
                     onSubmit={handleSubmitImageReview}
+                    cleanImage={currentIsClean}
+                    onMarkClear={handleMarkClear}
                   />
                 )}
 

@@ -8,7 +8,7 @@
  */
 
 import {
-  MousePointer2, Square, Circle, Trash2, Check, X, Loader, Save, Eye, EyeOff,
+  MousePointer2, Square, Circle, Trash2, Check, X, Loader, Save, Eye, EyeOff, ShieldCheck,
 } from 'lucide-react';
 
 export type ReviewTool = 'select' | 'box' | 'oval';
@@ -35,6 +35,9 @@ export interface ReviewToolbarProps {
   /** Human-readable list of what is still blocking Save. */
   missingHints: string[];
   onSubmit: () => void;
+  /** Image has no CV detections and nothing added — offer an affirmative "all clear". */
+  cleanImage?: boolean;
+  onMarkClear?: () => void;
 }
 
 const TOOLS: { id: ReviewTool; label: string; shortcut: string; Icon: typeof Square }[] = [
@@ -60,6 +63,8 @@ export default function ReviewToolbar({
   submitting,
   missingHints,
   onSubmit,
+  cleanImage,
+  onMarkClear,
 }: ReviewToolbarProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap px-4 py-2 border-b border-slate-100 bg-white">
@@ -138,15 +143,25 @@ export default function ReviewToolbar({
 
       <div className="w-px h-6 bg-slate-200" />
 
-      <button
-        title={canSubmit ? 'Submit review for this image' : missingHints.join('\n') || 'Nothing to submit'}
-        onClick={onSubmit}
-        disabled={!canSubmit || submitting}
-        className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {submitting ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
-        Save
-      </button>
+      {cleanImage && onMarkClear ? (
+        <button
+          title="No CV detections and nothing added — confirm this image is clean and continue"
+          onClick={onMarkClear}
+          className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm"
+        >
+          <ShieldCheck size={14} /> Mark all clear
+        </button>
+      ) : (
+        <button
+          title={canSubmit ? 'Submit review for this image' : missingHints.join('\n') || 'Nothing to submit'}
+          onClick={onSubmit}
+          disabled={!canSubmit || submitting}
+          className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {submitting ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
+          Save
+        </button>
+      )}
     </div>
   );
 }
