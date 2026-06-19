@@ -8,6 +8,7 @@ import type {
   StartReviewResponse, SubmitReviewRequest, SubmitReviewResponse,
   CompleteReviewResponse, ReviewDiffResponse, ReviewStatsResponse,
   UpdateAssetTypeResponse,
+  ReopenInspectionReviewResponse, ReopenImageReviewResponse,
 } from '@/types';
 
 const api = axios.create({ baseURL: '/api/v1' });
@@ -156,6 +157,10 @@ export const reviewApi = {
     api.get<Blob>(`/inspections/${inspectionId}/annotated-images.zip`, { responseType: 'blob' }),
   updateImageAssetType: (imageId: string, assetType: string) =>
     api.patch<UpdateAssetTypeResponse>(`/images/${imageId}/asset-type`, { asset_type: assetType }).then(r => r.data),
+  reopenInspectionReview: (inspectionId: string) =>
+    api.post<ReopenInspectionReviewResponse>(`/inspections/${inspectionId}/reopen-review`).then(r => r.data),
+  reopenImageReview: (imageId: string) =>
+    api.post<ReopenImageReviewResponse>(`/images/${imageId}/reopen-review`).then(r => r.data),
 };
 
 // Predictive Analytics (deterioration / anomaly / priority / TTI)

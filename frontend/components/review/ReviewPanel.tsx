@@ -276,6 +276,9 @@ export interface ReviewPanelProps {
   onUpdateState: (detId: string, patch: Partial<LocalDetectionReview>) => void;
   onUpdateDraft: (tempId: string, patch: Partial<AddedDraft>) => void;
   onRemoveDraft: (tempId: string) => void;
+  /** When provided, the submitted/read-only view shows a "Review again" button. */
+  onReopenImage?: () => void;
+  reopening?: boolean;
 }
 
 export default function ReviewPanel({
@@ -296,6 +299,8 @@ export default function ReviewPanel({
   onUpdateState,
   onUpdateDraft,
   onRemoveDraft,
+  onReopenImage,
+  reopening = false,
 }: ReviewPanelProps) {
   const labelsRef = useRef<HTMLDivElement | null>(null);
   const damageSelectRef = useRef<HTMLSelectElement>(null) as React.MutableRefObject<HTMLSelectElement | null>;
@@ -322,6 +327,19 @@ export default function ReviewPanel({
           <CheckCircle size={16} className="text-emerald-600 mt-0.5 flex-shrink-0" />
           <p className="text-sm font-semibold text-emerald-800">Reviewed — this image&apos;s review has been submitted.</p>
         </div>
+        {onReopenImage && (
+          <button
+            onClick={onReopenImage}
+            disabled={reopening}
+            className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-2 rounded-lg transition-all disabled:opacity-60 mb-3"
+            title="Discard this image's review and review it again from the original CV output"
+          >
+            {reopening
+              ? <Loader size={14} className="animate-spin" />
+              : <Pencil size={14} />}
+            Review again
+          </button>
+        )}
         <div className="space-y-2">
           {detections.map(d => (
             <div key={d.id} className="bg-white rounded-lg border border-slate-200 p-3">

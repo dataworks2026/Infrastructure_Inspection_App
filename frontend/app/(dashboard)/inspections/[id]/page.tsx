@@ -287,6 +287,9 @@ export default function InspectionDetailPage() {
 
   // ── Engineer Review Mode state ──────────────────────────────────────────────
   const [showStartReviewConfirm, setShowStartReviewConfirm] = useState(false);
+  // Re-open review confirmations: whole inspection, or a single image (by id)
+  const [showReopenInspectionConfirm, setShowReopenInspectionConfirm] = useState(false);
+  const [reopenImageId, setReopenImageId] = useState<string | null>(null);
   // Pending (not yet submitted) per-detection actions: imageId → detectionId → state
   const [reviewState, setReviewState] = useState<Record<string, Record<string, LocalDetectionReview>>>({});
   // Engineer-added draft detections: imageId → drafts
@@ -388,6 +391,50 @@ export default function InspectionDetailPage() {
         toast.error(err?.response?.data?.detail || 'Failed to complete review');
       }
     },
+  });
+
+  // Re-open the WHOLE inspection — discards every engineer correction and resets
+  // all CV detections to unreviewed; the inspection flips back to pending_review.
+  const reopenInspectionMutation = useMutation({
+    mutationFn: () => reviewApi.reopenInspectionReview(inspectionId),
+    onSuccess: (res) => {
+      setShowReopenInspectionConfirm(false);
+      // Clear all local session review state — the server is the source of truth now
+      setSubmittedImages(new Set());
+      setReviewState({});
+      setAddedDrafts({});
+      setSelectedDetectionId(null);
+      setTool('select');
+      queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      toast.success(`Review re-opened — ${res.reset_cv_detections} detections reset`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to re-open review'),
+  });
+
+  // Re-open a SINGLE image — discards that image's corrections and resets its CV
+  // detections; the inspection may flip back to pending_review server-side.
+  const reopenImageMutation = useMutation({
+    mutationFn: (imageId: string) => reviewApi.reopenImageReview(imageId),
+    onSuccess: (res) => {
+      setReopenImageId(null);
+      setSubmittedImages(prev => {
+        const n = new Set(prev);
+        n.delete(res.image_id);
+        return n;
+      });
+      setReviewState(prev => { const n = { ...prev }; delete n[res.image_id]; return n; });
+      setAddedDrafts(prev => { const n = { ...prev }; delete n[res.image_id]; return n; });
+      setSelectedImage(res.image_id);
+      setSelectedDetectionId(null);
+      setTool('select');
+      queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      toast.success(`Image review re-opened — ${res.reset_cv_detections} detections reset`);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to re-open image review'),
   });
 
   // Image asset type — mirrors the annotation app: fires on change, optimistic,
@@ -1018,14 +1065,47 @@ export default function InspectionDetailPage() {
               <p className="text-sm text-emerald-700">The verified detection set is final. Engineer-added detections are shown in green.</p>
             </div>
           </div>
-          <Link
-            href={`/inspections/${inspectionId}/review-summary`}
-            className="text-sm font-bold text-emerald-700 hover:text-emerald-900 bg-white border border-emerald-200 px-3.5 py-2 rounded-lg transition-all"
-          >
-            View Review Summary →
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShowReopenInspectionConfirm(true)}
+              disabled={reopenInspectionMutation.isPending}
+              className="flex items-center gap-1.5 text-sm font-bold text-amber-700 hover:text-amber-900 bg-white border border-amber-200 hover:border-amber-300 px-3.5 py-2 rounded-lg transition-all disabled:opacity-60"
+              title="Discard all engineer corrections and review the whole inspection again"
+            >
+              {reopenInspectionMutation.isPending
+                ? <Loader size={14} className="animate-spin" />
+                : <Pencil size={14} />}
+              Review again
+            </button>
+            <Link
+              href={`/inspections/${inspectionId}/review-summary`}
+              className="text-sm font-bold text-emerald-700 hover:text-emerald-900 bg-white border border-emerald-200 px-3.5 py-2 rounded-lg transition-all"
+            >
+              View Review Summary →
+            </Link>
+          </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={showReopenInspectionConfirm}
+        title="Re-open review"
+        message="This will DISCARD all engineer corrections for this inspection and reset every CV detection to unreviewed, so the whole inspection is reviewed again from scratch. This cannot be undone."
+        confirmLabel="Review again"
+        isLoading={reopenInspectionMutation.isPending}
+        onConfirm={() => reopenInspectionMutation.mutate()}
+        onCancel={() => setShowReopenInspectionConfirm(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={reopenImageId !== null}
+        title="Re-open review"
+        message="This will DISCARD this image's engineer corrections and reset its CV detections to unreviewed, so this image is reviewed again from the original CV output. This cannot be undone."
+        confirmLabel="Review again"
+        isLoading={reopenImageMutation.isPending}
+        onConfirm={() => { if (reopenImageId) reopenImageMutation.mutate(reopenImageId); }}
+        onCancel={() => setReopenImageId(null)}
+      />
 
       {/* ── Detection loading indicator ── */}
       {loadingDetections && (
@@ -1285,6 +1365,8 @@ export default function InspectionDetailPage() {
                       onUpdateState={handleUpdateReviewState}
                       onUpdateDraft={handleUpdateDraft}
                       onRemoveDraft={handleRemoveDraft}
+                      onReopenImage={currentImg ? () => setReopenImageId(currentImg.id) : undefined}
+                      reopening={reopenImageMutation.isPending}
                     />
                   </div>
                 </div>

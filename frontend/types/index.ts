@@ -125,6 +125,23 @@ export interface CompleteReviewResponse {
   summary: ReviewSummary;
 }
 
+export interface ReopenInspectionReviewResponse {
+  inspection_id: string;
+  status: string;
+  cleared_reviews: number;
+  removed_engineer_detections: number;
+  reset_cv_detections: number;
+}
+
+export interface ReopenImageReviewResponse {
+  image_id: string;
+  inspection_id: string;
+  status: string;
+  cleared_reviews: number;
+  removed_engineer_detections: number;
+  reset_cv_detections: number;
+}
+
 export interface ReviewTotals {
   cv_detections: number;
   accepted: number;
