@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import date, datetime
 import os
+import re
 import uuid
 import aiofiles
 
@@ -9,12 +11,35 @@ from app.core.deps import get_db, get_current_user
 from app.core.config import settings
 from app.models.user import User
 from app.models.inspection import Inspection
+from app.models.asset import Asset
 from app.models.image import Image
 from app.schemas.image import ImageRecord, ImageUploadItem, ImageUploadResponse, ImageUpdate
 
 router = APIRouter()
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/tiff", "image/webp"}
+
+
+def _sanitize(name: str) -> str:
+    """Collapse runs of non-alphanumeric chars to a single '-', strip edges."""
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "-", name or "").strip("-")
+    return cleaned or "asset"
+
+
+def _inspection_date_str(inspection: Inspection) -> str:
+    """YYYY-MM-DD from inspection_date / inspected_at / created_at (first non-null)."""
+    for val in (inspection.inspection_date, inspection.inspected_at, inspection.created_at):
+        if val is not None:
+            if isinstance(val, datetime):
+                return val.date().isoformat()
+            if isinstance(val, date):
+                return val.isoformat()
+    return date.today().isoformat()
+
+
+def _display_name(asset_name: str, insp_date: str, nn: int, ext: str) -> str:
+    """Friendly display filename: {AssetName}_{InspectionDate}_{NN}{ext}."""
+    return f"{_sanitize(asset_name)}_{insp_date}_{nn:02d}{ext.lower()}"
 
 
 def _image_to_record(img: Image) -> ImageRecord:
@@ -60,15 +85,21 @@ async def upload_images(
     if not inspection:
         raise HTTPException(status_code=404, detail="Inspection not found")
 
+    asset = db.query(Asset).filter(Asset.id == inspection.asset_id).first()
+    asset_name = asset.name if asset else "asset"
+    insp_date = _inspection_date_str(inspection)
+    base = db.query(Image).filter(Image.inspection_id == inspection_id).count()
+
     uploaded: List[ImageUploadItem] = []
-    for file in files:
+    for i, file in enumerate(files):
         if file.content_type not in ALLOWED_TYPES:
             raise HTTPException(
                 status_code=400, detail=f"File type {file.content_type} not allowed"
             )
 
         file_id = str(uuid.uuid4())
-        ext = os.path.splitext(file.filename)[1] or ".jpg"
+        ext = (os.path.splitext(file.filename)[1] or ".jpg").lower()
+        # Disk name stays uuid-based (zero collision risk); only display name changes
         rel_path = f"inspections/{inspection_id}/{file_id}{ext}"
         abs_path = os.path.join(settings.STORAGE_BASE_PATH, rel_path)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
@@ -84,12 +115,14 @@ async def upload_images(
                 await f.write(chunk)
                 file_size += len(chunk)
 
+        display_name = _display_name(asset_name, insp_date, base + i + 1, ext)
+
         img = Image(
             id=file_id,
             inspection_id=inspection_id,
             organization_id=current_user.organization_id,
-            filename=file.filename,
-            original_filename=file.filename,
+            filename=display_name,
+            original_filename=display_name,
             stored_path=rel_path,
             file_size_bytes=file_size,
             content_type=file.content_type,
@@ -97,7 +130,7 @@ async def upload_images(
             analysis_status="queued",
         )
         db.add(img)
-        uploaded.append(ImageUploadItem(id=file_id, filename=file.filename, status="queued"))
+        uploaded.append(ImageUploadItem(id=file_id, filename=display_name, status="queued"))
 
     db.commit()
     return ImageUploadResponse(uploaded=len(uploaded), images=uploaded)
@@ -127,6 +160,11 @@ async def upload_pdf(
 
     import fitz  # PyMuPDF
 
+    asset = db.query(Asset).filter(Asset.id == inspection.asset_id).first()
+    asset_name = asset.name if asset else "asset"
+    insp_date = _inspection_date_str(inspection)
+    base = db.query(Image).filter(Image.inspection_id == inspection_id).count()
+
     pdf_bytes = await file.read()
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
@@ -153,7 +191,7 @@ async def upload_pdf(
                 continue
 
             file_id = str(uuid.uuid4())
-            ext = f".{img_ext}"
+            ext = f".{img_ext}".lower()
             if ext == ".jpeg":
                 ext = ".jpg"
             rel_path = f"inspections/{inspection_id}/{file_id}{ext}"
@@ -167,7 +205,15 @@ async def upload_pdf(
             if img_ext == "jpg":
                 content_type = "image/jpeg"
 
-            orig_name = f"{os.path.splitext(file.filename)[0]}_p{page_num + 1}_img{img_index + 1}{ext}"
+            # Follow the same display convention, but keep the per-page stem so
+            # extracted images stay traceable to their source page/image.
+            stem = _sanitize(
+                f"{os.path.splitext(file.filename)[0]}_p{page_num + 1}_img{img_index + 1}"
+            )
+            orig_name = (
+                f"{_sanitize(asset_name)}_{insp_date}_{base + img_index + 1:02d}"
+                f"_{stem}{ext}"
+            )
 
             img = Image(
                 id=file_id,
