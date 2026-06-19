@@ -832,7 +832,13 @@ export default function InspectionDetailPage() {
       shape_type: dr.shapeType,
       domain_metadata: { code: dr.damageCode || undefined, segments: dr.segments },
     }));
-  const overlayDetections = currentSubmitted ? allServerDets : [...allServerDets, ...draftOverlayDets];
+  // A submitted image (even mid-review) shows its FINAL verified set immediately —
+  // rejected CV detections drop out and modified originals are replaced, so the
+  // engineer sees their changes reflected the moment they Save, not only after the
+  // whole inspection review is completed.
+  const overlayDetections = currentSubmitted
+    ? verifiedDetections(allServerDets)
+    : [...allServerDets, ...draftOverlayDets];
   const overlayStates: Record<string, ReviewState> = {};
   for (const [id, st] of Object.entries(currentStates)) {
     // While a modified bbox is being edited, BboxEditor renders it — suppress the overlay copy
