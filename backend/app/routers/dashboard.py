@@ -326,6 +326,35 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
             continue
         severity_breakdown[key] = severity_breakdown.get(key, 0) + row.cnt
 
+    # ── Query 8b: per-asset severity breakdown (authoritative totals) ─────────
+    # The dashboard's per-asset S1-S4 counts must match the Defect Summary and
+    # the inspection totals. They were previously derived on the frontend from
+    # recent_analyzed_images, which is capped at 10 images per asset — so assets
+    # with >10 analyzed images under-counted. Compute the true totals here over
+    # ALL detections (severity not null, S0→S1 normalized), no cap, no bbox filter.
+    asset_sev_rows = (
+        db.query(
+            Asset.id.label("asset_id"),
+            Detection.severity,
+            func.count(Detection.id).label("cnt"),
+        )
+        .join(Inspection, Inspection.asset_id == Asset.id)
+        .join(Image, Image.inspection_id == Inspection.id)
+        .join(Detection, Detection.image_id == Image.id)
+        .filter(Asset.organization_id == org_id, Detection.severity.isnot(None))
+        .group_by(Asset.id, Detection.severity)
+        .all()
+    )
+    asset_severity: dict = {}  # asset_id -> {S1..S4}
+    for row in asset_sev_rows:
+        key = _norm_sev(row.severity)
+        if key not in ("S1", "S2", "S3", "S4"):
+            continue
+        bucket = asset_severity.setdefault(
+            row.asset_id, {"S1": 0, "S2": 0, "S3": 0, "S4": 0}
+        )
+        bucket[key] += row.cnt
+
     # ── Fleet health % ─────────────────────────────────────────────────────────
     total_a  = asset_row.total  if asset_row else 0
     active_a = asset_row.active if asset_row else 0
@@ -343,6 +372,7 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         "recent_analyzed_images": recent_analyzed_images,
         "asset_health":           asset_health,
         "severity_breakdown":     severity_breakdown,
+        "asset_severity":         asset_severity,
         "fleet_health_pct":       fleet_health_pct,
     }
 
