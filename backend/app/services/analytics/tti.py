@@ -69,7 +69,8 @@ def calculate_tti(
                     asset_id, asset_name, asset_type,
                     current_severity, critical_threshold,
                     rate_per_year, None, TTI_LABEL_DEFAULT,
-                    'Asset is at critical threshold but improving — monitoring advised'
+                    'Asset is at critical threshold but improving — monitoring advised. '
+                    'Verify the maintenance record to confirm the improvement.'
                 ))
             else:
                 results.append(_build_row(
@@ -91,12 +92,21 @@ def calculate_tti(
             continue
 
         # ── Case 3: Improving or stable — not applicable ──
-        if rate_per_year <= 0:
+        if rate_per_year < 0:
             results.append(_build_row(
                 asset_id, asset_name, asset_type,
                 current_severity, critical_threshold,
                 rate_per_year, None, TTI_LABEL_DEFAULT,
-                'Asset is stable or improving — no intervention projected'
+                'Asset is improving — no intervention projected. '
+                'Verify the maintenance record to confirm the improvement.'
+            ))
+            continue
+        if rate_per_year == 0:
+            results.append(_build_row(
+                asset_id, asset_name, asset_type,
+                current_severity, critical_threshold,
+                rate_per_year, None, TTI_LABEL_DEFAULT,
+                'Asset is stable — no intervention projected'
             ))
             continue
 

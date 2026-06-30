@@ -61,10 +61,7 @@ def calculate_deterioration(df: pd.DataFrame) -> pd.DataFrame:
         avg_change    = np.mean(changes)
         latest_change = changes[-1]
 
-        # ── Step 3: Trend direction ────────────────────────
-        trend = _classify_trend(slope, avg_change, scores)
-
-        # ── Step 4: Acceleration detection ────────────────
+        # ── Step 3: Acceleration detection ────────────────
         # Only applies to assets that are actually worsening.
         # Checks if the rate of worsening is itself increasing.
         acceleration = False
@@ -74,6 +71,12 @@ def calculate_deterioration(df: pd.DataFrame) -> pd.DataFrame:
             second_half_change = np.mean(changes[half:]) if changes[half:] else 0
             if second_half_change > first_half_change + 0.3:
                 acceleration = True
+
+        # ── Step 4: Trend direction ────────────────────────
+        # The acceleration flag drives the label: a worsening asset whose rate
+        # is itself increasing reads as 'accelerating' even when its overall
+        # slope hasn't yet crossed the steep (0.8/yr) threshold.
+        trend = _classify_trend(slope, avg_change, scores, acceleration)
 
         results.append({
             'asset_id'            : asset_id,
@@ -99,7 +102,9 @@ def calculate_deterioration(df: pd.DataFrame) -> pd.DataFrame:
     return result_df
 
 
-def _classify_trend(slope: float, avg_change: float, scores: list) -> str:
+def _classify_trend(
+    slope: float, avg_change: float, scores: list, acceleration: bool = False
+) -> str:
     """
     Classifies trend direction based on slope and score pattern.
 
@@ -116,7 +121,12 @@ def _classify_trend(slope: float, avg_change: float, scores: list) -> str:
     if len(changes) >= 3 and sign_changes >= len(changes) - 1:
         return 'fluctuating'
 
-    # Accelerating — worsening and speeding up (per year)
+    # Accelerating — worsening AND speeding up. Triggered either by the
+    # acceleration flag (rate increasing across the series) or by a steep
+    # overall slope, so a moderate-but-accelerating asset is not mislabeled
+    # as merely 'worsening'.
+    if slope > 0 and acceleration:
+        return 'accelerating'
     if slope > 0.8:
         return 'accelerating'
 
