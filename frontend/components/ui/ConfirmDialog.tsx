@@ -63,7 +63,7 @@ export default function ConfirmDialog({
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white py-2.5 rounded-xl text-base font-bold transition-all shadow-lg shadow-red-500/20 hover:shadow-red-500/35 disabled:opacity-50"
+            className="flex-[1.4] flex items-center justify-center gap-2 whitespace-nowrap bg-red-500 hover:bg-red-600 active:bg-red-700 text-white py-2.5 px-3 rounded-xl text-base font-bold transition-all shadow-lg shadow-red-500/20 hover:shadow-red-500/35 disabled:opacity-50"
           >
             {isLoading ? (
               <>
@@ -72,7 +72,7 @@ export default function ConfirmDialog({
               </>
             ) : (
               <>
-                <Trash2 size={16} />
+                <Trash2 size={16} className="shrink-0" />
                 {confirmLabel}
               </>
             )}
