@@ -42,10 +42,10 @@ export default function ConfirmDialog({
       >
         {/* Icon + text */}
         <div className="flex items-start gap-4 mb-6">
-          <div className="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <AlertTriangle size={22} className="text-red-400" />
+          <div className="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={22} className="text-red-400 shrink-0" strokeWidth={2} />
           </div>
-          <div>
+          <div className="pt-0.5">
             <h2 className="text-[15px] font-bold text-card-text leading-snug">{title}</h2>
             <p className="text-base text-card-muted mt-1 leading-relaxed">{message}</p>
           </div>

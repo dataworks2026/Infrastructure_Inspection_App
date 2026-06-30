@@ -31,6 +31,23 @@ const RISK_COLOR: Record<string, string> = {
   low:      '#16a34a',
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  pending:          'Pending',
+  processing:       'Processing',
+  completed:        'Completed',
+  pending_review:   'Review In Progress',
+  review_completed: 'Review Completed',
+  failed:           'Failed',
+};
+
+function humanizeStatus(s: string): string {
+  if (!s) return '—';
+  return (
+    STATUS_LABELS[s] ||
+    s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  );
+}
+
 export default function ReportsPage() {
   const [selectedId, setSelectedId] = useState<string>('');
 
@@ -113,12 +130,18 @@ function InspectionPicker({
               ? 'No inspections yet'
               : 'Choose an inspection…'}
         </option>
-        {inspections.map((i) => (
-          <option key={i.id} value={i.id}>
-            {i.name || i.id.slice(0, 8)} — {i.status}
-            {i.image_count ? ` · ${i.image_count} images` : ''}
-          </option>
-        ))}
+        {inspections.map((i) => {
+          const date = new Date(i.inspected_at || i.created_at)
+            .toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+          const imagePart = i.image_count
+            ? ` · ${i.image_count} image${i.image_count === 1 ? '' : 's'}`
+            : '';
+          return (
+            <option key={i.id} value={i.id}>
+              {i.name || i.id.slice(0, 8)}{imagePart} · {date} · {humanizeStatus(i.status)}
+            </option>
+          );
+        })}
       </select>
     </div>
   );
@@ -284,7 +307,7 @@ function CoverCard({
         <MetaCell label="Inspector" value={metadata.inspector_name || '—'} />
         <MetaCell
           label="Status"
-          value={metadata.status?.toUpperCase() || '—'}
+          value={metadata.status ? humanizeStatus(metadata.status) : '—'}
         />
         <MetaCell
           label="Total Images"

@@ -57,9 +57,14 @@ function StatusBadge({ status }: { status: string }) {
       <Clock size={13} /> Maintenance
     </span>
   );
+  if (status === 'decommissioned') return (
+    <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+      <span className="w-2 h-2 rounded-full bg-slate-400" /> Decommissioned
+    </span>
+  );
   return (
     <span className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200">
-      {status}
+      {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
 }
@@ -75,6 +80,12 @@ export default function AssetsPage() {
   const { data: defectData } = useQuery({ queryKey: ['defect-summary'], queryFn: dashboardApi.defectSummary });
 
   const typeMap = useMemo(() => Object.fromEntries(INFRA_TYPES.map(t => [t.value, t])), []);
+
+  const duplicateName = useMemo(() => {
+    const name = form.name.trim().toLowerCase();
+    if (!name) return false;
+    return (assets as Asset[]).some(a => a.name.trim().toLowerCase() === name);
+  }, [form.name, assets]);
 
   const createMutation = useMutation({
     mutationFn: assetsApi.create,
@@ -144,6 +155,12 @@ export default function AssetsPage() {
                   className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 outline-none transition-colors"
                   style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}
                   placeholder="e.g. Turbine T-12" />
+                {duplicateName && (
+                  <p className="text-[12px] mt-1.5 flex items-start gap-1" style={{ color: '#B45309' }}>
+                    <span aria-hidden>⚠</span>
+                    <span>An asset named &ldquo;{form.name.trim()}&rdquo; already exists. Consider adding a distinguishing identifier.</span>
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-[12px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: TEAL }}>Infrastructure Type</label>
