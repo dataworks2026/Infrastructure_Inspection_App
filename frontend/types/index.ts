@@ -34,7 +34,8 @@ export interface Inspection {
   name: string;
   inspected_at?: string;
   weather_conditions?: string;
-  inspector_name?: string;
+  inspector_name?: string | null;
+  inspection_type?: string | null;
   status: InspectionStatus;
   created_at: string;
   image_count: number;

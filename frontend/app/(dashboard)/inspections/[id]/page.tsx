@@ -23,6 +23,8 @@ const roundBbox = (b: BoundingBox): BoundingBox => ({
   x1: Math.round(b.x1), y1: Math.round(b.y1), x2: Math.round(b.x2), y2: Math.round(b.y2),
 });
 
+const INSPECTION_TYPE_OPTIONS = ['Routine', 'Detailed', 'Special', 'Damage Assessment', 'Follow-up', 'Other'];
+
 // ─── Severity ───────────────────────────────────────────────────────────────
 const severityConfig: Record<string, { label: string; color: string; bg: string; hex: string }> = {
   S1: { label: 'Minor',    color: 'text-emerald-700', bg: 'bg-emerald-50', hex: '#4CAF50'  },
@@ -184,6 +186,10 @@ export default function InspectionDetailPage() {
   const [editName, setEditName] = useState('');
   const [editingDate, setEditingDate] = useState(false);
   const [editDate, setEditDate] = useState('');
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [editInspector, setEditInspector] = useState('');
+  const [editType, setEditType] = useState('');
+  const [editDetailsDate, setEditDetailsDate] = useState('');
   const [imageSort, setImageSort] = useState<'name' | 'detections' | 'severity'>('name');
 
   const deleteMutation = useMutation({
@@ -221,13 +227,15 @@ export default function InspectionDetailPage() {
   }
 
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<{ name: string; inspected_at: string }>) => inspectionsApi.update(inspectionId, data),
+    mutationFn: (data: Partial<{ name: string; inspected_at: string; inspector_name: string | null; inspection_type: string | null }>) =>
+      inspectionsApi.update(inspectionId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
       queryClient.invalidateQueries({ queryKey: ['inspections'] });
       toast.success('Inspection updated');
       setEditingName(false);
       setEditingDate(false);
+      setEditingDetails(false);
     },
     onError: () => toast.error('Failed to update inspection'),
   });
@@ -986,7 +994,78 @@ export default function InspectionDetailPage() {
               )}
               {inspection.weather_conditions && <span className="text-sm text-slate-400">Weather: {inspection.weather_conditions}</span>}
               {inspection.inspector_name && <span className="text-sm text-slate-400">Inspector: {inspection.inspector_name}</span>}
+              {inspection.inspection_type && <span className="text-sm text-slate-400">Type: {inspection.inspection_type}</span>}
+              <button
+                onClick={() => {
+                  setEditInspector(inspection.inspector_name || '');
+                  setEditType(inspection.inspection_type || '');
+                  const d = new Date(inspection.inspected_at || inspection.created_at);
+                  setEditDetailsDate(d.toISOString().split('T')[0]);
+                  setEditingDetails(true);
+                }}
+                className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-[#082E29] px-1.5 py-0.5 rounded-md hover:bg-[#EDF6F0] transition-colors"
+                title="Edit inspection details"
+              >
+                <Pencil size={12} /> Edit details
+              </button>
             </div>
+
+            {editingDetails && (
+              <div className="mt-4 rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-3" style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Inspection Date</label>
+                  <input
+                    type="date"
+                    value={editDetailsDate}
+                    onChange={e => setEditDetailsDate(e.target.value)}
+                    className="w-full text-sm rounded-md px-2.5 py-1.5 outline-none bg-white"
+                    style={{ border: '1px solid #C8E6D4', color: '#082E29' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Inspector Name</label>
+                  <input
+                    value={editInspector}
+                    onChange={e => setEditInspector(e.target.value)}
+                    placeholder="e.g. Jane Smith"
+                    className="w-full text-sm rounded-md px-2.5 py-1.5 outline-none bg-white placeholder:text-slate-400"
+                    style={{ border: '1px solid #C8E6D4', color: '#082E29' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Inspection Type</label>
+                  <select
+                    value={editType}
+                    onChange={e => setEditType(e.target.value)}
+                    className="w-full text-sm rounded-md px-2.5 py-1.5 outline-none bg-white"
+                    style={{ border: '1px solid #C8E6D4', color: '#082E29' }}
+                  >
+                    <option value="">-- Select --</option>
+                    {INSPECTION_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-3 flex items-center gap-2 mt-1">
+                  <button
+                    onClick={() => updateMutation.mutate({
+                      inspector_name: editInspector.trim() || null,
+                      inspection_type: editType || null,
+                      ...(editDetailsDate ? { inspected_at: new Date(editDetailsDate).toISOString() } : {}),
+                    })}
+                    disabled={updateMutation.isPending}
+                    className="flex items-center gap-1.5 text-sm font-bold px-3.5 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                    style={{ background: '#082E29', color: '#93C5FD' }}
+                  >
+                    <Check size={14} /> Save
+                  </button>
+                  <button
+                    onClick={() => setEditingDetails(false)}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all"
+                  >
+                    <X size={14} /> Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 ml-4 flex-shrink-0">
             {inspection.status === 'completed' && (

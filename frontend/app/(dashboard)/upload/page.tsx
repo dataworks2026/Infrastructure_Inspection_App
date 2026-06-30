@@ -7,13 +7,21 @@ import { Upload, CheckCircle, AlertCircle, X, ImageIcon, ArrowRight, FileText } 
 import Link from 'next/link';
 import ReviewOverlay from '@/components/review/ReviewOverlay';
 import { normSeverity, severityHex, SEVERITY_LABEL } from '@/lib/severity';
+import type { Inspection } from '@/types';
 
 const TEAL = '#082E29';
 const BLUE = '#93C5FD';
 
+const INSPECTION_TYPE_OPTIONS = ['Routine', 'Detailed', 'Special', 'Damage Assessment', 'Follow-up', 'Other'];
+
+const todayYMD = () => new Date().toISOString().split('T')[0];
+
 export default function UploadPage() {
   const [assetId, setAssetId]           = useState('');
   const [inspectionName, setInspectionName] = useState('');
+  const [inspectedAt, setInspectedAt]   = useState(todayYMD());
+  const [inspectorName, setInspectorName] = useState('');
+  const [inspectionType, setInspectionType] = useState('');
   const [files, setFiles]               = useState<File[]>([]);
   const [step, setStep]                 = useState<'form' | 'uploading' | 'analyzing' | 'done'>('form');
   const [results, setResults]           = useState<any[]>([]);
@@ -41,7 +49,15 @@ export default function UploadPage() {
     setError(''); setStep('uploading'); setProgress(5);
     setProgressLabel('Creating inspection...');
     try {
-      const inspection = await inspectionsApi.create({ asset_id: assetId, name: inspectionName });
+      const createPayload: Partial<Inspection> = {
+        asset_id: assetId,
+        name: inspectionName,
+        // Always send inspected_at (defaults to today); convert YYYY-MM-DD → ISO
+        inspected_at: new Date(inspectedAt || todayYMD()).toISOString(),
+      };
+      if (inspectorName.trim()) createPayload.inspector_name = inspectorName.trim();
+      if (inspectionType) createPayload.inspection_type = inspectionType;
+      const inspection = await inspectionsApi.create(createPayload);
       setInspectionId(inspection.id);
 
       const imageFiles = files.filter(f => f.type !== 'application/pdf');
@@ -203,7 +219,7 @@ export default function UploadPage() {
         ))}
       </div>
       <div className="flex gap-3 mt-6">
-        <button onClick={() => { setStep('form'); setFiles([]); setResults([]); setInspectionName(''); setInspectionId(''); setProgress(0); }}
+        <button onClick={() => { setStep('form'); setFiles([]); setResults([]); setInspectionName(''); setInspectedAt(todayYMD()); setInspectorName(''); setInspectionType(''); setInspectionId(''); setProgress(0); }}
           className="px-6 py-2.5 rounded-xl text-base font-bold transition-all hover:opacity-90 shadow-sm"
           style={{ background: TEAL, color: BLUE }}>
           New Upload
@@ -245,6 +261,30 @@ export default function UploadPage() {
               className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 placeholder:text-slate-400 outline-none"
               style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}
               placeholder="e.g. Q1 2026 Routine Inspection" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Inspection Date</label>
+              <input type="date" value={inspectedAt} onChange={e => setInspectedAt(e.target.value)}
+                className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 outline-none"
+                style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }} />
+            </div>
+            <div>
+              <label className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Inspection Type</label>
+              <select value={inspectionType} onChange={e => setInspectionType(e.target.value)}
+                className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 outline-none"
+                style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}>
+                <option value="">-- Select --</option>
+                {INSPECTION_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Inspector Name</label>
+            <input value={inspectorName} onChange={e => setInspectorName(e.target.value)}
+              className="w-full rounded-lg px-3.5 py-2.5 text-base text-slate-800 placeholder:text-slate-400 outline-none"
+              style={{ background: '#EDF6F0', border: '1px solid #C8E6D4' }}
+              placeholder="e.g. Jane Smith" />
           </div>
         </div>
 
