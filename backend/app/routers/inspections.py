@@ -32,7 +32,8 @@ def list_inspections(
         result.append(InspectionResponse(
             id=i.id, asset_id=i.asset_id, name=i.name,
             inspected_at=i.inspected_at, weather_conditions=i.weather_conditions,
-            inspector_name=i.inspector_name, status=i.status, created_at=i.created_at,
+            inspector_name=i.inspector_name, inspection_type=i.inspection_type,
+            status=i.status, created_at=i.created_at,
             image_count=img_count
         ))
     return result

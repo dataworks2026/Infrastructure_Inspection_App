@@ -8,12 +8,15 @@ class InspectionCreate(BaseModel):
     inspected_at: Optional[datetime] = None
     weather_conditions: Optional[str] = None
     inspector_name: Optional[str] = None
+    inspection_type: Optional[str] = None
 
 class InspectionUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
     inspected_at: Optional[datetime] = None
     weather_conditions: Optional[str] = None
+    inspector_name: Optional[str] = None
+    inspection_type: Optional[str] = None
 
 class InspectionResponse(BaseModel):
     id: str
@@ -22,6 +25,7 @@ class InspectionResponse(BaseModel):
     inspected_at: Optional[datetime]
     weather_conditions: Optional[str]
     inspector_name: Optional[str]
+    inspection_type: Optional[str] = None
     status: str
     created_at: datetime
     image_count: int = 0
