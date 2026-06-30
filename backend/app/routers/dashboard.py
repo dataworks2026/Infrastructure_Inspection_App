@@ -308,6 +308,10 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
     )
 
     # ── Query 8: severity breakdown (for donut) ───────────────────────────────
+    # Normalize legacy S0 → S1 (and bare digits) before tallying so the counts
+    # match the Defect Summary and the on-screen badges, which all display S0 as
+    # S1. Counting the raw value here under-reported S1 (S0 fell into its own
+    # bucket) while S2-S4 looked correct.
     sev_rows = (
         db.query(Detection.severity, func.count(Detection.id).label("cnt"))
         .join(Image, Detection.image_id == Image.id)
@@ -315,7 +319,12 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         .group_by(Detection.severity)
         .all()
     )
-    severity_breakdown = {row.severity: row.cnt for row in sev_rows}
+    severity_breakdown: dict = {}
+    for row in sev_rows:
+        key = _norm_sev(row.severity)
+        if key not in ("S1", "S2", "S3", "S4"):
+            continue
+        severity_breakdown[key] = severity_breakdown.get(key, 0) + row.cnt
 
     # ── Fleet health % ─────────────────────────────────────────────────────────
     total_a  = asset_row.total  if asset_row else 0
