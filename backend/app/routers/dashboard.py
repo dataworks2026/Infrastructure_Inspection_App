@@ -61,21 +61,27 @@ def get_defect_summary(db: Session = Depends(get_db), current_user: User = Depen
     )
     img_counts = {r.asset_id: r.img_count for r in img_rows}
 
-    # Build per-asset summaries
-    assets: dict = {}  # asset_id -> {name, damage_types: {dt: {S1..S4, total}}, totals, ...}
+    # Build per-asset summaries.
+    # Group damage types case-insensitively so e.g. "Corrosion" and "corrosion"
+    # merge into a single row, displayed with a canonical Title-Case label.
+    assets: dict = {}  # asset_id -> {name, summary: {dt_key: {label, S1..S4, total}}}
     for r in rows:
         aid = r.asset_id
         if aid not in assets:
             assets[aid] = {"asset_id": aid, "asset_name": r.asset_name, "summary": {}}
         summary = assets[aid]["summary"]
-        dt = r.damage_type
+        raw_dt = (r.damage_type or "").strip()
+        dt_key = raw_dt.lower()
         sev = _norm_sev(r.severity)
         if sev not in ("S1", "S2", "S3", "S4"):
             continue
-        if dt not in summary:
-            summary[dt] = {"S1": 0, "S2": 0, "S3": 0, "S4": 0, "total": 0}
-        summary[dt][sev] += r.cnt
-        summary[dt]["total"] += r.cnt
+        if dt_key not in summary:
+            summary[dt_key] = {
+                "label": raw_dt.title(),
+                "S1": 0, "S2": 0, "S3": 0, "S4": 0, "total": 0,
+            }
+        summary[dt_key][sev] += r.cnt
+        summary[dt_key]["total"] += r.cnt
 
     result = []
     for aid, data in assets.items():
@@ -85,7 +91,15 @@ def get_defect_summary(db: Session = Depends(get_db), current_user: User = Depen
         result.append({
             "asset_id": data["asset_id"],
             "asset_name": data["asset_name"],
-            "damage_types": [{"damage_type": dt, **counts} for dt, counts in sorted_items],
+            "damage_types": [
+                {
+                    "damage_type": counts["label"],
+                    "S1": counts["S1"], "S2": counts["S2"],
+                    "S3": counts["S3"], "S4": counts["S4"],
+                    "total": counts["total"],
+                }
+                for _dt_key, counts in sorted_items
+            ],
             "totals": {
                 "S1": sum(v["S1"] for v in summary.values()),
                 "S2": sum(v["S2"] for v in summary.values()),
