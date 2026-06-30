@@ -235,7 +235,12 @@ export default function DashboardPage() {
   const images = data?.recent_analyzed_images || [];
   const assetHealth = data?.asset_health || [];
 
+  // Authoritative per-asset S1-S4 totals from the backend (counts ALL detections,
+  // matching the Defect Summary). Falls back to deriving from the analyzed-image
+  // sample only if the backend didn't supply them — note that sample is capped at
+  // 10 images/asset, so the backend value is the correct source.
   const assetSevCounts = useMemo(() => {
+    if (data?.asset_severity) return data.asset_severity as Record<string, Record<string, number>>;
     const counts: Record<string, Record<string, number>> = {};
     for (const img of images) {
       const key = img.asset_id;
@@ -246,7 +251,7 @@ export default function DashboardPage() {
       }
     }
     return counts;
-  }, [images]);
+  }, [data, images]);
 
   if (isLoading) return <DashboardSkeleton />;
 

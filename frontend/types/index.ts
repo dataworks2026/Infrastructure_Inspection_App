@@ -295,6 +295,8 @@ export interface DashboardOverview {
   fleet_health_pct: number;
   assets_by_type: Record<string, number>;
   severity_breakdown: Record<string, number>;
+  /** Authoritative per-asset severity totals (asset_id → {S1..S4}). */
+  asset_severity?: Record<string, { S1: number; S2: number; S3: number; S4: number }>;
   recent_inspections: Array<{id: string; name: string; asset_id: string; status: string; created_at: string}>;
   recent_analyzed_images: DashboardAnalyzedImage[];
   asset_health: DashboardAssetHealth[];
