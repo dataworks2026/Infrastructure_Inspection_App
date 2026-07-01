@@ -195,6 +195,22 @@ def _forecast_note(pred: int, confidence: str,
     )
 
 
+def _cap_low_severity_forecast(curr_sev: int, pred: int, conf: str) -> tuple[int, str]:
+    """Cap spurious high-severity forecasts for low-severity assets.
+
+    The LightGBM forecaster was trained on synthetic data in which S1/S2 never
+    appeared as forecast targets, so it bias-predicts S4 for assets that are
+    currently at S1 or S2. For such an asset, cap any prediction above the
+    current severity at the current severity (a stable expectation is safer than
+    a spurious critical alarm) and mark the confidence Medium to signal the
+    override. Assets at S3/S4 are left untouched, as are predictions that are
+    already at or below the current severity.
+    """
+    if curr_sev <= 2 and pred > curr_sev:
+        return curr_sev, 'Medium'
+    return pred, conf
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def run_forecast_from_dataframe(
@@ -295,6 +311,10 @@ def run_forecast_from_dataframe(
             )
             pred = int(preds[i])
             conf = confidences[i]
+
+            # Cap spurious high-severity forecasts for S1/S2 assets (the model
+            # bias-predicts S4 for low-severity assets — see helper docstring).
+            pred, conf = _cap_low_severity_forecast(curr_sev, pred, conf)
 
             rows.append({
                 'asset_id':               row['asset_id'],
