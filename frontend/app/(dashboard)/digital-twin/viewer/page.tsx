@@ -336,11 +336,10 @@ export default function ViewerPage() {
         </div>
 
         {/* ═══ LEFT COLUMN — LAYERS / STRUCTURES / CONDITIONS ═══
-            The three cards fill the vertical space between the iframe's
-            ASSET DIMENSIONS panel (top-left, ends ≈ y:280) and the bottom
-            controls toolbar (starts ≈ y:820). Anchored to BOTH top and bottom
-            so the cards space themselves evenly with `justify-between`. */}
-        <div className="absolute z-10 pointer-events-auto flex flex-col justify-between"
+            Stacked from the top with a compact gap and internal scroll, so the
+            cards stay clear of the viewer's own bottom controls (Wireframe /
+            Grid / Clip-noise) instead of stretching down over them. */}
+        <div className="absolute z-10 pointer-events-auto flex flex-col gap-3 overflow-y-auto overflow-x-hidden pr-1 dt-panel-scroll"
              style={{ top: 290, bottom: 210, left: 10, width: 240 }}>
           {/* Layer toggles */}
           <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-3">
