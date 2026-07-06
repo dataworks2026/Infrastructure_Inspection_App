@@ -139,3 +139,50 @@ export function buildAnnotationLabel(args: {
 export function damageTypeNameOf(code: string, category: IndustryCategory): string {
   return damageLabelOf(code, category).toLowerCase();
 }
+
+/**
+ * Canonical-label lookup built from the existing taxonomy constants.
+ * Maps each label.toLowerCase() → canonical label, and each code.toLowerCase()
+ * → canonical label as a bonus. Later categories overwrite earlier ones on
+ * collision, which is fine since colliding codes/labels share the same label.
+ */
+const CANONICAL_DAMAGE_LABELS: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const list of Object.values(DAMAGE_TYPES_BY_CATEGORY)) {
+    for (const { code, label } of list) {
+      map[label.toLowerCase()] = label;
+      map[code.toLowerCase()] = label;
+    }
+  }
+  return map;
+})();
+
+const LOWERCASE_CONNECTORS = new Set(['of', 'and', 'the', 'a', 'an', 'to', 'in', 'on', 'for']);
+
+/**
+ * Normalize a raw damage_type string to a canonical, consistently-cased label
+ * for DISPLAY only. Never use for values sent to the backend or as keys.
+ *
+ * - '' / null / undefined → ''
+ * - trims + lowercases + looks up in the taxonomy map → canonical label
+ * - otherwise smart title-cases, keeping common connector words lowercase
+ *   (unless first word); first letter always capitalized.
+ */
+export function canonicalDamageLabel(raw?: string | null): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  const key = trimmed.toLowerCase();
+  const canonical = CANONICAL_DAMAGE_LABELS[key];
+  if (canonical) return canonical;
+
+  const words = key.split(/\s+/);
+  const titled = words
+    .map((word, i) => {
+      if (i !== 0 && LOWERCASE_CONNECTORS.has(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+  return titled.charAt(0).toUpperCase() + titled.slice(1);
+}

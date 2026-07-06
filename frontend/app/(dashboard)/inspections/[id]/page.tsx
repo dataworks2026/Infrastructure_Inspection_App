@@ -15,7 +15,7 @@ import ReviewPanel, {
   type LocalDetectionReview,
 } from '@/components/review/ReviewPanel';
 import ReviewToolbar, { type ReviewTool } from '@/components/review/ReviewToolbar';
-import { industryCategoryOf, damageTypeNameOf } from '@/lib/annotationTaxonomy';
+import { industryCategoryOf, damageTypeNameOf, canonicalDamageLabel } from '@/lib/annotationTaxonomy';
 import { verifiedDetections } from '@/lib/reviewUtils';
 import type { BoundingBox, CorrectedDetection, Detection, DetectionReviewItem, SubmitReviewRequest } from '@/types';
 
@@ -156,7 +156,7 @@ function Lightbox({ images, initialIndex, onClose, analysisResults, showLabels =
                 <div key={i} className="flex items-center gap-2 rounded-lg px-3 py-2 flex-shrink-0"
                   style={{ background: cfg.stroke + '22', border: `1px solid ${cfg.stroke}55` }}>
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cfg.stroke }} />
-                  <span className="text-white text-sm font-semibold">{d.damage_type}</span>
+                  <span className="text-white text-sm font-semibold">{canonicalDamageLabel(d.damage_type)}</span>
                   <span className="text-white/50 text-sm">{(d.confidence * 100).toFixed(0)}%</span>
                   {d.severity && <SeverityBadge severity={d.severity} />}
                 </div>
@@ -1590,7 +1590,7 @@ export default function InspectionDetailPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <div className={`w-3 h-3 rounded-full flex-shrink-0 ${cfg.tw.dot}`} />
-                                <span className={`text-base font-semibold ${cfg.tw.text}`}>{d.damage_type}</span>
+                                <span className={`text-base font-semibold ${cfg.tw.text}`}>{canonicalDamageLabel(d.damage_type)}</span>
                               </div>
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">

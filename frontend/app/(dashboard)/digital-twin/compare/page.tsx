@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { assetsApi, inspectionsApi, imagesApi, analysisApi, comparisonPairsApi } from '@/lib/api';
 import { verifiedDetections } from '@/lib/reviewUtils';
+import { canonicalDamageLabel } from '@/lib/annotationTaxonomy';
 import type { Detection, Inspection, ImageRecord } from '@/types';
 
 const CACHE_BUST = Date.now();
@@ -282,7 +283,7 @@ function PhotoCard({
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ background: `${SEV_COLOR[d.severity] ?? '#6B7280'}30`, color: SEV_COLOR[d.severity] ?? '#6B7280' }}
               >
-                {d.severity} · {d.damage_type}
+                {d.severity} · {canonicalDamageLabel(d.damage_type)}
               </span>
             ))}
           </div>

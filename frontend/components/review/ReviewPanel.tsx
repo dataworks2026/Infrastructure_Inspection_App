@@ -21,6 +21,7 @@ import {
   STRUCTURAL_SEGMENTS,
   buildAnnotationLabel,
   damageLabelOf,
+  canonicalDamageLabel,
   type IndustryCategory,
 } from '@/lib/annotationTaxonomy';
 
@@ -344,7 +345,7 @@ export default function ReviewPanel({
           {detections.map(d => (
             <div key={d.id} className="bg-white rounded-lg border border-slate-200 p-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-bold text-slate-700 truncate">{d.damage_type}</span>
+                <span className="text-sm font-bold text-slate-700 truncate">{canonicalDamageLabel(d.damage_type)}</span>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {d.source === 'engineer_added' ? (
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">NEW</span>
@@ -565,10 +566,10 @@ export default function ReviewPanel({
                     <span className="text-sm font-bold text-slate-700 truncate">
                       {modCode ? (
                         <>
-                          <span className="line-through text-slate-400">{det.damage_type}</span>
+                          <span className="line-through text-slate-400">{canonicalDamageLabel(det.damage_type)}</span>
                           <span className="text-amber-600"> → {damageLabelOf(modCode, category)}</span>
                         </>
-                      ) : det.damage_type}
+                      ) : canonicalDamageLabel(det.damage_type)}
                     </span>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {modSev ? (
