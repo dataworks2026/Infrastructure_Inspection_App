@@ -15,7 +15,8 @@ const BLUE  = '#93C5FD';
 const BRAND = '#0891B2';
 
 const NAV_ITEMS = [
-  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
+  { href: '/dashboard',           label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
+  { href: '/digital-twin/viewer', label: '3D Viewer',   icon: Box },
   { href: '/analytics',   label: 'Analytics',   icon: TrendingDown,    tourId: 'nav-analytics' },
   { href: '/assets',      label: 'Assets',      icon: Building2,       tourId: 'nav-assets' },
   { href: '/map',         label: 'Map',         icon: Map,             tourId: 'nav-map' },
@@ -28,7 +29,6 @@ const NAV_ITEMS = [
 
 const TWIN_ITEMS = [
   { href: '/digital-twin',         label: 'Overview',  icon: Box },
-  { href: '/digital-twin/viewer',  label: '3D Viewer', icon: Box },
   { href: '/digital-twin/compare', label: 'Compare',   icon: GitCompareArrows },
   { href: '/digital-twin/heatmap', label: 'Heatmap',   icon: Flame },
 ];
@@ -232,7 +232,7 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileO
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden"
+        <nav className="sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden"
           style={{ padding: isCollapsed ? '16px 8px' : '16px 10px' }}>
 
           {!isCollapsed && (

@@ -22,6 +22,13 @@ body {
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
 
+/* Sidebar nav — thicker, higher-contrast scrollbar (dark sidebar background) */
+.sidebar-nav-scroll { scrollbar-width: auto; scrollbar-color: #5E8C7D rgba(255,255,255,0.05); }
+.sidebar-nav-scroll::-webkit-scrollbar { width: 10px; }
+.sidebar-nav-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 6px; }
+.sidebar-nav-scroll::-webkit-scrollbar-thumb { background: #5E8C7D; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+.sidebar-nav-scroll::-webkit-scrollbar-thumb:hover { background: #7DB0A0; }
+
 /* Smooth transitions */
 a, button, input, select, textarea { transition: all 0.15s ease; }
 
