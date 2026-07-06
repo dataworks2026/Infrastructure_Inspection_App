@@ -1398,3 +1398,35 @@ def test_annotated_zip_clean_image_passthrough(client, db_session, tmp_path, rev
     for n in names:
         assert "_annotated" not in n
         assert len(zf.read(n)) > 0
+
+
+# ─── delete a reviewed inspection (regression) ────────────────────
+
+def test_delete_reviewed_inspection_cascades_reviews(client, db_session, review_data):
+    """A reviewed inspection has DetectionReview rows whose FKs reference its
+    detections (no ondelete cascade). Deleting the inspection must clear those
+    reviews first, or the delete fails with a FK violation (the "some
+    inspections won't delete from the UI" bug). Verify it now succeeds and the
+    whole subtree is gone."""
+    d = review_data
+    assert _start(client, d["inspection_id"]).status_code == 200
+    r1, r2 = _submit_all(client, d)
+    assert r1.status_code == 200, r1.text
+    assert r2.status_code == 200, r2.text
+
+    # sanity: review rows exist before delete
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.inspection_id == d["inspection_id"]
+    ).count() > 0
+
+    resp = client.delete(f"/api/v1/inspections/{d['inspection_id']}")
+    assert resp.status_code == 204, resp.text
+
+    # inspection + all its data gone
+    assert db_session.get(Inspection, d["inspection_id"]) is None
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.inspection_id == d["inspection_id"]).count() == 0
+    assert db_session.query(Image).filter(
+        Image.inspection_id == d["inspection_id"]).count() == 0
+    for det_key in ("det_a", "det_b", "det_c", "det_d"):
+        assert db_session.get(Detection, d[det_key]) is None

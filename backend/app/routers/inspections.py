@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.inspection import Inspection
 from app.models.image import Image
 from app.models.detection import Detection
+from app.models.detection_review import DetectionReview
 from app.models.mission import Mission
 from app.models.v1_analytics_run import V1AnalyticsRun
 from app.models.v1_analytics_item import V1AnalyticsItem
@@ -88,6 +89,10 @@ def delete_inspection(
         db.query(V1AnalyticsItem).filter(V1AnalyticsItem.analytics_run_id == run.id).delete()
         db.delete(run)
     db.query(RiskAssessment).filter(RiskAssessment.inspection_run_id == inspection_id).delete()
+    # Engineer review rows FK-reference detections (cv/engineer_detection_id) with
+    # no ondelete cascade — clear them first, or deleting a reviewed inspection's
+    # detections raises a FK violation and the delete silently fails.
+    db.query(DetectionReview).filter(DetectionReview.inspection_id == inspection_id).delete()
     images = db.query(Image).filter(Image.inspection_id == inspection_id).all()
     for img in images:
         db.query(Detection).filter(Detection.image_id == img.id).delete()
