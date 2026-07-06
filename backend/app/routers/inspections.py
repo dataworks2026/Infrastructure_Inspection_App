@@ -67,20 +67,19 @@ def update_inspection(inspection_id: str, data: InspectionUpdate, db: Session = 
     img_count = db.query(Image).filter(Image.inspection_id == inspection_id).count()
     return InspectionResponse(**{k: v for k, v in inspection.__dict__.items() if not k.startswith('_')}, image_count=img_count)
 
-@router.delete("/{inspection_id}", status_code=204)
-def delete_inspection(
-    inspection_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    inspection = db.query(Inspection).filter(Inspection.id == inspection_id, Inspection.organization_id == current_user.organization_id).first()
-    if not inspection:
-        raise HTTPException(status_code=404, detail="Inspection not found")
+def cascade_delete_inspection(db: Session, inspection: Inspection) -> None:
+    """Delete an inspection and its full data subtree (does NOT commit).
+
+    Reusable by both the inspection-delete endpoint and asset deletion. Order
+    matters because several FKs have no ondelete cascade:
+    analytics → risk assessments → detection_reviews → detections → images →
+    inspection. Missions keep their history, so their inspection_id is nulled.
+    """
+    inspection_id = inspection.id
 
     # Break circular FK: missions.inspection_id → inspections
     db.query(Mission).filter(Mission.inspection_id == inspection_id).update({"inspection_id": None})
 
-    # Cascade: analytics → risk assessments → detections → images → inspection
     runs = db.query(V1AnalyticsRun).filter(V1AnalyticsRun.inspection_id == inspection_id).all()
     for run in runs:
         items = db.query(V1AnalyticsItem).filter(V1AnalyticsItem.analytics_run_id == run.id).all()
@@ -98,4 +97,17 @@ def delete_inspection(
         db.query(Detection).filter(Detection.image_id == img.id).delete()
     db.query(Image).filter(Image.inspection_id == inspection_id).delete()
     db.delete(inspection)
+
+
+@router.delete("/{inspection_id}", status_code=204)
+def delete_inspection(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    inspection = db.query(Inspection).filter(Inspection.id == inspection_id, Inspection.organization_id == current_user.organization_id).first()
+    if not inspection:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+
+    cascade_delete_inspection(db, inspection)
     db.commit()

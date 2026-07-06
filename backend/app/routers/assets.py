@@ -1,15 +1,35 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from typing import List, Optional
 from app.core.deps import get_db, get_current_user
+from app.database import Base
 from app.models.user import User
 from app.models.asset import Asset
 from app.models.inspection import Inspection
 from app.models.image import Image
+from app.models.mission import Mission
+from app.models.v1_analytics_run import V1AnalyticsRun
+from app.models.v1_analytics_item import V1AnalyticsItem
+from app.models.v1_analytics_reason import V1AnalyticsReason
+from app.routers.inspections import cascade_delete_inspection
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 
 router = APIRouter()
+
+# Tables with an asset_id FK handled explicitly by delete_asset.
+_ASSET_DELETE_HANDLED = {
+    "assets", "inspections", "images", "detections",
+    "missions", "v1_analytics_run", "v1_analytics_item",
+}
+# Any OTHER table that references an asset — computed once from the mapped
+# metadata (no runtime DB reflection, which would interfere with the request's
+# transaction). delete_asset sweeps these so an asset delete can never FK-fail
+# on a stray reference (asset_segments, risk/maintenance, damage_progression…).
+_ASSET_REF_TABLES = [
+    t.name for t in Base.metadata.tables.values()
+    if "asset_id" in t.columns and t.name not in _ASSET_DELETE_HANDLED
+]
 
 def _enrich_assets(assets: List[Asset], db: Session) -> List[AssetResponse]:
     """
@@ -120,5 +140,30 @@ def delete_asset(asset_id: str, db: Session = Depends(get_db), current_user: Use
     asset = db.query(Asset).filter(Asset.id == asset_id, Asset.organization_id == current_user.organization_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
+
+    # 1. Delete every inspection's full subtree (detections, images, reviews,
+    #    per-inspection analytics/risk). Missions keep their history (id nulled).
+    inspections = db.query(Inspection).filter(Inspection.asset_id == asset_id).all()
+    for insp in inspections:
+        cascade_delete_inspection(db, insp)
+
+    # 2. Asset-level drone missions (the "Twin Updates" — asset_id FK, no cascade).
+    db.query(Mission).filter(Mission.asset_id == asset_id).delete()
+
+    # 3. Asset-level analytics runs (+ their items/reasons).
+    run_ids = [r.id for r in db.query(V1AnalyticsRun.id).filter(V1AnalyticsRun.asset_id == asset_id).all()]
+    if run_ids:
+        item_ids = [r.id for r in db.query(V1AnalyticsItem.id).filter(V1AnalyticsItem.analytics_run_id.in_(run_ids)).all()]
+        if item_ids:
+            db.query(V1AnalyticsReason).filter(V1AnalyticsReason.analytics_item_id.in_(item_ids)).delete()
+        db.query(V1AnalyticsItem).filter(V1AnalyticsItem.analytics_run_id.in_(run_ids)).delete()
+        db.query(V1AnalyticsRun).filter(V1AnalyticsRun.id.in_(run_ids)).delete()
+    db.query(V1AnalyticsItem).filter(V1AnalyticsItem.asset_id == asset_id).delete()
+
+    # 4. Sweep any remaining asset-referencing table (precomputed from metadata)
+    #    so the asset delete can never FK-fail on a stray reference.
+    for tbl in _ASSET_REF_TABLES:
+        db.execute(text(f'DELETE FROM "{tbl}" WHERE asset_id = :aid'), {"aid": asset_id})
+
     db.delete(asset)
     db.commit()

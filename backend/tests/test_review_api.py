@@ -1430,3 +1430,41 @@ def test_delete_reviewed_inspection_cascades_reviews(client, db_session, review_
         Image.inspection_id == d["inspection_id"]).count() == 0
     for det_key in ("det_a", "det_b", "det_c", "det_d"):
         assert db_session.get(Detection, d[det_key]) is None
+
+
+# ─── delete an asset with reviewed inspections + missions (regression) ─────
+
+def test_delete_asset_cascades_inspections_and_missions(client, db_session, review_data):
+    """Deleting an asset must remove its inspections' full subtree (incl. review
+    rows) and asset-level drone missions — the old endpoint did a bare
+    db.delete(asset) and FK-failed. Verify a reviewed asset deletes cleanly."""
+    from app.models.mission import Mission
+    d = review_data
+    asset_id = "asset-r1"
+
+    # make it a reviewed asset + attach an asset-level mission (a "twin update")
+    assert _start(client, d["inspection_id"]).status_code == 200
+    r1, r2 = _submit_all(client, d)
+    assert r1.status_code == 200 and r2.status_code == 200
+    db_session.add(Mission(
+        id=str(uuid.uuid4()),
+        organization_id=db_session.get(Inspection, d["inspection_id"]).organization_id,
+        asset_id=asset_id,
+        name="Twin mission",
+        routine_type="orbit",
+        status="aborted",
+    ))
+    db_session.commit()
+
+    resp = client.delete(f"/api/v1/assets/{asset_id}")
+    assert resp.status_code == 204, resp.text
+
+    # asset + everything under it is gone (expire first so we read committed DB
+    # state, not the test session's identity map)
+    from app.models.asset import Asset
+    db_session.expire_all()
+    assert db_session.get(Asset, asset_id) is None
+    assert db_session.query(Inspection).filter(Inspection.asset_id == asset_id).count() == 0
+    assert db_session.query(Mission).filter(Mission.asset_id == asset_id).count() == 0
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.inspection_id == d["inspection_id"]).count() == 0
