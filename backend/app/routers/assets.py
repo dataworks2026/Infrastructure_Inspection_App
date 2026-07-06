@@ -168,15 +168,23 @@ def delete_asset(asset_id: str, db: Session = Depends(get_db), current_user: Use
             db.execute(stmt, {"mids": mission_ids})
     db.query(Mission).filter(Mission.asset_id == asset_id).delete()
 
-    # 3. Asset-level analytics runs (+ their items/reasons).
+    # 3. Analytics. This asset's items live under shared org-wide runs (one item
+    #    per asset per run), so delete THIS asset's items + their reasons without
+    #    touching the shared runs. Reasons (child of item) must go first.
+    item_ids = [r.id for r in db.query(V1AnalyticsItem.id).filter(V1AnalyticsItem.asset_id == asset_id).all()]
+    if item_ids:
+        db.query(V1AnalyticsReason).filter(V1AnalyticsReason.analytics_item_id.in_(item_ids)).delete()
+        db.query(V1AnalyticsItem).filter(V1AnalyticsItem.id.in_(item_ids)).delete()
+
+    # Analytics runs specific to this asset (rare — most runs are org-wide and
+    # shared, so are left intact). Clear any remaining items/reasons under them.
     run_ids = [r.id for r in db.query(V1AnalyticsRun.id).filter(V1AnalyticsRun.asset_id == asset_id).all()]
     if run_ids:
-        item_ids = [r.id for r in db.query(V1AnalyticsItem.id).filter(V1AnalyticsItem.analytics_run_id.in_(run_ids)).all()]
-        if item_ids:
-            db.query(V1AnalyticsReason).filter(V1AnalyticsReason.analytics_item_id.in_(item_ids)).delete()
-        db.query(V1AnalyticsItem).filter(V1AnalyticsItem.analytics_run_id.in_(run_ids)).delete()
+        run_item_ids = [r.id for r in db.query(V1AnalyticsItem.id).filter(V1AnalyticsItem.analytics_run_id.in_(run_ids)).all()]
+        if run_item_ids:
+            db.query(V1AnalyticsReason).filter(V1AnalyticsReason.analytics_item_id.in_(run_item_ids)).delete()
+            db.query(V1AnalyticsItem).filter(V1AnalyticsItem.analytics_run_id.in_(run_ids)).delete()
         db.query(V1AnalyticsRun).filter(V1AnalyticsRun.id.in_(run_ids)).delete()
-    db.query(V1AnalyticsItem).filter(V1AnalyticsItem.asset_id == asset_id).delete()
 
     # 4. Sweep any remaining asset-referencing table (precomputed from metadata)
     #    so the asset delete can never FK-fail on a stray reference.

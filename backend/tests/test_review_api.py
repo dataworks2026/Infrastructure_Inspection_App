@@ -1461,6 +1461,26 @@ def test_delete_asset_cascades_inspections_and_missions(client, db_session, revi
         id=str(uuid.uuid4()), mission_id=mission_id,
         sequence_index=0, latitude=40.0, longitude=-74.0, altitude_m=30.0,
     ))
+    # analytics for this asset under a shared org-wide run: item + reason must be
+    # cleared (reason before item) without deleting the shared run
+    from app.models.v1_analytics_run import V1AnalyticsRun
+    from app.models.v1_analytics_item import V1AnalyticsItem
+    from app.models.v1_analytics_reason import V1AnalyticsReason
+    org_id = db_session.get(Inspection, d["inspection_id"]).organization_id
+    run_id, item_id = str(uuid.uuid4()), str(uuid.uuid4())
+    db_session.add(V1AnalyticsRun(
+        id=run_id, organization_id=org_id, status="completed",
+        engine_version="1.0", schema_version="v3",
+    ))
+    db_session.add(V1AnalyticsItem(
+        id=item_id, analytics_run_id=run_id, asset_id=asset_id, organization_id=org_id,
+        status="completed", severity_now="S2", priority_score=50.0, priority_rank=1,
+        recommended_action="monitor",
+    ))
+    db_session.add(V1AnalyticsReason(
+        id=str(uuid.uuid4()), analytics_item_id=item_id,
+        reason_code="TEST", reason_text="test reason",
+    ))
     db_session.commit()
 
     resp = client.delete(f"/api/v1/assets/{asset_id}")
@@ -1475,3 +1495,8 @@ def test_delete_asset_cascades_inspections_and_missions(client, db_session, revi
     assert db_session.query(Mission).filter(Mission.asset_id == asset_id).count() == 0
     assert db_session.query(DetectionReview).filter(
         DetectionReview.inspection_id == d["inspection_id"]).count() == 0
+    # analytics item + reason gone; the shared run survives
+    assert db_session.query(V1AnalyticsItem).filter(V1AnalyticsItem.asset_id == asset_id).count() == 0
+    assert db_session.query(V1AnalyticsReason).filter(
+        V1AnalyticsReason.analytics_item_id == item_id).count() == 0
+    assert db_session.get(V1AnalyticsRun, run_id) is not None
