@@ -1,5 +1,5 @@
 'use client';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { memo, useCallback, useEffect, useState } from 'react';
 import {
@@ -93,7 +93,6 @@ interface SidebarProps {
 
 export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const user = useCurrentUser();
   const [isDesktop, setIsDesktop] = useState(true);
 
@@ -108,8 +107,10 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileO
 
   const handleLogout = useCallback(() => {
     clearAuth();
-    router.replace('/login');
-  }, [router]);
+    // Full navigation so the in-memory user context + query cache are fully
+    // reset — a client-side replace would leave the old account cached.
+    window.location.assign('/login');
+  }, []);
 
   // Keyboard shortcut: press [ to toggle (desktop only)
   useEffect(() => {

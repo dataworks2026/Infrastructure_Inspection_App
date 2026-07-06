@@ -1,12 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { authApi } from '@/lib/api';
 import { saveAuth } from '@/lib/auth';
 import { Eye, EyeOff, Cpu, SearchCheck, BarChart3, FileText } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,7 +22,11 @@ export default function LoginPage() {
         ? await authApi.login(email, password)
         : await authApi.register(email, password, fullName, organizationName);
       saveAuth(token);
-      router.replace('/dashboard');
+      // Full navigation (not client-side) so the whole app re-initialises for
+      // the new account: the user context re-hydrates and the query cache
+      // starts fresh — otherwise the previous account's user/data lingers in
+      // memory until a manual reload.
+      window.location.assign('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Authentication failed');
     } finally {
