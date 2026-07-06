@@ -110,7 +110,7 @@ function AccuracyGauge({ pct }: { pct: number }) {
 
   return (
     <div className="flex flex-col items-center">
-      <svg width="200" height="115" viewBox="0 0 200 115" role="img" aria-label={`CV accuracy ${clamped.toFixed(1)} percent`}>
+      <svg width="200" height="115" viewBox="0 0 200 115" role="img" aria-label={`Verified rate ${clamped.toFixed(1)} percent`}>
         {/* Track */}
         <path
           d={`M 20 95 A ${r} ${r} 0 0 1 180 95`}
@@ -141,7 +141,7 @@ function AccuracyGauge({ pct }: { pct: number }) {
           {clamped.toFixed(1)}%
         </text>
         <text x="100" y="108" textAnchor="middle" fill="currentColor" className="text-card-muted" fontSize="11" opacity="0.7">
-          CV Accuracy
+          Verified
         </text>
       </svg>
       <div className={`text-sm font-semibold mt-1 ${text}`}>
@@ -365,21 +365,21 @@ export default function ReviewSummaryPage() {
 
       {/* ── 2. KPI row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="CV Detections"   value={totals.cv_detections}  sublabel="Total from model"  color="blue"   icon={<ScanSearch className="w-5 h-5" />} />
+        <KPICard label="Detections"      value={totals.cv_detections}  sublabel="Detected by model" color="blue"   icon={<ScanSearch className="w-5 h-5" />} />
         <KPICard label="Accepted"        value={totals.accepted}       sublabel="Confirmed as-is"   color="green"  icon={<CheckCircle className="w-5 h-5" />} delay={50} />
         <KPICard label="Rejected"        value={totals.rejected}       sublabel="False positives"   color="red"    icon={<XCircle className="w-5 h-5" />} delay={100} />
         <KPICard label="Modified"        value={totals.modified}       sublabel="Corrected by engineer" color="orange" icon={<Pencil className="w-5 h-5" />} delay={150} />
-        <KPICard label="Engineer Added"  value={totals.engineer_added} sublabel="Missed by CV"      color="blue"   icon={<PlusCircle className="w-5 h-5" />} delay={200} />
-        <KPICard label="CV Accuracy"     value={`${totals.accuracy_pct.toFixed(1)}%`} sublabel={`${totals.final_count} final verified`} color={totals.accuracy_pct >= 75 ? 'green' : totals.accuracy_pct >= 50 ? 'orange' : 'red'} delay={250} />
+        <KPICard label="Engineer Added"  value={totals.engineer_added} sublabel="Missed by model"   color="blue"   icon={<PlusCircle className="w-5 h-5" />} delay={200} />
+        <KPICard label="Verified"        value={`${totals.accuracy_pct.toFixed(1)}%`} sublabel={`${totals.final_count} final verified`} color={totals.accuracy_pct >= 75 ? 'green' : totals.accuracy_pct >= 50 ? 'orange' : 'red'} delay={250} />
       </div>
 
       {/* ── 3. Accuracy gauge ───────────────────────────────────────────── */}
       <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark p-6 flex flex-col md:flex-row items-center gap-8">
         <AccuracyGauge pct={totals.accuracy_pct} />
         <div className="flex-1 w-full">
-          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider mb-3">Model Performance</h2>
+          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider mb-3">Review Summary</h2>
           <p className="text-sm text-card-muted leading-relaxed">
-            The CV model produced <span className="font-semibold text-card-text">{totals.cv_detections}</span> detections,
+            The model produced <span className="font-semibold text-card-text">{totals.cv_detections}</span> detections,
             of which <span className="font-semibold text-emerald-400">{totals.accepted}</span> were accepted unchanged.
             The engineer rejected <span className="font-semibold text-red-400">{totals.rejected}</span>,
             corrected <span className="font-semibold text-amber-400">{totals.modified}</span>,
@@ -414,10 +414,10 @@ export default function ReviewSummaryPage() {
             <thead>
               <tr className="text-left text-xs text-card-faint uppercase tracking-wider border-b border-card-border">
                 <th className="px-6 py-3 font-semibold">Image</th>
-                <th className="px-4 py-3 font-semibold text-right">CV Detections</th>
+                <th className="px-4 py-3 font-semibold text-right">Detections</th>
                 <th className="px-4 py-3 font-semibold text-right">Final Verified</th>
                 <th className="px-4 py-3 font-semibold">Actions</th>
-                <th className="px-6 py-3 font-semibold">Accuracy</th>
+                <th className="px-6 py-3 font-semibold">Verified</th>
               </tr>
             </thead>
             <tbody>
@@ -441,18 +441,18 @@ export default function ReviewSummaryPage() {
       {/* ── 5. Damage type accuracy ─────────────────────────────────────── */}
       <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark overflow-hidden">
         <div className="px-6 py-4 border-b border-card-border">
-          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider">Accuracy by Damage Type</h2>
+          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider">Verified by Damage Type</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-card-faint uppercase tracking-wider border-b border-card-border">
                 <th className="px-6 py-3 font-semibold">Damage Type</th>
-                <th className="px-4 py-3 font-semibold text-right">CV Detected</th>
+                <th className="px-4 py-3 font-semibold text-right">Detected</th>
                 <th className="px-4 py-3 font-semibold text-right">Accepted</th>
                 <th className="px-4 py-3 font-semibold text-right">Rejected</th>
                 <th className="px-4 py-3 font-semibold text-right">Modified</th>
-                <th className="px-6 py-3 font-semibold">Accuracy</th>
+                <th className="px-6 py-3 font-semibold">Verified</th>
               </tr>
             </thead>
             <tbody>
