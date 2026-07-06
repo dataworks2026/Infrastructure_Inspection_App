@@ -73,9 +73,9 @@ def calculate_deterioration(df: pd.DataFrame) -> pd.DataFrame:
                 acceleration = True
 
         # ── Step 4: Trend direction ────────────────────────
-        # The acceleration flag drives the label: a worsening asset whose rate
-        # is itself increasing reads as 'accelerating' even when its overall
-        # slope hasn't yet crossed the steep (0.8/yr) threshold.
+        # The acceleration flag drives the 'accelerating' label: a worsening
+        # asset is 'accelerating' only when its rate is itself increasing.
+        # A steady worsening trend stays 'worsening' regardless of how steep.
         trend = _classify_trend(slope, avg_change, scores, acceleration)
 
         results.append({
@@ -121,13 +121,13 @@ def _classify_trend(
     if len(changes) >= 3 and sign_changes >= len(changes) - 1:
         return 'fluctuating'
 
-    # Accelerating — worsening AND speeding up. Triggered either by the
-    # acceleration flag (rate increasing across the series) or by a steep
-    # overall slope, so a moderate-but-accelerating asset is not mislabeled
-    # as merely 'worsening'.
+    # Accelerating — worsening AND speeding up. Driven by the acceleration flag
+    # (the rate of worsening is itself increasing across the series). A high but
+    # *steady* slope is NOT accelerating: a constant rate is 'worsening' no
+    # matter how steep — the urgency of a steep trend is conveyed by the TTI,
+    # not by relabeling it 'accelerating'. (Previously a slope > 0.8 fallback
+    # mislabeled a steady +1/yr worsening trend as accelerating.)
     if slope > 0 and acceleration:
-        return 'accelerating'
-    if slope > 0.8:
         return 'accelerating'
 
     # Worsening — steadily going up

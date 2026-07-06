@@ -26,9 +26,12 @@ def test_worsening_without_acceleration():
     assert _classify_trend(0.5, 0.0, scores, acceleration=False) == "worsening"
 
 
-def test_steep_slope_still_accelerating_without_flag():
-    scores = [1, 2, 4]
-    assert _classify_trend(0.9, 0.0, scores, acceleration=False) == "accelerating"
+def test_steep_but_steady_slope_is_worsening_not_accelerating():
+    # A steep but STEADY worsening trend (e.g. the QA linear "Worsening" set
+    # A,C,E,G = 1,2,3,4) must read as 'worsening', not 'accelerating' — a
+    # constant rate is not acceleration, no matter how steep.
+    scores = [1, 2, 3, 4]
+    assert _classify_trend(1.0, 0.0, scores, acceleration=False) == "worsening"
 
 
 def test_improving_label():
