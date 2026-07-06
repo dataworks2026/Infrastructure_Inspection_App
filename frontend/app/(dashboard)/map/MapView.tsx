@@ -296,6 +296,28 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current.clear();
 
+    // Spread assets that share the same coordinates around a small circle so
+    // co-located markers don't stack exactly and hide each other.
+    const SPREAD_DEG = 0.00008; // ≈ 9m
+    const groups = new Map<string, string[]>();
+    assets.forEach(a => {
+      if (a.latitude == null || a.longitude == null) return;
+      const key = `${a.longitude.toFixed(5)},${a.latitude.toFixed(5)}`;
+      (groups.get(key) ?? groups.set(key, []).get(key)!).push(a.id);
+    });
+    const posById = new Map<string, [number, number]>();
+    assets.forEach(a => {
+      if (a.latitude == null || a.longitude == null) return;
+      const key = `${a.longitude.toFixed(5)},${a.latitude.toFixed(5)}`;
+      const members = groups.get(key)!;
+      if (members.length === 1) { posById.set(a.id, [a.longitude, a.latitude]); return; }
+      const i = members.indexOf(a.id);
+      const angle = (2 * Math.PI * i) / members.length;
+      const lng = a.longitude + (SPREAD_DEG * Math.cos(angle)) / Math.max(0.1, Math.cos(a.latitude * Math.PI / 180));
+      const lat = a.latitude + SPREAD_DEG * Math.sin(angle);
+      posById.set(a.id, [lng, lat]);
+    });
+
     // Create markers
     assets.forEach(asset => {
       if (asset.latitude == null || asset.longitude == null) return;
@@ -311,7 +333,7 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
         .setHTML(assetPopupHTML(asset, color, label, asset.image_count ?? 0));
 
       const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat([asset.longitude, asset.latitude])
+        .setLngLat(posById.get(asset.id) ?? [asset.longitude, asset.latitude])
         .setPopup(popup)
         .addTo(map);
 
