@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text
+from sqlalchemy import func, text, bindparam
 from typing import List, Optional
 from app.core.deps import get_db, get_current_user
 from app.database import Base
@@ -29,6 +29,15 @@ _ASSET_DELETE_HANDLED = {
 _ASSET_REF_TABLES = [
     t.name for t in Base.metadata.tables.values()
     if "asset_id" in t.columns and t.name not in _ASSET_DELETE_HANDLED
+]
+# Mission-owned child tables (mission_waypoints, telemetry_points, flight_logs,
+# thermal_captures, mission_records) — their rows must be cleared before the
+# parent missions are deleted, or the FK blocks the delete. inspections/images
+# also carry a mission_id back-reference but are handled by the asset cascade
+# (and are excluded here so we never delete them via the mission path).
+_MISSION_REF_TABLES = [
+    t.name for t in Base.metadata.tables.values()
+    if "mission_id" in t.columns and t.name not in _ASSET_DELETE_HANDLED
 ]
 
 def _enrich_assets(assets: List[Asset], db: Session) -> List[AssetResponse]:
@@ -148,6 +157,15 @@ def delete_asset(asset_id: str, db: Session = Depends(get_db), current_user: Use
         cascade_delete_inspection(db, insp)
 
     # 2. Asset-level drone missions (the "Twin Updates" — asset_id FK, no cascade).
+    #    Clear rows that reference these missions (mission_waypoints, …) first,
+    #    or the missions delete violates their FK.
+    mission_ids = [m.id for m in db.query(Mission.id).filter(Mission.asset_id == asset_id).all()]
+    if mission_ids:
+        for tbl in _MISSION_REF_TABLES:
+            stmt = text(f'DELETE FROM "{tbl}" WHERE mission_id IN :mids').bindparams(
+                bindparam("mids", expanding=True)
+            )
+            db.execute(stmt, {"mids": mission_ids})
     db.query(Mission).filter(Mission.asset_id == asset_id).delete()
 
     # 3. Asset-level analytics runs (+ their items/reasons).

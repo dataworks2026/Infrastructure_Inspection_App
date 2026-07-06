@@ -1446,13 +1446,20 @@ def test_delete_asset_cascades_inspections_and_missions(client, db_session, revi
     assert _start(client, d["inspection_id"]).status_code == 200
     r1, r2 = _submit_all(client, d)
     assert r1.status_code == 200 and r2.status_code == 200
+    from app.models.mission_waypoint import MissionWaypoint
+    mission_id = str(uuid.uuid4())
     db_session.add(Mission(
-        id=str(uuid.uuid4()),
+        id=mission_id,
         organization_id=db_session.get(Inspection, d["inspection_id"]).organization_id,
         asset_id=asset_id,
         name="Twin mission",
         routine_type="orbit",
         status="aborted",
+    ))
+    # a mission child row — must not FK-block the asset delete
+    db_session.add(MissionWaypoint(
+        id=str(uuid.uuid4()), mission_id=mission_id,
+        sequence_index=0, latitude=40.0, longitude=-74.0, altitude_m=30.0,
     ))
     db_session.commit()
 
