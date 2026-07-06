@@ -48,6 +48,10 @@ export default function UploadPage() {
     }
     setError(''); setStep('uploading'); setProgress(5);
     setProgressLabel('Creating inspection...');
+    // Track the created inspection so a failed/empty upload can be cleaned up
+    // instead of leaving an orphan "pending" inspection behind.
+    let createdId: string | null = null;
+    const allImages: any[] = [];
     try {
       const createPayload: Partial<Inspection> = {
         asset_id: assetId,
@@ -58,20 +62,27 @@ export default function UploadPage() {
       if (inspectorName.trim()) createPayload.inspector_name = inspectorName.trim();
       if (inspectionType) createPayload.inspection_type = inspectionType;
       const inspection = await inspectionsApi.create(createPayload);
+      createdId = inspection.id;
       setInspectionId(inspection.id);
 
       const imageFiles = files.filter(f => f.type !== 'application/pdf');
       const pdfFiles = files.filter(f => f.type === 'application/pdf');
 
-      const allImages: any[] = [];
+      const warnings: string[] = [];
 
-      // Upload PDFs first (extract images server-side)
+      // Upload PDFs first (extract images server-side). A PDF with no images
+      // must NOT abort the whole upload — warn and continue with the rest.
       if (pdfFiles.length > 0) {
         for (let i = 0; i < pdfFiles.length; i++) {
           setProgressLabel(`Extracting images from PDF ${i + 1} of ${pdfFiles.length}...`);
           setProgress(5 + Math.round(((i + 1) / (pdfFiles.length + 1)) * 15));
-          const pdfResult = await imagesApi.uploadPdf(inspection.id, pdfFiles[i]);
-          allImages.push(...pdfResult.images);
+          try {
+            const pdfResult = await imagesApi.uploadPdf(inspection.id, pdfFiles[i]);
+            allImages.push(...pdfResult.images);
+          } catch (pdfErr: any) {
+            const detail = pdfErr?.response?.data?.detail || 'could not be processed';
+            warnings.push(`"${pdfFiles[i].name}": ${detail}`);
+          }
         }
       }
 
@@ -85,6 +96,17 @@ export default function UploadPage() {
         const batch = imageFiles.slice(i, i + BATCH_SIZE);
         const batchResult = await imagesApi.upload(inspection.id, batch);
         allImages.push(...batchResult.images);
+      }
+
+      // Nothing usable was uploaded (e.g. only an image-less PDF) — remove the
+      // empty inspection so it never lingers as a "pending" orphan.
+      if (allImages.length === 0) {
+        try { await inspectionsApi.delete(inspection.id); } catch { /* best effort */ }
+        createdId = null;
+        setInspectionId('');
+        setError(warnings.length ? `No images to analyze. ${warnings.join(' · ')}` : 'No images found to analyze.');
+        setStep('form');
+        return;
       }
 
       setStep('analyzing'); setProgress(40);
@@ -119,6 +141,12 @@ export default function UploadPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setStep('done');
     } catch (err: any) {
+      // If we failed before any image was uploaded, delete the empty inspection
+      // so a failed upload never leaves a "pending" orphan behind.
+      if (createdId && allImages.length === 0) {
+        try { await inspectionsApi.delete(createdId); } catch { /* best effort */ }
+        setInspectionId('');
+      }
       setError(err.response?.data?.detail || 'Upload failed');
       setStep('form');
     }
