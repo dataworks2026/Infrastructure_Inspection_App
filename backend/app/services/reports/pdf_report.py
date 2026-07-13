@@ -364,10 +364,19 @@ def _annotated_image_flowable(
     im.save(buf, format="JPEG", quality=78, optimize=True)
     buf.seek(0)
 
-    # Fit to content width while keeping aspect ratio
+    # Fit to content width while keeping aspect ratio, capped at max_height
+    # so two image blocks fit on a single letter page.
     cw = _content_width()
+    max_h = 3.0 * inch
     aspect = im.height / im.width
-    return RLImage(buf, width=cw, height=cw * aspect)
+    h_at_full_width = cw * aspect
+    if h_at_full_width > max_h:
+        final_h = max_h
+        final_w = max_h / aspect
+    else:
+        final_w = cw
+        final_h = h_at_full_width
+    return RLImage(buf, width=final_w, height=final_h)
 
 
 def _image_block(img: dict) -> list:
@@ -429,30 +438,20 @@ def _image_block(img: dict) -> list:
 
 
 def _image_findings_pages(findings: list[dict]) -> list:
-    # When the photo can be embedded, give each image its own page (the photo
-    # alone fills most of the content area). When falling back to text-only
-    # blocks (Andrew's original mode), pack two per page.
+    # Two image findings per page. Photos are height-capped in
+    # _annotated_image_flowable so two blocks (image + findings table) fit
+    # on one letter page. Blocks with unusually large detection tables may
+    # still flow to a second page, which reportlab handles automatically.
     elems: list = []
     i = 0
     while i < len(findings):
-        img = findings[i]
-        block = _image_block(img)
-        has_photo = img.get("image_path") and os.path.isfile(img.get("image_path") or "")
-        large = len(img["detections"]) > 6 or has_photo
-
-        if large:
-            elems.extend(block)
-            elems.append(PageBreak())
-            i += 1
-        elif i + 1 < len(findings) and len(findings[i + 1]["detections"]) <= 6:
-            elems.extend(block)
+        elems.extend(_image_block(findings[i]))
+        if i + 1 < len(findings):
             elems.extend(_image_block(findings[i + 1]))
-            elems.append(PageBreak())
             i += 2
         else:
-            elems.extend(block)
-            elems.append(PageBreak())
             i += 1
+        elems.append(PageBreak())
 
     return elems
 
