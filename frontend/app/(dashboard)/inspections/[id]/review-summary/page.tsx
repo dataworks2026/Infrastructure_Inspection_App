@@ -4,11 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft, ScanSearch, CheckCircle, XCircle, Pencil, PlusCircle,
+  ArrowLeft, CheckCircle, Pencil,
   FileDown, FileJson, ClipboardList, AlertCircle, Check, X, Plus, Loader2,
 } from 'lucide-react';
 import { reviewApi, inspectionsApi } from '@/lib/api';
-import KPICard from '@/components/dashboard/KPICard';
 import type {
   ReviewAction,
   ModificationDelta,
@@ -255,8 +254,6 @@ export default function ReviewSummaryPage() {
     );
   }
 
-  const { totals } = data;
-
   return (
     <div className="space-y-6 print:space-y-4">
       {/* ── 1. Header ───────────────────────────────────────────────────── */}
@@ -308,16 +305,6 @@ export default function ReviewSummaryPage() {
             <span className="text-xs text-red-400">{exportError}</span>
           )}
         </div>
-      </div>
-
-      {/* ── 2. KPI row ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Detections"      value={totals.cv_detections}  sublabel="Detected by model" color="blue"   icon={<ScanSearch className="w-5 h-5" />} />
-        <KPICard label="Accepted"        value={totals.accepted}       sublabel="Confirmed as-is"   color="green"  icon={<CheckCircle className="w-5 h-5" />} delay={50} />
-        <KPICard label="Rejected"        value={totals.rejected}       sublabel="False positives"   color="red"    icon={<XCircle className="w-5 h-5" />} delay={100} />
-        <KPICard label="Modified"        value={totals.modified}       sublabel="Corrected by engineer" color="orange" icon={<Pencil className="w-5 h-5" />} delay={150} />
-        <KPICard label="Engineer Added"  value={totals.engineer_added} sublabel="Missed by model"   color="blue"   icon={<PlusCircle className="w-5 h-5" />} delay={200} />
-        <KPICard label="Verified"        value={`${totals.accuracy_pct.toFixed(1)}%`} sublabel={`${totals.final_count} final verified`} color={totals.accuracy_pct >= 75 ? 'green' : totals.accuracy_pct >= 50 ? 'orange' : 'red'} delay={250} />
       </div>
 
       {/* ── 4. Per-image breakdown ──────────────────────────────────────── */}
