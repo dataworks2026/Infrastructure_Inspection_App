@@ -98,58 +98,6 @@ function formatDate(iso: string | null): string {
   });
 }
 
-// ─── Accuracy Gauge (inline SVG semicircular arc) ────────────────────────────
-
-function AccuracyGauge({ pct }: { pct: number }) {
-  const clamped = Math.max(0, Math.min(100, pct));
-  const { hex, text } = accuracyColor(clamped);
-  // Semicircle: radius 80, centered at (100, 95), stroke arc from 180° to 0°
-  const r = 80;
-  const circumference = Math.PI * r; // half-circle length
-  const filled = (clamped / 100) * circumference;
-
-  return (
-    <div className="flex flex-col items-center">
-      <svg width="200" height="115" viewBox="0 0 200 115" role="img" aria-label={`Verified rate ${clamped.toFixed(1)} percent`}>
-        {/* Track */}
-        <path
-          d={`M 20 95 A ${r} ${r} 0 0 1 180 95`}
-          fill="none"
-          stroke="currentColor"
-          className="text-card-border"
-          strokeWidth="14"
-          strokeLinecap="round"
-        />
-        {/* Value arc */}
-        <path
-          d={`M 20 95 A ${r} ${r} 0 0 1 180 95`}
-          fill="none"
-          stroke={hex}
-          strokeWidth="14"
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${circumference}`}
-          style={{ transition: 'stroke-dasharray 600ms ease' }}
-        />
-        {/* Center percentage */}
-        <text
-          x="100" y="88"
-          textAnchor="middle"
-          className="font-mono font-bold"
-          fill={hex}
-          fontSize="32"
-        >
-          {clamped.toFixed(1)}%
-        </text>
-        <text x="100" y="108" textAnchor="middle" fill="currentColor" className="text-card-muted" fontSize="11" opacity="0.7">
-          Verified
-        </text>
-      </svg>
-      <div className={`text-sm font-semibold mt-1 ${text}`}>
-        {clamped < 50 ? 'Needs Retraining' : clamped < 75 ? 'Fair' : clamped < 90 ? 'Good' : 'Excellent'}
-      </div>
-    </div>
-  );
-}
 
 // ─── Per-image action chips ──────────────────────────────────────────────────
 
@@ -308,7 +256,6 @@ export default function ReviewSummaryPage() {
   }
 
   const { totals } = data;
-  const damageTypes = Object.entries(data.damage_type_accuracy);
 
   return (
     <div className="space-y-6 print:space-y-4">
@@ -373,37 +320,6 @@ export default function ReviewSummaryPage() {
         <KPICard label="Verified"        value={`${totals.accuracy_pct.toFixed(1)}%`} sublabel={`${totals.final_count} final verified`} color={totals.accuracy_pct >= 75 ? 'green' : totals.accuracy_pct >= 50 ? 'orange' : 'red'} delay={250} />
       </div>
 
-      {/* ── 3. Accuracy gauge ───────────────────────────────────────────── */}
-      <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark p-6 flex flex-col md:flex-row items-center gap-8">
-        <AccuracyGauge pct={totals.accuracy_pct} />
-        <div className="flex-1 w-full">
-          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider mb-3">Review Summary</h2>
-          <p className="text-sm text-card-muted leading-relaxed">
-            The model produced <span className="font-semibold text-card-text">{totals.cv_detections}</span> detections,
-            of which <span className="font-semibold text-emerald-400">{totals.accepted}</span> were accepted unchanged.
-            The engineer rejected <span className="font-semibold text-red-400">{totals.rejected}</span>,
-            corrected <span className="font-semibold text-amber-400">{totals.modified}</span>,
-            and added <span className="font-semibold text-sky-400">{totals.engineer_added}</span> detections the model missed.
-            The final verified record contains <span className="font-semibold text-card-text">{totals.final_count}</span> detections.
-          </p>
-          {/* Stacked proportion bar */}
-          {totals.cv_detections > 0 && (
-            <div className="mt-4">
-              <div className="flex h-2.5 rounded-full overflow-hidden bg-card-border">
-                <div className="bg-emerald-500" style={{ width: `${(totals.accepted / totals.cv_detections) * 100}%` }} title={`Accepted: ${totals.accepted}`} />
-                <div className="bg-amber-500"   style={{ width: `${(totals.modified / totals.cv_detections) * 100}%` }} title={`Modified: ${totals.modified}`} />
-                <div className="bg-red-500"     style={{ width: `${(totals.rejected / totals.cv_detections) * 100}%` }} title={`Rejected: ${totals.rejected}`} />
-              </div>
-              <div className="flex gap-4 mt-2 text-xs text-card-faint">
-                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Accepted</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Modified</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" /> Rejected</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* ── 4. Per-image breakdown ──────────────────────────────────────── */}
       <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark overflow-hidden">
         <div className="px-6 py-4 border-b border-card-border">
@@ -432,42 +348,6 @@ export default function ReviewSummaryPage() {
               ))}
               {data.per_image.length === 0 && (
                 <tr><td colSpan={5} className="px-6 py-8 text-center text-card-faint">No image-level data available.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── 5. Damage type accuracy ─────────────────────────────────────── */}
-      <div className="bg-card-dark border border-card-border rounded-xl shadow-card-dark overflow-hidden">
-        <div className="px-6 py-4 border-b border-card-border">
-          <h2 className="text-sm font-semibold text-card-muted uppercase tracking-wider">Verified by Damage Type</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-card-faint uppercase tracking-wider border-b border-card-border">
-                <th className="px-6 py-3 font-semibold">Damage Type</th>
-                <th className="px-4 py-3 font-semibold text-right">Detected</th>
-                <th className="px-4 py-3 font-semibold text-right">Accepted</th>
-                <th className="px-4 py-3 font-semibold text-right">Rejected</th>
-                <th className="px-4 py-3 font-semibold text-right">Modified</th>
-                <th className="px-6 py-3 font-semibold">Verified</th>
-              </tr>
-            </thead>
-            <tbody>
-              {damageTypes.map(([type, acc]: [string, DamageTypeAccuracy]) => (
-                <tr key={type} className="border-b border-card-border/50 last:border-0 hover:bg-card-border/20 transition-colors">
-                  <td className="px-6 py-3 font-medium text-card-text capitalize">{type.replace(/_/g, ' ')}</td>
-                  <td className="px-4 py-3 text-right font-mono text-card-muted">{acc.cv}</td>
-                  <td className="px-4 py-3 text-right font-mono text-emerald-400">{acc.accepted}</td>
-                  <td className="px-4 py-3 text-right font-mono text-red-400">{acc.rejected}</td>
-                  <td className="px-4 py-3 text-right font-mono text-amber-400">{acc.modified}</td>
-                  <td className="px-6 py-3"><AccuracyBadge pct={acc.pct} /></td>
-                </tr>
-              ))}
-              {damageTypes.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-card-faint">No damage type data available.</td></tr>
               )}
             </tbody>
           </table>

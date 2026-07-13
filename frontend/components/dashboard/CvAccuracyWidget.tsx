@@ -43,13 +43,13 @@ export default function CvAccuracyWidget() {
     );
   }
 
-  // Final verified detections = confirmed + engineer-corrected + engineer-added
-  const verified = overall.accepted + overall.modified + overall.engineer_added;
-  const reviewedTotal = overall.accepted + overall.modified + overall.rejected;
-  const segments: { key: string; count: number; color: string }[] = [
-    { key: 'Accepted', count: overall.accepted, color: '#4CAF50' },
-    { key: 'Corrected', count: overall.modified, color: '#E6A817' },
-    { key: 'Rejected', count: overall.rejected, color: '#EF4444' },
+  // Report-style summary counts (mirrors the review report's header row).
+  const summaryStats: { label: string; value: number; color: string }[] = [
+    { label: 'Total CV', value: overall.total_cv_detections, color: '#0891B2' },
+    { label: 'Accepted', value: overall.accepted,            color: '#4CAF50' },
+    { label: 'Rejected', value: overall.rejected,            color: '#EF4444' },
+    { label: 'Modified', value: overall.modified,            color: '#E6A817' },
+    { label: 'Added',    value: overall.engineer_added,      color: '#10B981' },
   ];
 
   const topDamageTypes: [string, DamageTypeAccuracy][] = Object.entries(by_damage_type)
@@ -74,41 +74,19 @@ export default function CvAccuracyWidget() {
       </div>
 
       <div className="px-4 py-3 flex flex-col gap-3">
-        {/* Verified detections headline (counts, no accuracy %) */}
-        <div className="flex items-end gap-3">
-          <p className="text-[34px] font-black leading-none tabular-nums" style={{ color: '#10B981' }}>
-            {verified}
-          </p>
-          <p className="text-[11px] font-semibold pb-0.5" style={{ color: '#6B9A87' }}>
-            verified detection{verified === 1 ? '' : 's'}
-            {' · '}{overall.reviewed_inspections} inspection{overall.reviewed_inspections === 1 ? '' : 's'} reviewed
-          </p>
-        </div>
-
-        {/* Accepted / Corrected / Rejected breakdown (counts) */}
+        {/* Report-style summary row: Total CV / Accepted / Rejected / Modified / Added (counts) */}
         <div>
-          <div className="flex h-2 rounded-full overflow-hidden" style={{ background: '#EDF6F0' }}>
-            {reviewedTotal > 0 && segments.map(s => {
-              const pct = (s.count / reviewedTotal) * 100;
-              return pct > 0 ? (
-                <div key={s.key} style={{ width: `${pct}%`, background: s.color, minWidth: 3 }} />
-              ) : null;
-            })}
-          </div>
-          <div className="flex items-center gap-3 mt-1.5">
-            {segments.map(s => (
-              <span key={s.key} className="inline-flex items-center gap-1 text-[9px] font-semibold">
-                <span className="w-[7px] h-[7px] rounded-full flex-shrink-0" style={{ background: s.color }} />
-                <span style={{ color: s.color }}>{s.key}</span>
-                <span className="font-black tabular-nums" style={{ color: TEAL }}>{s.count}</span>
-              </span>
+          <div className="grid grid-cols-5 gap-1.5">
+            {summaryStats.map(s => (
+              <div key={s.label} className="flex flex-col items-center py-1.5 rounded-lg" style={{ background: '#F7FBF9', border: '1px solid #EDF6F0' }}>
+                <span className="text-[18px] font-black leading-none tabular-nums" style={{ color: s.color }}>{s.value}</span>
+                <span className="text-[8px] font-bold uppercase tracking-wide mt-1 text-center" style={{ color: '#9AB8AD' }}>{s.label}</span>
+              </div>
             ))}
-            {overall.engineer_added > 0 && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-semibold ml-auto">
-                <span style={{ color: '#6B9A87' }}>+{overall.engineer_added} added by engineers</span>
-              </span>
-            )}
           </div>
+          <p className="text-[10px] font-semibold mt-1.5" style={{ color: '#6B9A87' }}>
+            {overall.reviewed_inspections} inspection{overall.reviewed_inspections === 1 ? '' : 's'} reviewed
+          </p>
         </div>
 
         {/* Top damage types — detection counts (no accuracy %) */}
