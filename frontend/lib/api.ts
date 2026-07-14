@@ -96,6 +96,7 @@ export const imagesApi = {
   get: (id: string) => api.get<ImageRecord>(`/images/${id}`).then(r => r.data),
   update: (id: string, data: Partial<ImageRecord>) =>
     api.patch<ImageRecord>(`/images/${id}`, data).then(r => r.data),
+  delete: (id: string) => api.delete(`/images/${id}`),
   gpsPoints: () => api.get('/images/gps-points').then(r => r.data),
 };
 

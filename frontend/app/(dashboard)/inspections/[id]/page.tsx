@@ -191,6 +191,8 @@ export default function InspectionDetailPage() {
   const [editType, setEditType] = useState('');
   const [editDetailsDate, setEditDetailsDate] = useState('');
   const [imageSort, setImageSort] = useState<'name' | 'detections' | 'severity'>('name');
+  // Per-image delete (2-step: trash button → confirm dialog)
+  const [deleteImageTarget, setDeleteImageTarget] = useState<{ id: string; filename: string } | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: () => inspectionsApi.delete(inspectionId),
@@ -201,6 +203,25 @@ export default function InspectionDetailPage() {
       router.push('/inspections');
     },
     onError: () => toast.error('Failed to delete inspection'),
+  });
+
+  const deleteImageMutation = useMutation({
+    mutationFn: (id: string) => imagesApi.delete(id),
+    onSuccess: (_data, id) => {
+      // Move selection off the deleted image before its data disappears
+      if (selectedImage === id) {
+        const next = images.find((im: any) => im.id !== id);
+        setSelectedImage(next ? next.id : null);
+      }
+      setDeleteImageTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['images', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Image deleted');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to delete image'),
   });
 
   async function handleDownloadImages() {
@@ -1110,6 +1131,16 @@ export default function InspectionDetailPage() {
       />
 
       <ConfirmDialog
+        isOpen={!!deleteImageTarget}
+        title="Delete Image"
+        message={`"${deleteImageTarget?.filename}" and all its detections will be permanently removed from this inspection. This cannot be undone.`}
+        confirmLabel="Delete Image"
+        isLoading={deleteImageMutation.isPending}
+        onConfirm={() => deleteImageTarget && deleteImageMutation.mutate(deleteImageTarget.id)}
+        onCancel={() => setDeleteImageTarget(null)}
+      />
+
+      <ConfirmDialog
         isOpen={showStartReviewConfirm}
         title="Start Engineer Review"
         message="All CV detections on this inspection will be locked, and the inspection will enter Review Mode. You will then accept, reject, modify, or add detections image by image."
@@ -1161,14 +1192,7 @@ export default function InspectionDetailPage() {
 
       {/* ── Review completed banner ── */}
       {inspection.status === 'review_completed' && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6 shadow-sm flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <CheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
-            <div>
-              <p className="text-base font-bold text-emerald-800">Review completed</p>
-              <p className="text-sm text-emerald-700">The verified detection set is final. Engineer-added detections are shown in green.</p>
-            </div>
-          </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6 shadow-sm flex items-center justify-end gap-4 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setShowReopenInspectionConfirm(true)}
@@ -1303,10 +1327,20 @@ export default function InspectionDetailPage() {
                   const isSelected = img.id === selectedImage;
 
                   return (
-                    <button key={img.id} onClick={() => setSelectedImage(img.id)}
-                      className={`w-full text-left rounded-lg p-2 transition-all group ${
+                    <div key={img.id} role="button" tabIndex={0}
+                      onClick={() => setSelectedImage(img.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedImage(img.id); } }}
+                      className={`relative w-full text-left rounded-lg p-2 transition-all group cursor-pointer ${
                         isSelected ? 'bg-sky-50 ring-2 ring-sky-300' : 'hover:bg-slate-50'
                       }`}>
+                      {/* Per-image delete — opens the 2-step confirm dialog */}
+                      <button
+                        title="Delete this image"
+                        onClick={(e) => { e.stopPropagation(); setDeleteImageTarget({ id: img.id, filename: img.filename }); }}
+                        className="absolute top-1 right-1 z-10 p-1 rounded-md bg-white/90 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                       <div className="flex gap-2.5">
                         <div className="relative flex-shrink-0">
                           <img src={img.url} alt="" className="w-16 h-12 object-cover rounded-md border border-slate-200" />
@@ -1350,7 +1384,7 @@ export default function InspectionDetailPage() {
                           </p>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
