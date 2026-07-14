@@ -1337,7 +1337,7 @@ export default function InspectionDetailPage() {
                       <button
                         title="Delete this image"
                         onClick={(e) => { e.stopPropagation(); setDeleteImageTarget({ id: img.id, filename: img.filename }); }}
-                        className="absolute top-1 right-1 z-10 p-1 rounded-md bg-white/90 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-all"
+                        className="absolute top-1 right-1 z-10 p-1 rounded-md bg-white text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 shadow-sm opacity-80 group-hover:opacity-100 transition-all"
                       >
                         <Trash2 size={13} />
                       </button>
