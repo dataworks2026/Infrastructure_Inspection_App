@@ -7,6 +7,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { MapPin, Building2, Waves, Anchor, Shield, Filter, ExternalLink, Eye, EyeOff, Globe, Camera, List, X, Search, AlertTriangle, Activity, Calendar, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useCurrentUser } from '@/app/providers';
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false, loading: () => (
   <div className="w-full h-full bg-slate-900 rounded-xl flex items-center justify-center">
@@ -56,6 +57,7 @@ const glassBtn = (active: boolean) => active
   : 'bg-black/40 backdrop-blur-2xl text-white/80 border-white/[0.08] shadow-xl hover:text-white hover:border-white/15';
 
 export default function MapPage() {
+  const user = useCurrentUser();
   const { data: assets = [], isLoading } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
   const { data: gpsData } = useQuery({ queryKey: ['gps-points'], queryFn: () => imagesApi.gpsPoints() });
   const { data: dashboardData } = useQuery({ queryKey: ['dashboard-overview'], queryFn: () => dashboardApi.overview() });
@@ -176,7 +178,7 @@ export default function MapPage() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-[12px] sm:text-[13px] font-bold text-white tracking-tight truncate">Governor&apos;s Island</h1>
+                  <h1 className="text-[12px] sm:text-[13px] font-bold text-white tracking-tight truncate">{user?.organization_name || 'Assets'}</h1>
                   <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider flex-shrink-0" style={{ background: 'rgba(8,145,178,0.25)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>LIVE</span>
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 leading-none truncate">
