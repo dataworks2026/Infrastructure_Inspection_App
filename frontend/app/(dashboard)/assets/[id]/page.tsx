@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetsApi, inspectionsApi, missionsApi } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation, Box, CheckCircle2, Maximize2 } from 'lucide-react';
+import { ArrowLeft, MapPin, ClipboardList, Pencil, X, Check, ChevronDown, Navigation, Box, CheckCircle2, Maximize2 } from 'lucide-react';
 import { InfrastructureType } from '@/types';
 import AnalyticsPanel from './AnalyticsPanel';
 import { resolveTwinByAssetId } from '@/lib/twinMap';
@@ -166,9 +166,6 @@ export default function AssetDetailPage() {
                   to see this asset on the map.
                 </div>
               )}
-              <div className="flex items-center gap-2 text-base text-mira-faint">
-                <Calendar size={16} /> Created {new Date(asset.created_at).toLocaleDateString()}
-              </div>
             </div>
           </>
         ) : (
