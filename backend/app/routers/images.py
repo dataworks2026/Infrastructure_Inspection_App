@@ -13,6 +13,8 @@ from app.models.user import User
 from app.models.inspection import Inspection
 from app.models.asset import Asset
 from app.models.image import Image
+from app.models.detection import Detection
+from app.models.detection_review import DetectionReview
 from app.schemas.image import ImageRecord, ImageUploadItem, ImageUploadResponse, ImageUpdate
 
 router = APIRouter()
@@ -374,3 +376,45 @@ def update_image(
     db.commit()
     db.refresh(img)
     return _image_to_record(img)
+
+
+@router.delete(
+    "/images/{image_id}",
+    status_code=204,
+)
+def delete_image(
+    image_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Hard-delete a single image and its detection subtree (org-scoped).
+
+    FK-safe order (several FKs have no ondelete cascade): detection_reviews
+    reference detections via cv/engineer_detection_id, so they must go before
+    the detections they point at. On-disk files are removed best-effort — a
+    missing file never fails the request.
+    """
+    img = db.query(Image).filter(
+        Image.id == image_id,
+        Image.organization_id == current_user.organization_id,
+    ).first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # 1. Engineer review rows first (FK → detections, no ondelete cascade)
+    db.query(DetectionReview).filter(DetectionReview.image_id == image_id).delete()
+    # 2. Detections for this image
+    db.query(Detection).filter(Detection.image_id == image_id).delete()
+    # 3. The image row itself
+    db.delete(img)
+
+    # Best-effort local-disk cleanup — never fail the request on a missing file
+    for rel_path in (img.stored_path, img.thumbnail_path):
+        if not rel_path:
+            continue
+        try:
+            os.remove(os.path.join(settings.STORAGE_BASE_PATH, rel_path))
+        except OSError:
+            pass
+
+    db.commit()
