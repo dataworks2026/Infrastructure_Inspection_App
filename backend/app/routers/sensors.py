@@ -25,17 +25,52 @@ router = APIRouter()
 _cache: dict[str, dict] = {}
 CACHE_TTL = 300
 
-# Station mapping per asset (could later come from DB)
-ASSET_STATIONS = {
-    "default": {
-        "coops": DEFAULT_COOPS_STATION,  # The Battery, NY
-        "ndbc": DEFAULT_NDBC_STATION,    # NY Harbor Entrance
+# NOAA station catalog with approximate coordinates, used to pick the station
+# nearest to each asset instead of hardcoding one location. CO-OPS = tide /
+# water-level / air-temp; NDBC = wind / wave buoys. Falls back to the NY Harbor
+# defaults when an asset has no coordinates.
+COOPS_STATIONS = [
+    ("8518750", 40.700, -74.014),  # The Battery, NY
+    ("8516945", 40.810, -73.765),  # Kings Point, NY
+    ("8519483", 40.639, -74.146),  # Bergen Point West Reach, NY
+    ("8531680", 40.467, -74.009),  # Sandy Hook, NJ
+    ("8467150", 41.173, -73.182),  # Bridgeport, CT
+    ("8534720", 39.355, -74.418),  # Atlantic City, NJ
+    ("8443970", 42.354, -71.050),  # Boston, MA
+    ("8557380", 38.782, -75.119),  # Lewes, DE
+    ("8638610", 36.947, -76.330),  # Sewells Point, VA
+]
+NDBC_STATIONS = [
+    ("44065", 40.369, -73.703),  # NY Harbor Entrance
+    ("44025", 40.251, -73.164),  # Long Island
+    ("44013", 42.346, -70.651),  # Boston
+    ("44009", 38.457, -74.702),  # Delaware Bay
+    ("44014", 36.611, -74.842),  # Virginia Beach
+]
+
+
+def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Relative great-circle distance (radians); good enough for nearest-picking."""
+    from math import radians, sin, cos, asin, sqrt
+
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return 2 * asin(sqrt(a))
+
+
+def _nearest(catalog: list, lat, lon, default: str) -> str:
+    if lat is None or lon is None:
+        return default
+    return min(catalog, key=lambda s: _haversine(lat, lon, s[1], s[2]))[0]
+
+
+def _get_stations(lat=None, lon=None) -> dict:
+    """Nearest CO-OPS + NDBC stations to the given coordinates."""
+    return {
+        "coops": _nearest(COOPS_STATIONS, lat, lon, DEFAULT_COOPS_STATION),
+        "ndbc": _nearest(NDBC_STATIONS, lat, lon, DEFAULT_NDBC_STATION),
     }
-}
-
-
-def _get_stations(asset_id) -> dict:
-    return ASSET_STATIONS.get(str(asset_id), ASSET_STATIONS["default"])
 
 
 def _ms_to_mph(ms: float | None) -> float | None:
@@ -79,7 +114,7 @@ async def get_live_sensor_data(
     asset_data = {}
     async with httpx.AsyncClient() as client:
         for a in assets:
-            stations = _get_stations(a.id)
+            stations = _get_stations(a.latitude, a.longitude)
 
             # Fetch CO-OPS (temp + water level) and NDBC (wind + waves) in parallel
             # Wind is NOT available at CO-OPS 8518750, so we use NDBC buoy for wind
@@ -144,7 +179,15 @@ async def get_sensor_history(
     current_user: User = Depends(get_current_user),
 ):
     """Historical NOAA data for an asset. Wind uses NDBC, others use CO-OPS."""
-    stations = _get_stations(asset_id)
+    asset = (
+        db.query(Asset.latitude, Asset.longitude)
+        .filter(Asset.id == asset_id, Asset.organization_id == current_user.organization_id)
+        .first()
+    )
+    stations = _get_stations(
+        asset.latitude if asset else None,
+        asset.longitude if asset else None,
+    )
 
     async with httpx.AsyncClient() as client:
         if sensor_type in ("wind", "wave_height"):

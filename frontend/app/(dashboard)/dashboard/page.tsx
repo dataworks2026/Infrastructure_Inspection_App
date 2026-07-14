@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { dashboardApi, sensorsApi, missionsApi, assetsApi, type LiveMission } from '@/lib/api';
 import { resolveTwinForUser } from '@/lib/twinMap';
+import { useCurrentUser } from '@/app/providers';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import {
   Building2, ArrowRight,
@@ -211,6 +212,7 @@ export default function DashboardPage() {
   });
   const liveMissions: LiveMission[] = liveMissionsData?.live_missions ?? [];
 
+  const user = useCurrentUser();
   const queryClient = useQueryClient();
   const { data: envData, isFetching: envFetching } = useQuery({
     queryKey: ['sensors-live'],
@@ -224,6 +226,7 @@ export default function DashboardPage() {
     const first = Object.values(raw)[0] as any;
     if (!first) return null;
     return {
+      location: first.location_name || first.asset_name,
       wave_height: first.wave_height_m,
       wave_period: first.wave_period_s,
       temperature: first.temperature_f,
@@ -408,7 +411,7 @@ export default function DashboardPage() {
           </div>
           <div className="px-4 py-3 flex-1 flex flex-col gap-2">
             <p className="text-[11px] font-semibold" style={{ color: '#6B9A87' }}>
-              Governor&apos;s Island, NY
+              {sensorEnv?.location || user?.organization_name || 'Monitored location'}
             </p>
             <p className="text-[9px] font-medium" style={{ color: '#9AB8AD' }}>
               Source: NOAA CO-OPS &amp; NDBC Buoys
