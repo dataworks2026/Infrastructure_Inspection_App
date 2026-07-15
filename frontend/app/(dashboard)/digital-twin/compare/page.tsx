@@ -366,7 +366,7 @@ export default function ComparePage() {
   const [pairIdx, setPairIdx]                 = useState<number>(0);
   const [pairMappings, setPairMappings]       = useState<Record<number, number>>({});
   const [showPicker, setShowPicker]           = useState(false);
-  const showAnnotated = false;
+  const [showAnnotated, setShowAnnotated]     = useState(true);
 
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => assetsApi.list() });
 
@@ -470,6 +470,18 @@ export default function ComparePage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAnnotated(v => !v)}
+              title={showAnnotated ? 'Hide damage annotations' : 'Show damage annotations'}
+              className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border transition-colors"
+              style={showAnnotated
+                ? { background: '#EEF2FF', color: '#4F46E5', borderColor: '#C7D2FE' }
+                : { background: '#F8FAFC', color: '#94A3B8', borderColor: '#E2E8F0' }}
+            >
+              <Scan size={13} />
+              Annotations {showAnnotated ? 'on' : 'off'}
+            </button>
+            <div className="w-px h-6 bg-slate-200" />
             <Building2 size={15} className="text-slate-400" />
             <select
               value={selectedAssetId}
