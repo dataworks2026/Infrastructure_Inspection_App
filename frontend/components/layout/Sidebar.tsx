@@ -17,11 +17,11 @@ const BRAND = '#0891B2';
 const NAV_ITEMS = [
   { href: '/dashboard',           label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
   { href: '/digital-twin/viewer',  label: '3D Viewer',   icon: Box },
-  { href: '/digital-twin/compare', label: 'Compare',     icon: GitCompareArrows },
   { href: '/analytics',   label: 'Analytics',   icon: TrendingDown,    tourId: 'nav-analytics' },
   { href: '/assets',      label: 'Assets',      icon: Building2,       tourId: 'nav-assets' },
   { href: '/map',         label: 'Map',         icon: Map,             tourId: 'nav-map' },
   { href: '/inspections', label: 'Inspections', icon: ClipboardList,   tourId: 'nav-inspections' },
+  { href: '/digital-twin/compare', label: 'Compare',     icon: GitCompareArrows },
   { href: '/sensors',     label: 'Sensors',     icon: Activity,        tourId: 'nav-sensors' },
   { href: '/upload',      label: 'Upload',      icon: Upload,          tourId: 'nav-upload' },
   { href: '/reports',     label: 'Reports',     icon: FileText },
