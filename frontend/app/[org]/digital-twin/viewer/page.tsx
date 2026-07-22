@@ -21,6 +21,12 @@ function ViewerTwinIframe() {
     queryFn: () => assetsApi.list(),
   });
   const twin = resolveTwinForUser(assets ?? []);
+  // useMemo MUST be called on every render (rules-of-hooks), even when twin is
+  // null. Cache-busting is handled by twin-nginx `Cache-Control: no-store`.
+  const iframeSrc = useMemo(
+    () => twin ? `/twin/?mid=${twin.mid}&name=${encodeURIComponent(twin.name)}` : '',
+    [twin?.mid, twin?.name]
+  );
   if (!twin) {
     return (
       <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">
@@ -30,7 +36,7 @@ function ViewerTwinIframe() {
   }
   return (
     <iframe
-      src={`/twin/?mid=${twin.mid}&name=${encodeURIComponent(twin.name)}`}
+      src={iframeSrc}
       title={`${twin.name} digital twin`}
       className="w-full h-full block border-0"
       allow="fullscreen"
@@ -53,18 +59,18 @@ const TurbineScene = dynamic(() => import('./TurbineScene'), { ssr: false, loadi
 // ── Constants used by activePins for our JSON-driven detections ──────────────
 const MID_CONST = '2abe1a45-0fc7-4e92-9d87-5c7cc7b0c1b8';
 
-// Map structure strings from detections.json into the side-panel buckets.
-// Each real Yankee Pier structure gets its OWN index so the filter chips +
-// per-structure counts work correctly (previously they all collapsed to 2).
-const STRUCT_NAME_TO_IDX: Record<string, number> = {
+// Fallback (default) structure list used when detections.json doesn't ship
+// its own `structures` array. Per-asset overrides come from the iframe
+// postMessage payload; see `activeStructureLabels` in the component below.
+const DEFAULT_STRUCT_NAME_TO_IDX: Record<string, number> = {
   'seawall': 0, 'sheet pile': 0,
   'timber pile': 1,
   'concrete cap': 2,
   'pile cap': 3,
 };
-function structToIdx(name?: string): number {
+function defaultStructToIdx(name?: string): number {
   if (!name) return 0;
-  return STRUCT_NAME_TO_IDX[name.toLowerCase()] ?? 0;
+  return DEFAULT_STRUCT_NAME_TO_IDX[name.toLowerCase()] ?? 0;
 }
 
 const DEMO_PINS = [
@@ -105,7 +111,9 @@ const SEVERITY_COLORS: Record<string, { color: string; label: string; bg: string
   S4: { color: '#B71C1C', label: 'Severe', bg: 'bg-red-500' },
 };
 
-const STRUCTURE_LABELS: Record<number, { label: string; color: string }> = {
+// Default labels when the asset's detections.json doesn't provide its own.
+// Yankee Pier's original set (Seawall/Timber Pile/Concrete Cap/Pile Cap).
+const DEFAULT_STRUCTURE_LABELS: Record<number, { label: string; color: string }> = {
   0: { label: 'Seawall',      color: '#0EA5E9' },
   1: { label: 'Timber Pile',  color: '#F59E0B' },
   2: { label: 'Concrete Cap', color: '#A78BFA' },
@@ -160,6 +168,24 @@ export default function ViewerPage() {
   // Don't move below activePins or you'll trigger a TDZ at render time.
   const [pinModal, setPinModal] = useState<any>(null);
   const [iframeDetections, setIframeDetections] = useState<any[] | null>(null);
+  // Per-asset structures list broadcast alongside detections. When present, the
+  // side-panel filter chips + labels use it instead of DEFAULT_STRUCTURE_LABELS
+  // so a BAT twin can show its own component types (Sheet Pile Wall / Fender /
+  // Bollard / etc.) while Yankee keeps its own.
+  const [iframeStructures, setIframeStructures] = useState<Array<{ id?: string; name: string; color?: string }> | null>(null);
+  // Mission id the standalone viewer is currently rendering (injected as _mid
+  // in each broadcast). Modal + inspection-count read from this so BAT loads
+  // BAT photos and Yankee loads Yankee photos — no hardcoded MID reference.
+  const [iframeMid, setIframeMid] = useState<string | null>(null);
+  const [iframeInspectionCount, setIframeInspectionCount] = useState<number | null>(null);
+  // Timeline items broadcast from the iframe (per-asset in the detections.json).
+  const [iframeInspections, setIframeInspections] = useState<Array<typeof INSPECTION_HISTORY[number]> | null>(null);
+  // Optional per-asset overrides — asset header (name/coords/region) and a
+  // pinned health score. Fall back to hardcoded / computed values when absent.
+  const [iframeAssetName, setIframeAssetName] = useState<string | null>(null);
+  const [iframeAssetCoords, setIframeAssetCoords] = useState<string | null>(null);
+  const [iframeAssetRegion, setIframeAssetRegion] = useState<string | null>(null);
+  const [iframeHealthScore, setIframeHealthScore] = useState<number | null>(null);
   useEffect(() => {
     function onMsg(e: MessageEvent) {
       const d = e?.data;
@@ -167,12 +193,54 @@ export default function ViewerPage() {
       if (d.type === 'mira-twin-pin-click' && d.payload) setPinModal(d.payload);
       if (d.type === 'mira-twin-detections' && d.payload?.detections) {
         setIframeDetections(d.payload.detections);
+        if (Array.isArray(d.payload.structures) && d.payload.structures.length) {
+          setIframeStructures(d.payload.structures);
+        }
+        if (typeof d.payload._mid === 'string') setIframeMid(d.payload._mid);
+        if (typeof d.payload.inspection_count === 'number') {
+          setIframeInspectionCount(d.payload.inspection_count);
+        }
+        if (Array.isArray(d.payload.inspections) && d.payload.inspections.length) {
+          setIframeInspections(d.payload.inspections);
+        }
+        if (typeof d.payload.asset_name === 'string')   setIframeAssetName(d.payload.asset_name);
+        if (typeof d.payload.asset_coords === 'string') setIframeAssetCoords(d.payload.asset_coords);
+        if (typeof d.payload.asset_region === 'string') setIframeAssetRegion(d.payload.asset_region);
+        if (typeof d.payload.health_score === 'number') setIframeHealthScore(d.payload.health_score);
       }
     }
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
   }, []);
+
+  // Per-render active labels + name→index mapping (uses iframe payload if it
+  // shipped structures, otherwise the defaults). Downstream code just uses
+  // `activeStructureLabels` / `structToIdx` as if they were the constants.
+  const { activeStructureLabels, structToIdx } = useMemo(() => {
+    if (iframeStructures && iframeStructures.length) {
+      const labels: Record<number, { label: string; color: string }> = {};
+      const nameToIdx: Record<string, number> = {};
+      iframeStructures.forEach((s, i) => {
+        labels[i] = { label: s.name, color: s.color || '#94A3B8' };
+        nameToIdx[s.name.toLowerCase()] = i;
+        if (s.id) nameToIdx[s.id.toLowerCase()] = i;
+      });
+      return {
+        activeStructureLabels: labels,
+        structToIdx: (name?: string) => (name ? nameToIdx[name.toLowerCase()] ?? 0 : 0),
+      };
+    }
+    return {
+      activeStructureLabels: DEFAULT_STRUCTURE_LABELS,
+      structToIdx: defaultStructToIdx,
+    };
+  }, [iframeStructures]);
+  // Retained alias so we don't have to touch every reference below in one PR.
+  const STRUCTURE_LABELS = activeStructureLabels;
   const MID = MID_CONST;
+  // Timeline items — per-asset override from the iframed detections.json when
+  // present (Yankee sends 2, BAT sends 1), else the default 6-item history.
+  const activeInspections = iframeInspections ?? INSPECTION_HISTORY;
 
   const { data: detectionsData } = useQuery({
     queryKey: ['mission-detections', missionId],
@@ -252,7 +320,12 @@ export default function ViewerPage() {
     return acc;
   }, {} as Record<number, number>), [activePins]);
 
-  const healthScore = useMemo(() => computeHealthScore(activePins), [activePins]);
+  // Prefer the per-asset override from detections.json when provided; else
+  // compute from real pin severities. Yankee stays computed, BAT can pin it.
+  const healthScore = useMemo(
+    () => iframeHealthScore ?? computeHealthScore(activePins),
+    [iframeHealthScore, activePins]
+  );
   const healthInfo = getHealthLabel(healthScore);
 
   const criticalCount = activePins.filter(p => p.severity === 'S4').length;
@@ -288,7 +361,7 @@ export default function ViewerPage() {
               </span>
               <span className="w-px h-3 bg-white/10" />
               <span className="flex items-center gap-1 text-white/60">
-                <Camera size={10} /> {INSPECTION_HISTORY.length} Surveys
+                <Camera size={10} /> {iframeInspectionCount ?? activeInspections.length} Surveys
               </span>
             </div>
             {/* Governors Island name + coords + Health Score Gauge — combined
@@ -299,8 +372,10 @@ export default function ViewerPage() {
                 <Building2 size={13} className="text-white" />
               </div>
               <div>
-                <h3 className="text-[12px] font-bold text-white leading-none">Governors Island</h3>
-                <p className="text-[9px] text-slate-400 mt-0.5">40.6892° N, 74.0167° W · New York Harbor</p>
+                <h3 className="text-[12px] font-bold text-white leading-none">{iframeAssetName ?? 'Governors Island'}</h3>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  {iframeAssetCoords ?? '40.6892° N, 74.0167° W'} · {iframeAssetRegion ?? 'New York Harbor'}
+                </p>
               </div>
               <div className="w-px h-6 bg-white/10 mx-1" />
               <div className="relative w-8 h-8">
@@ -463,7 +538,7 @@ export default function ViewerPage() {
           <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-t-2xl flex border-b-0">
             {[
               { key: 'detections' as const, label: 'Detections', count: filteredPins.length },
-              { key: 'timeline' as const, label: 'Timeline', count: INSPECTION_HISTORY.length },
+              { key: 'timeline' as const, label: 'Timeline', count: activeInspections.length },
             ].map(tab => (
               <button key={tab.key}
                 onClick={() => setRightTab(tab.key)}
@@ -581,7 +656,7 @@ export default function ViewerPage() {
                   {/* Timeline line */}
                   <div className="absolute left-[7px] top-4 bottom-4 w-px bg-white/10" />
 
-                  {INSPECTION_HISTORY.map((insp, i) => {
+                  {activeInspections.map((insp, i) => {
                     const isExpanded = expandedInspection === insp.id;
                     const isCurrent = insp.status === 'current';
                     return (
@@ -625,10 +700,10 @@ export default function ViewerPage() {
                                 <div className="col-span-2">
                                   <span className="text-[8px] text-slate-500 block mb-1">Change from previous</span>
                                   <div className="flex items-center gap-1">
-                                    {insp.findings > INSPECTION_HISTORY[i - 1]?.findings ? (
-                                      <><TrendingUp size={9} className="text-red-400" /><span className="text-[9px] text-red-400 font-bold">+{insp.findings - INSPECTION_HISTORY[i - 1].findings} findings</span></>
-                                    ) : insp.findings < INSPECTION_HISTORY[i - 1]?.findings ? (
-                                      <><TrendingDown size={9} className="text-emerald-400" /><span className="text-[9px] text-emerald-400 font-bold">{insp.findings - INSPECTION_HISTORY[i - 1].findings} findings</span></>
+                                    {insp.findings > activeInspections[i - 1]?.findings ? (
+                                      <><TrendingUp size={9} className="text-red-400" /><span className="text-[9px] text-red-400 font-bold">+{insp.findings - activeInspections[i - 1].findings} findings</span></>
+                                    ) : insp.findings < activeInspections[i - 1]?.findings ? (
+                                      <><TrendingDown size={9} className="text-emerald-400" /><span className="text-[9px] text-emerald-400 font-bold">{insp.findings - activeInspections[i - 1].findings} findings</span></>
                                     ) : (
                                       <span className="text-[9px] text-slate-500">No change</span>
                                     )}
@@ -648,7 +723,7 @@ export default function ViewerPage() {
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Findings Trend</span>
                   <div className="flex items-end gap-1 h-12">
                     {[...INSPECTION_HISTORY].reverse().map((insp, i) => {
-                      const maxFindings = Math.max(...INSPECTION_HISTORY.map(h => h.findings));
+                      const maxFindings = Math.max(...activeInspections.map(h => h.findings));
                       const heightPct = (insp.findings / maxFindings) * 100;
                       return (
                         <div key={insp.id} className="flex-1 flex flex-col items-center gap-0.5">
@@ -773,13 +848,22 @@ export default function ViewerPage() {
 
               {/* Body: photo + meta */}
               <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 bg-black flex items-center justify-center relative">
-                  <DamagePhotoWithBoxes
-                    src={`/twin-data/${MID}/damage_photos/${pinModal.photo}?v=${Date.now()}`}
-                    label={pinModal.label}
-                    bboxes={pinModal.bboxes ?? []}
-                  />
-                </div>
+                {(() => {
+                  const modalMid = pinModal._mid || iframeMid || MID;
+                  const photoSrc = `/twin-data/${modalMid}/damage_photos/${pinModal.photo}?v=${Date.now()}`;
+                  // Debug: leaves a trace in the console if the img fails silently.
+                  // eslint-disable-next-line no-console
+                  if (typeof window !== 'undefined') console.log('[modal] src=', photoSrc, 'pinModal=', pinModal);
+                  return (
+                    <div className="flex-1 bg-black flex items-center justify-center relative">
+                      <DamagePhotoWithBoxes
+                        src={photoSrc}
+                        label={pinModal.label}
+                        bboxes={pinModal.bboxes ?? []}
+                      />
+                    </div>
+                  );
+                })()}
                 <div className="w-[280px] border-l border-white/10 p-4 flex flex-col gap-3 overflow-y-auto">
                   <Row label="Structure" value={pinModal.structure} />
                   <Row label="Zone" value={pinModal.zone} />
@@ -803,7 +887,7 @@ export default function ViewerPage() {
                     </span>
                   } />
                   <div className="mt-2 p-3 rounded-lg bg-white/5 text-[11px] text-slate-400 leading-relaxed">
-                    Photo captured during the Yankee Pier H20T inspection. Position pinned in the 3D twin at the originating GPS coords.
+                    Photo captured during the {iframeAssetName ?? 'Yankee Pier'} H20T inspection. Position pinned in the 3D twin at the originating GPS coords.
                   </div>
                 </div>
               </div>
@@ -859,7 +943,19 @@ function DamagePhotoWithBoxes({
           setDims({ w: img.naturalWidth, h: img.naturalHeight });
         }}
         onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.display = 'none';
+          const el = e.currentTarget as HTMLImageElement;
+          // Surface the failure instead of silently hiding — the black box
+          // was hiding the real cause when the URL 404'd or was wrong.
+          // eslint-disable-next-line no-console
+          console.error('[modal] image failed to load:', el.src);
+          el.style.display = 'none';
+          const parent = el.parentElement;
+          if (parent && !parent.querySelector('.img-err')) {
+            const msg = document.createElement('div');
+            msg.className = 'img-err absolute inset-0 flex items-center justify-center text-red-400 text-xs p-4 text-center break-all';
+            msg.textContent = 'Photo failed to load: ' + el.src;
+            parent.appendChild(msg);
+          }
         }}
       />
       {dims && bboxes && bboxes.length > 0 && (
