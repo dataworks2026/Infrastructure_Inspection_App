@@ -16,24 +16,78 @@ Which means:
 | Self-signed cert on the IP | **Worse** — a full-page red interstitial warning users must click through. |
 | **Point a domain at the IP** | Real padlock, free, auto-renewing. **This is the only real fix.** |
 
-**Required first step (only you can do this): pick a hostname and create a DNS
-A record pointing it at `3.133.43.231`.** For example:
+---
+
+## Verified facts about THIS setup (checked 2026-07-22)
+
+| Check | Result |
+|---|---|
+| Port 80 on `3.133.43.231` | **Open** (returns 200) |
+| Port 443 on `3.133.43.231` | **CLOSED / filtered** — must be opened in the AWS security group |
+| `miraintel.com` DNS host | **Namecheap** (`dns1/dns2.registrar-servers.com`) — *not* Route 53 |
+| `app.miraintel.com` | **ALREADY IN USE** — points at Vercel, live and returning 200. **Do not reuse it**, it would break that site. |
+| Free subdomains | `dev`, `inspect`, `inspections`, `platform`, `portal`, `twin`, `console` — all unused |
+
+**Because DNS lives at Namecheap, most of this is NOT an AWS task.** Only one
+AWS change is strictly required (opening port 443).
+
+---
+
+## Step 1 — Namecheap: create the A record
+
+Namecheap dashboard → **Domain List** → `miraintel.com` → **Manage** →
+**Advanced DNS** → **Add New Record**:
 
 ```
-Type: A     Name: app     Value: 3.133.43.231     TTL: 300
+Type:  A Record
+Host:  inspect          <- the subdomain; NOT "app" (already taken by Vercel)
+Value: 3.133.43.231
+TTL:   Automatic (or 5 min)
 ```
 
-...giving `app.miraintel.com`. Any domain works; it just has to resolve to this
-server over the public internet before a certificate can be issued.
-
-Verify it resolves before continuing:
+Giving `inspect.miraintel.com`. Verify before continuing:
 
 ```bash
-dig +short app.miraintel.com
+dig +short inspect.miraintel.com
 ```
 
-That must print `3.133.43.231`. DNS can take anywhere from a minute to a few
-hours to propagate.
+Must print `3.133.43.231`. Usually 5–30 minutes at Namecheap.
+
+## Step 2 — AWS: open port 443 (required)
+
+Certificate issuance and HTTPS both fail silently without this.
+
+EC2 Console → **Instances** → select the instance (`3.133.43.231`) →
+**Security** tab → click its **security group** → **Edit inbound rules** →
+**Add rule**:
+
+```
+Type: HTTPS     Protocol: TCP     Port: 443     Source: 0.0.0.0/0 (Anywhere-IPv4)
+```
+
+→ **Save rules**. Leave the existing port 80 rule in place — Let's Encrypt
+renewals need it.
+
+## Step 3 — AWS: Elastic IP (recommended, do it BEFORE step 1)
+
+Without one, stopping/starting the instance changes its public IP and silently
+breaks DNS and the certificate.
+
+EC2 Console → **Elastic IPs** → **Allocate Elastic IP address** → **Associate**
+→ select the instance.
+
+> **Warning — ordering matters.** Associating an Elastic IP *replaces* the
+> instance's current public address, so `3.133.43.231` will change. Do this
+> **before** creating the DNS record, and point the A record at the new Elastic
+> IP instead. If you'd rather not deal with the change now, skip it — just know
+> that a stop/start will break HTTPS until DNS is updated.
+
+## Alternative: ACM + Application Load Balancer
+
+AWS-native path — a free auto-renewing ACM certificate terminating TLS at an
+ALB, with no certbot on the box. It still requires the domain from step 1, and
+an ALB costs roughly **$16–25/month**. For a single dev instance, Let's Encrypt
+(free, below) is the better trade. Worth revisiting for production HA.
 
 ---
 
