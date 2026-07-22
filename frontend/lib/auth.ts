@@ -12,6 +12,7 @@ export function saveAuth(token: AuthToken) {
     role: token.role,
     organization_id: token.organization_id,
     organization_name: token.organization_name,
+    organization_slug: token.organization_slug,
   }));
 }
 
@@ -36,6 +37,7 @@ export function saveUser(user: User) {
     role: user.role,
     organization_id: user.organization_id,
     organization_name: user.organization_name,
+    organization_slug: user.organization_slug,
   }));
 }
 
@@ -47,4 +49,9 @@ export function clearAuth() {
 
 export function isAuthenticated(): boolean {
   return !!getToken();
+}
+
+/** Org slug for the signed-in user — the /[org] segment of every app URL. */
+export function getOrgSlug(): string | null {
+  return getUser()?.organization_slug ?? null;
 }

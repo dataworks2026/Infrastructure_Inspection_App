@@ -1,6 +1,6 @@
 'use client';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
+import { useAppPathname } from '@/lib/orgPath';
+import Link from '@/components/OrgLink';
 import { ChevronRight, Home } from 'lucide-react';
 
 const LABELS: Record<string, string> = {
@@ -21,7 +21,7 @@ function isUuid(s: string) {
 }
 
 export default function Breadcrumbs() {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const raw      = pathname.split('/').filter(Boolean);
 
   if (raw.length <= 1) return null;

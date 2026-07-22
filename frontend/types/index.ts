@@ -12,6 +12,7 @@ export interface User {
   role: UserRole;
   organization_id?: string;
   organization_name?: string;
+  organization_slug?: string;
 }
 
 export interface Asset {
@@ -354,6 +355,7 @@ export interface AuthToken {
   role: UserRole;
   organization_id?: string;
   organization_name?: string;
+  organization_slug?: string;
 }
 
 // ── Predictive Analytics ────────────────────────────────────

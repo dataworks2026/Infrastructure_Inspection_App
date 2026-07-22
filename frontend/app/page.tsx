@@ -1,12 +1,30 @@
 'use client';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { isAuthenticated } from '@/lib/auth';
+import { isAuthenticated, getUser, saveUser } from '@/lib/auth';
+import { authApi } from '@/lib/api';
+import type { User } from '@/types';
 
 export default function Home() {
   const router = useRouter();
   useEffect(() => {
-    router.replace(isAuthenticated() ? '/dashboard' : '/login');
+    if (!isAuthenticated()) {
+      router.replace('/login');
+      return;
+    }
+    const slug = getUser()?.organization_slug;
+    if (slug) {
+      router.replace(`/${slug}/dashboard`);
+      return;
+    }
+    // Session predates org-scoped URLs (no slug cached) — ask the server for it
+    // so existing logins keep working without forcing a re-login.
+    authApi.me()
+      .then((fresh: User) => {
+        saveUser(fresh);
+        router.replace(fresh.organization_slug ? `/${fresh.organization_slug}/dashboard` : '/login');
+      })
+      .catch(() => router.replace('/login'));
   }, [router]);
   return (
     <div className="min-h-screen bg-mira-bg flex items-center justify-center">

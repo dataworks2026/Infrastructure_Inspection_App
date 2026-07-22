@@ -1,0 +1,102 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# HTTPS-enabled nginx config.  NOT ACTIVE YET — see HTTPS_SETUP.md.
+#
+# Replace every YOUR_DOMAIN below with the real hostname (e.g. app.miraintel.com)
+# and swap this file in for nginx.conf once a certificate exists.
+#
+# A certificate CANNOT be issued for a bare IP address, so this config is
+# unusable until a domain's A record points at the server.
+# ─────────────────────────────────────────────────────────────────────────────
+events { worker_connections 1024; }
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    access_log /var/log/nginx/access.log;
+    error_log  /var/log/nginx/error.log;
+    sendfile on;
+    keepalive_timeout 65;
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml model/obj;
+    client_max_body_size 500M;
+
+    upstream frontend { server frontend:3000; }
+    upstream backend  { server backend:8000; }
+    upstream twin     { server twin-nginx:80; }
+
+    # ── HTTP :80 — ACME challenge + redirect everything else to HTTPS ──
+    server {
+        listen 80;
+        server_name YOUR_DOMAIN;
+
+        # Certbot writes its challenge files here; must stay reachable over HTTP
+        # or renewals fail.
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    # ── HTTPS :443 — the real server ──
+    server {
+        listen 443 ssl;
+        http2 on;
+        server_name YOUR_DOMAIN;
+
+        ssl_certificate     /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem;
+
+        # Modern, widely-compatible TLS settings
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+        ssl_prefer_server_ciphers off;
+        ssl_session_cache   shared:SSL:10m;
+        ssl_session_timeout 1d;
+        ssl_session_tickets off;
+
+        # Tell browsers to always use HTTPS for this host.
+        # NOTE: enable only AFTER confirming HTTPS works — a bad cert plus HSTS
+        # locks users out of the site for max-age. Start short, raise later.
+        add_header Strict-Transport-Security "max-age=300" always;
+
+        location /api/ {
+            proxy_pass         http://backend;
+            proxy_set_header   Host              $host;
+            proxy_set_header   X-Real-IP         $remote_addr;
+            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
+        }
+
+        location /storage/ {
+            proxy_pass         http://backend;
+            proxy_set_header   Host $host;
+        }
+
+        location /twin/ {
+            proxy_pass         http://twin/;
+            proxy_set_header   Host $host;
+            proxy_set_header   X-Real-IP $remote_addr;
+        }
+        location /twin-data/ {
+            proxy_pass         http://twin/twin-data/;
+            proxy_set_header   Host $host;
+            proxy_read_timeout 600s;
+            proxy_buffering    off;
+        }
+
+        location / {
+            proxy_pass         http://frontend;
+            proxy_set_header   Host              $host;
+            proxy_set_header   X-Real-IP         $remote_addr;
+            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade           $http_upgrade;
+            proxy_set_header   Connection        "upgrade";
+        }
+    }
+}

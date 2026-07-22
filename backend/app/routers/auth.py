@@ -57,6 +57,7 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
         username=user.username, role=user.role,
         organization_id=org.organization_id,
         organization_name=org.name,
+        organization_slug=org.slug,
     )
 
 @router.post("/login", response_model=TokenResponse)
@@ -74,6 +75,7 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
         username=user.username, role=user.role,
         organization_id=user.organization_id,
         organization_name=org.name if org else None,
+        organization_slug=org.slug if org else None,
     )
 
 @router.get("/me", response_model=UserResponse)
@@ -85,6 +87,7 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
         role=current_user.role, is_active=current_user.is_active,
         organization_id=current_user.organization_id,
         organization_name=org.name if org else None,
+        organization_slug=org.slug if org else None,
     )
 
 @router.patch("/me", response_model=UserResponse)
@@ -119,4 +122,5 @@ def update_me(data: UpdateMeRequest, current_user: User = Depends(get_current_us
         role=current_user.role, is_active=current_user.is_active,
         organization_id=current_user.organization_id,
         organization_name=org.name if org else None,
+        organization_slug=org.slug if org else None,
     )

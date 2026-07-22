@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useOrgPath } from '@/lib/orgPath';
 import { useQuery } from '@tanstack/react-query';
 import { assetsApi, inspectionsApi } from '@/lib/api';
 import {
@@ -31,6 +32,7 @@ export default function CommandPalette() {
   const [query, setQuery] = useState('');
   const [sel, setSel]     = useState(0);
   const router  = useRouter();
+  const orgPath = useOrgPath();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: assets = [] }      = useQuery({ queryKey: ['assets'],      queryFn: () => assetsApi.list(),      enabled: open });
@@ -66,7 +68,7 @@ export default function CommandPalette() {
     return r.label.toLowerCase().includes(q) || r.sub?.toLowerCase().includes(q);
   });
 
-  const go = useCallback((href: string) => { router.push(href); setOpen(false); }, [router]);
+  const go = useCallback((href: string) => { router.push(orgPath(href)); setOpen(false); }, [router, orgPath]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

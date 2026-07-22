@@ -26,7 +26,10 @@ export default function LoginPage() {
       // the new account: the user context re-hydrates and the query cache
       // starts fresh — otherwise the previous account's user/data lingers in
       // memory until a manual reload.
-      window.location.assign('/dashboard');
+      // Land inside the org segment: /gov-island/dashboard
+      window.location.assign(
+        token.organization_slug ? `/${token.organization_slug}/dashboard` : '/',
+      );
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Authentication failed');
     } finally {

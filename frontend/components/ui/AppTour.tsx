@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useOrgPath, useAppPathname } from '@/lib/orgPath';
 import {
   LayoutDashboard, Building2, Map, Upload, Search,
   X, Sparkles, Rocket, ArrowRight, Activity, Eye,
@@ -129,7 +130,8 @@ export default function AppTour({
   onClose: () => void;
 }) {
   const router   = useRouter();
-  const pathname = usePathname();
+  const orgPath  = useOrgPath();
+  const pathname = useAppPathname();
   const [step, setStep]       = useState(0);
   const [rect, setRect]       = useState<DOMRect | null>(null);
   const [phase, setPhase]     = useState<'enter' | 'idle' | 'exit'>('enter');
@@ -145,7 +147,7 @@ export default function AppTour({
   useEffect(() => {
     if (!active) return;
     if (current.route && pathname !== current.route) {
-      router.push(current.route);
+      router.push(orgPath(current.route));
     }
   }, [active, step, current.route, pathname, router]);
 

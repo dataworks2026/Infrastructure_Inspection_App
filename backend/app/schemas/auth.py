@@ -26,6 +26,7 @@ class TokenResponse(BaseModel):
     role: str
     organization_id: Optional[str] = None
     organization_name: Optional[str] = None
+    organization_slug: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: str
@@ -36,3 +37,4 @@ class UserResponse(BaseModel):
     is_active: bool
     organization_id: Optional[str] = None
     organization_name: Optional[str] = None
+    organization_slug: Optional[str] = None

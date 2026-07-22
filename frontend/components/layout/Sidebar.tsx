@@ -1,6 +1,6 @@
 'use client';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
+import { useAppPathname } from '@/lib/orgPath';
+import Link from '@/components/OrgLink';
 import { memo, useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard, Building2, ClipboardList, Upload, FileText, FolderArchive,
@@ -92,7 +92,7 @@ interface SidebarProps {
 }
 
 export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileOpen, onMobileClose }: SidebarProps) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const user = useCurrentUser();
   const [isDesktop, setIsDesktop] = useState(true);
 
