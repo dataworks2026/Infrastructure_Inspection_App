@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import Link from '@/components/OrgLink';
 import { missionsApi, assetsApi, type MissionDetection } from '@/lib/api';
-import { resolveTwinForUser } from '@/lib/twinMap';
+import { resolveTwinForUser, resolveTwinByAssetId } from '@/lib/twinMap';
 import {
   ArrowLeft, Building2, AlertTriangle, RotateCw, MousePointer, Layers,
   Calendar, Activity, Thermometer, Wind, Droplets, Eye, EyeOff,
@@ -163,6 +163,29 @@ function detectionsToScenePins(detections: MissionDetection[]) {
 export default function ViewerPage() {
   const searchParams = useSearchParams();
   const missionId = searchParams.get('missionId');
+
+  // Resolve WHICH asset this viewer is showing straight from the asset list —
+  // available on first paint, before the 3D iframe has loaded or posted anything.
+  // This is what lets the header show the correct asset name immediately instead
+  // of flashing a hardcoded default and then jumping when the iframe reports in.
+  const { data: twinAssets } = useQuery({
+    queryKey: ['assets-for-twin'],
+    queryFn: () => assetsApi.list(),
+  });
+  const resolvedTwin = useMemo(() => resolveTwinForUser(twinAssets ?? []), [twinAssets]);
+  const twinAsset = useMemo<any>(() => {
+    const list: any[] = twinAssets ?? [];
+    if (!resolvedTwin) return null;
+    for (const a of list) {
+      const r = resolveTwinByAssetId(a?.id);
+      if (r && r.mid === resolvedTwin.mid) return a;
+    }
+    for (const a of list) {
+      const t = resolveTwinForUser([a]);
+      if (t && t.mid === resolvedTwin.mid) return a;
+    }
+    return null;
+  }, [twinAssets, resolvedTwin]);
 
   // ── New state hooks MUST be declared before activePins useMemo references them.
   // Don't move below activePins or you'll trigger a TDZ at render time.
@@ -331,6 +354,18 @@ export default function ViewerPage() {
   const criticalCount = activePins.filter(p => p.severity === 'S4').length;
   const worseningCount = activePins.filter(p => p.trend === 'worsening').length;
 
+  // Header asset identity — always the real asset. Priority: what the iframe
+  // reports (most specific) → the resolved twin/asset from the list (known
+  // immediately) → a neutral label. No hardcoded location, so no wrong name.
+  const fmtCoord = (lat?: number | null, lon?: number | null) =>
+    (lat == null || lon == null)
+      ? null
+      : `${Math.abs(lat).toFixed(4)}° ${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(4)}° ${lon >= 0 ? 'E' : 'W'}`;
+  const assetName = iframeAssetName ?? resolvedTwin?.name ?? twinAsset?.name ?? 'Digital Twin';
+  const assetCoords = iframeAssetCoords ?? fmtCoord(twinAsset?.latitude, twinAsset?.longitude);
+  const assetRegion = iframeAssetRegion ?? twinAsset?.location_name ?? null;
+  const assetSubtitle = [assetCoords, assetRegion].filter(Boolean).join(' · ');
+
   return (
     <div className="h-[calc(100vh-48px)] flex flex-col -m-6">
       {/* ═══ TOP TOOLBAR ═══ */}
@@ -372,9 +407,9 @@ export default function ViewerPage() {
                 <Building2 size={13} className="text-white" />
               </div>
               <div>
-                <h3 className="text-[12px] font-bold text-white leading-none">{iframeAssetName ?? 'Governors Island'}</h3>
+                <h3 className="text-[12px] font-bold text-white leading-none">{assetName}</h3>
                 <p className="text-[9px] text-slate-400 mt-0.5">
-                  {iframeAssetCoords ?? '40.6892° N, 74.0167° W'} · {iframeAssetRegion ?? 'New York Harbor'}
+                  {assetSubtitle}
                 </p>
               </div>
               <div className="w-px h-6 bg-white/10 mx-1" />
@@ -899,7 +934,7 @@ export default function ViewerPage() {
                     )
                   } />
                   <div className="mt-2 p-3 rounded-lg bg-white/5 text-[11px] text-slate-400 leading-relaxed">
-                    Photo captured during the {iframeAssetName ?? 'Yankee Pier'} H20T inspection. Position pinned in the 3D twin at the originating GPS coords.
+                    Photo captured during the {assetName} H20T inspection. Position pinned in the 3D twin at the originating GPS coords.
                   </div>
                 </div>
               </div>
