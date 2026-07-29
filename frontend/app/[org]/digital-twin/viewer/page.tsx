@@ -366,6 +366,15 @@ export default function ViewerPage() {
   const assetRegion = iframeAssetRegion ?? twinAsset?.location_name ?? null;
   const assetSubtitle = [assetCoords, assetRegion].filter(Boolean).join(' · ');
 
+  // Health + the Critical/Worsening/Surveys counts are derived from the twin's
+  // detections, which only exist once the 3D viewer has loaded and reported in.
+  // Before that, the pin fallback is demo data — so show a neutral placeholder
+  // for those, never dummy numbers. (Name + coords above are correct from the
+  // first paint, straight from the asset record.)
+  const twinReady = iframeDetections !== null;
+  const dash = '—';
+  const surveysCount = iframeInspectionCount ?? (twinReady ? activeInspections.length : null);
+
   return (
     <div className="h-[calc(100vh-48px)] flex flex-col -m-6">
       {/* ═══ TOP TOOLBAR ═══ */}
@@ -388,15 +397,15 @@ export default function ViewerPage() {
             {/* Quick stats */}
             <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-lg shadow-lg px-3 py-2 flex items-center gap-3 text-[10px]">
               <span className="flex items-center gap-1 text-red-400 font-bold">
-                <AlertTriangle size={10} /> {criticalCount} Critical
+                <AlertTriangle size={10} /> {twinReady ? criticalCount : dash} Critical
               </span>
               <span className="w-px h-3 bg-white/10" />
               <span className="flex items-center gap-1 text-amber-400 font-bold">
-                <TrendingDown size={10} /> {worseningCount} Worsening
+                <TrendingDown size={10} /> {twinReady ? worseningCount : dash} Worsening
               </span>
               <span className="w-px h-3 bg-white/10" />
               <span className="flex items-center gap-1 text-white/60">
-                <Camera size={10} /> {iframeInspectionCount ?? activeInspections.length} Surveys
+                <Camera size={10} /> {surveysCount ?? dash} Surveys
               </span>
             </div>
             {/* Governors Island name + coords + Health Score Gauge — combined
@@ -416,13 +425,15 @@ export default function ViewerPage() {
               <div className="relative w-8 h-8">
                 <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
                   <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="14" fill="none" stroke={healthInfo.color} strokeWidth="3"
-                    strokeDasharray={`${healthScore * 0.88} 88`} strokeLinecap="round" />
+                  {twinReady && (
+                    <circle cx="18" cy="18" r="14" fill="none" stroke={healthInfo.color} strokeWidth="3"
+                      strokeDasharray={`${healthScore * 0.88} 88`} strokeLinecap="round" />
+                  )}
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white">{healthScore}</span>
+                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white">{twinReady ? healthScore : dash}</span>
               </div>
               <div>
-                <span className="text-[9px] font-bold block" style={{ color: healthInfo.color }}>{healthInfo.label}</span>
+                <span className="text-[9px] font-bold block" style={{ color: twinReady ? healthInfo.color : '#94a3b8' }}>{twinReady ? healthInfo.label : 'Loading'}</span>
                 <span className="text-[8px] text-slate-500">Health</span>
               </div>
             </div>
