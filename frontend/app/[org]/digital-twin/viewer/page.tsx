@@ -867,24 +867,36 @@ export default function ViewerPage() {
                 <div className="w-[280px] border-l border-white/10 p-4 flex flex-col gap-3 overflow-y-auto">
                   <Row label="Structure" value={pinModal.structure} />
                   <Row label="Zone" value={pinModal.zone} />
-                  <Row label="Confidence" value={`${Math.round((pinModal.confidence ?? 0) * 100)} %`} />
                   <Row label="First seen" value={pinModal.first_seen} />
-                  <Row label="Trend" value={
-                    <span
-                      className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                      style={{
-                        background:
-                          pinModal.trend === 'worsening' ? '#ef444422'
-                          : pinModal.trend === 'new'    ? '#0ea5e922'
-                                                        : '#10b98122',
-                        color:
-                          pinModal.trend === 'worsening' ? '#ef4444'
-                          : pinModal.trend === 'new'    ? '#0ea5e9'
-                                                        : '#10b981',
-                      }}
-                    >
-                      {pinModal.trend}
-                    </span>
+                  <Row label={(iframeInspectionCount ?? activeInspections.length) <= 1 ? 'Status' : 'Trend'} value={
+                    (iframeInspectionCount ?? activeInspections.length) <= 1 ? (
+                      // Trend needs a prior inspection to compare against; with only
+                      // one on record there is no progression to report yet.
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: '#64748b22', color: '#94a3b8' }}
+                      >
+                        First inspection
+                      </span>
+                    ) : (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{
+                          background:
+                            pinModal.trend === 'worsening' ? '#ef444422'
+                            : pinModal.trend === 'improving' ? '#10b98122'
+                            : pinModal.trend === 'new'    ? '#0ea5e922'
+                                                          : '#64748b22',
+                          color:
+                            pinModal.trend === 'worsening' ? '#ef4444'
+                            : pinModal.trend === 'improving' ? '#10b981'
+                            : pinModal.trend === 'new'    ? '#0ea5e9'
+                                                          : '#94a3b8',
+                        }}
+                      >
+                        {pinModal.trend}
+                      </span>
+                    )
                   } />
                   <div className="mt-2 p-3 rounded-lg bg-white/5 text-[11px] text-slate-400 leading-relaxed">
                     Photo captured during the {iframeAssetName ?? 'Yankee Pier'} H20T inspection. Position pinned in the 3D twin at the originating GPS coords.
