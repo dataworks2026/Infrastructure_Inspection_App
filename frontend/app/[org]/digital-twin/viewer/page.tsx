@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import Link from '@/components/OrgLink';
-import { missionsApi, assetsApi, type MissionDetection } from '@/lib/api';
+import { missionsApi, assetsApi, dashboardApi, type MissionDetection } from '@/lib/api';
 import { resolveTwinForUser, resolveTwinByAssetId } from '@/lib/twinMap';
 import {
   ArrowLeft, Building2, AlertTriangle, RotateCw, MousePointer, Layers,
@@ -186,6 +186,38 @@ export default function ViewerPage() {
     }
     return null;
   }, [twinAssets, resolvedTwin]);
+
+  // Per-asset stats from the app's OWN data (defect summary + asset health).
+  // These fill on first paint — no waiting for the 3D twin's 99 MB geometry to
+  // download — so the Critical / Surveys / Health cards are populated on landing.
+  // (dashboard overview is already prefetched by the app shell, so this is warm.)
+  const { data: defectSummaryData } = useQuery({
+    queryKey: ['defect-summary'], queryFn: dashboardApi.defectSummary, staleTime: 60_000, retry: 1,
+  });
+  const { data: overviewData } = useQuery({
+    queryKey: ['dashboard'], queryFn: dashboardApi.overview, staleTime: 60_000, retry: 1,
+  });
+  const appStats = useMemo(() => {
+    const id = twinAsset?.id;
+    if (!id) return null;
+    const ds: any = (defectSummaryData as any)?.assets?.find((a: any) => a.asset_id === id);
+    const ah: any = (overviewData as any)?.asset_health?.find((a: any) => a.id === id);
+    if (!ds && !ah) return null;
+    const totals = ds?.totals;
+    let health: number | null = null;
+    if (totals) {
+      const pins: { severity: string }[] = [];
+      (['S1', 'S2', 'S3', 'S4'] as const).forEach(s => {
+        for (let i = 0; i < (totals[s] || 0); i++) pins.push({ severity: s });
+      });
+      health = pins.length ? computeHealthScore(pins) : 100;
+    }
+    const surveys = ah?.inspection_count ?? null;
+    // Worsening needs a prior inspection to compare against — with a single
+    // inspection there is nothing to trend, so it is 0 (matches the pin logic).
+    const worsening = surveys != null && surveys <= 1 ? 0 : null;
+    return { health, critical: totals?.S4 ?? null, surveys, worsening };
+  }, [twinAsset?.id, defectSummaryData, overviewData]);
 
   // ── New state hooks MUST be declared before activePins useMemo references them.
   // Don't move below activePins or you'll trigger a TDZ at render time.
@@ -373,7 +405,14 @@ export default function ViewerPage() {
   // first paint, straight from the asset record.)
   const twinReady = iframeDetections !== null;
   const dash = '—';
-  const surveysCount = iframeInspectionCount ?? (twinReady ? activeInspections.length : null);
+  // Header stats prefer the app's own per-asset data (fills immediately); the
+  // twin's broadcast is only a fallback if that hasn't resolved yet. This is
+  // what makes the cards populate on landing instead of after the twin loads.
+  const critVal    = appStats?.critical  ?? (twinReady ? criticalCount : null);
+  const worseVal   = appStats?.worsening ?? (twinReady ? worseningCount : null);
+  const surveysVal = appStats?.surveys   ?? iframeInspectionCount ?? (twinReady ? activeInspections.length : null);
+  const healthVal  = appStats?.health    ?? (twinReady ? healthScore : null);
+  const healthMeta = healthVal != null ? getHealthLabel(healthVal) : null;
 
   return (
     <div className="h-[calc(100vh-48px)] flex flex-col -m-6">
@@ -397,15 +436,15 @@ export default function ViewerPage() {
             {/* Quick stats */}
             <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-lg shadow-lg px-3 py-2 flex items-center gap-3 text-[10px]">
               <span className="flex items-center gap-1 text-red-400 font-bold">
-                <AlertTriangle size={10} /> {twinReady ? criticalCount : dash} Critical
+                <AlertTriangle size={10} /> {critVal ?? dash} Critical
               </span>
               <span className="w-px h-3 bg-white/10" />
               <span className="flex items-center gap-1 text-amber-400 font-bold">
-                <TrendingDown size={10} /> {twinReady ? worseningCount : dash} Worsening
+                <TrendingDown size={10} /> {worseVal ?? dash} Worsening
               </span>
               <span className="w-px h-3 bg-white/10" />
               <span className="flex items-center gap-1 text-white/60">
-                <Camera size={10} /> {surveysCount ?? dash} Surveys
+                <Camera size={10} /> {surveysVal ?? dash} Surveys
               </span>
             </div>
             {/* Governors Island name + coords + Health Score Gauge — combined
@@ -425,15 +464,15 @@ export default function ViewerPage() {
               <div className="relative w-8 h-8">
                 <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
                   <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
-                  {twinReady && (
-                    <circle cx="18" cy="18" r="14" fill="none" stroke={healthInfo.color} strokeWidth="3"
-                      strokeDasharray={`${healthScore * 0.88} 88`} strokeLinecap="round" />
+                  {healthVal != null && healthMeta && (
+                    <circle cx="18" cy="18" r="14" fill="none" stroke={healthMeta.color} strokeWidth="3"
+                      strokeDasharray={`${healthVal * 0.88} 88`} strokeLinecap="round" />
                   )}
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white">{twinReady ? healthScore : dash}</span>
+                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white">{healthVal ?? dash}</span>
               </div>
               <div>
-                <span className="text-[9px] font-bold block" style={{ color: twinReady ? healthInfo.color : '#94a3b8' }}>{twinReady ? healthInfo.label : 'Loading'}</span>
+                <span className="text-[9px] font-bold block" style={{ color: healthMeta?.color ?? '#94a3b8' }}>{healthMeta?.label ?? 'Loading'}</span>
                 <span className="text-[8px] text-slate-500">Health</span>
               </div>
             </div>

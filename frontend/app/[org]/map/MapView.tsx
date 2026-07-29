@@ -282,7 +282,9 @@ function MapView({ assets, selectedAssetId, onSelectAsset, infraConfig, imagePoi
     ];
     if (coords.length > 0) {
       const bounds = coords.reduce((b, c) => b.extend(c as [number, number]), new mapboxgl.LngLatBounds(coords[0], coords[0]));
-      map.fitBounds(bounds, { padding: 80, maxZoom: 16, pitch: 45 });
+      // maxZoom 17 (was 16) so a single-asset org — e.g. Brooklyn Army Terminal —
+    // lands zoomed in on the asset rather than showing the whole harbour.
+    map.fitBounds(bounds, { padding: 80, maxZoom: 17, pitch: 45 });
       fittedRef.current = true;
     }
   }, [assets, imagePoints]);
