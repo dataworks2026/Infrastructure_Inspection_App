@@ -52,6 +52,14 @@ export default function AssetDetailPage() {
     queryFn: () => missionsApi.list({ asset_id: assetId }),
   });
   const missions = missionsData?.missions ?? [];
+  // Missions that actually contributed data to the twin — i.e. uploaded photos
+  // or reached a twin-processing state. Excludes empty 'planned' missions so the
+  // "Twin Updates" list matches its own description instead of listing every
+  // mission ever created against the asset.
+  const contributingMissions = missions.filter((m: any) =>
+    (m.photos_uploaded ?? 0) > 0 ||
+    ['processing_3d', 'completed', 'analyzed', 'in_progress', 'uploading'].includes(m.status)
+  );
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => assetsApi.update(assetId, data),
@@ -360,12 +368,12 @@ export default function AssetDetailPage() {
       })()}
 
       {/* Twin Updates */}
-      {missions.length > 0 && (
+      {contributingMissions.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
               <Box size={16} className="text-violet-500" />
-              Twin Updates ({missions.length})
+              Twin Updates ({contributingMissions.length})
             </h2>
             <Link href={`/digital-twin/viewer?assetId=${assetId}`}
               className="text-sm font-semibold text-sky-600 hover:text-sky-800 transition-colors">
@@ -374,7 +382,7 @@ export default function AssetDetailPage() {
           </div>
           <p className="text-sm text-slate-400 mb-3">Drone missions that contributed data to the digital twin.</p>
           <div className="space-y-2">
-            {missions.map((m: any) => (
+            {contributingMissions.map((m: any) => (
               <div key={m.id}
                 className="flex items-center justify-between py-3 px-4 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
                 <div className="min-w-0 flex-1">

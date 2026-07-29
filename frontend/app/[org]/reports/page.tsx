@@ -361,9 +361,9 @@ function KpiRow({ preview }: { preview: ReportPreview }) {
         accent={riskColor}
       />
       <KpiCard
-        label="High Severity"
+        label="High Severity (S3 + S4)"
         value={String(metrics.high_severity_count)}
-        sub={`${(metrics.high_severity_pct * 100).toFixed(0)}% of detections`}
+        sub={`Advanced + Severe · ${(metrics.high_severity_pct * 100).toFixed(0)}% of detections`}
         accent="#dc2626"
       />
       <KpiCard
