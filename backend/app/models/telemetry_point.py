@@ -6,7 +6,7 @@ from app.database import Base
 class TelemetryPoint(Base):
     __tablename__ = "telemetry_points"
 
-    id              = Column(BigInteger, primary_key=True, autoincrement=True)
+    id              = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     mission_id      = Column(String(36), ForeignKey("missions.id"), nullable=False, index=True)
 
     timestamp       = Column(DateTime, nullable=False, index=True)
