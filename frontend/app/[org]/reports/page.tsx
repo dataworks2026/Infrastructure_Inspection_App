@@ -303,7 +303,9 @@ function CoverCard({
         style={{ background: BORDER }}
       >
         <MetaCell label="Inspection Date" value={metadata.inspection_date} />
-        <MetaCell label="Method" value={metadata.inspection_method?.replace(/-/g, ' ') || '—'} />
+        {/* Method intentionally hidden — field is set inconsistently upstream
+            (default 'manual'; mission flow writes off-vocabulary 'automated').
+            Reinstate together with the PDF cover row once the data is fixed. */}
         <MetaCell label="Inspector" value={metadata.inspector_name || '—'} />
         <MetaCell
           label="Status"

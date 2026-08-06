@@ -123,14 +123,15 @@ def _cover_page(meta: dict, total_annotations: int) -> list:
         return str(value) if value is not None else ""
 
     inspection_type   = meta.get("inspection_type", "").replace("-", " ").title()
-    inspection_method = meta.get("inspection_method", "").replace("-", " ").title()
     status            = meta.get("status", "").upper()
 
+    # INSPECTION METHOD intentionally not shown: the field is set inconsistently
+    # upstream (model default 'manual'; mission flow writes 'automated', which is
+    # outside the canonical vocabulary) — reinstate once the data is trustworthy.
     rows = [
         ("LOCATION",          _fmt(meta.get("location_name"))),
         ("INSPECTION DATE",   _fmt(meta.get("inspection_date"))),
         ("REPORT TYPE",       inspection_type),
-        ("INSPECTION METHOD", inspection_method),
         ("TOTAL IMAGES",      _fmt(meta.get("total_images"))),
         ("TOTAL ANNOTATIONS", _fmt(total_annotations)),
         ("INSPECTOR",         _fmt(meta.get("inspector_name"))),
@@ -171,16 +172,23 @@ def _reference_guide_page() -> list:
     elems.append(Spacer(1, 0.15 * inch))
 
     elems.append(Paragraph("DAMAGE TYPES", _SECTION_HEADING))
+    # Descriptions match the engineering definitions used in the legacy
+    # deliverable reports (Pier 101 / Yankee Pier / Soissons Landing).
     damage_data = [
         ["Code", "Type",               "Description"],
-        ["CR",  "Cracking",            "Observable cracking in structural elements"],
-        ["SP",  "Spalling",            "Observable spalling in structural elements"],
-        ["CO",  "Corrosion",           "Observable corrosion in structural elements"],
-        ["LO",  "Loss",                "Observable loss in structural elements"],
-        ["DE",  "Decay",               "Observable decay in structural elements"],
-        ["BG",  "Biological Growth",   "Observable biological growth in structural elements"],
-        ["CF",  "Coating Failure",     "Observable coating failure in structural elements"],
-        ["RS",  "Rust Staining",       "Observable rust staining in structural elements"],
+        ["CR",  "Cracking",            "Visible fractures or separations in concrete, masonry, timber, or steel"],
+        ["SP",  "Spalling",            "Loss of surface material from concrete or masonry"],
+        ["CO",  "Corrosion",           "Visible rusting or oxidation of steel"],
+        ["LO",  "Loss",                "Observable loss or reduction of material or member cross-section"],
+        ["DE",  "Decay",               "Biological deterioration of timber"],
+        ["BG",  "Biological Growth",   "Algae, moss, marine growth, or biological accumulation"],
+        ["CF",  "Coating Failure",     "Peeling, flaking, or breakdown of protective coatings or paint"],
+        ["RS",  "Rust Staining",       "Stains in concrete elements due to corrosion of external metal parts"],
+    ]
+    # long descriptions need Paragraph cells so they wrap inside the column
+    _desc = ParagraphStyle("guide_desc", fontName="Helvetica", fontSize=9, leading=11)
+    damage_data = [damage_data[0]] + [
+        [code, label, Paragraph(desc, _desc)] for code, label, desc in damage_data[1:]
     ]
     dt = Table(damage_data, colWidths=[0.6 * inch, 1.5 * inch, w - 2.1 * inch])
     dt.setStyle(TableStyle(_standard_table_style()))
@@ -319,6 +327,8 @@ def _annotated_image_flowable(
     image_path: str,
     detections: list[dict],
     max_width_px: int = 1200,
+    box_w: float | None = None,
+    box_h: float = 3.0 * inch,
 ) -> RLImage | None:
     """Open the image, draw a bbox + severity label per detection, return
     a reportlab Image flowable. Returns None if the file is missing or the
@@ -364,10 +374,10 @@ def _annotated_image_flowable(
     im.save(buf, format="JPEG", quality=78, optimize=True)
     buf.seek(0)
 
-    # Fit to content width while keeping aspect ratio, capped at max_height
-    # so two image blocks fit on a single letter page.
-    cw = _content_width()
-    max_h = 3.0 * inch
+    # Fit to the target box while keeping aspect ratio. box_w defaults to the
+    # full content width; the grid layout passes a column width instead.
+    cw = box_w if box_w is not None else _content_width()
+    max_h = box_h
     aspect = im.height / im.width
     h_at_full_width = cw * aspect
     if h_at_full_width > max_h:
@@ -379,14 +389,20 @@ def _annotated_image_flowable(
     return RLImage(buf, width=final_w, height=final_h)
 
 
-def _image_block(img: dict) -> list:
-    w = _content_width()
+def _image_block(img: dict, w: float | None = None) -> list:
+    # w narrower than the content width means we're rendering into a grid
+    # column — images get a tighter height cap so two rows fit per page.
+    full_width = w is None
+    w = _content_width() if full_width else w
     block: list = []
 
     block.append(Paragraph(img["image_filename"], _H3))
     block.append(Spacer(1, 0.05 * inch))
 
-    flowable = _annotated_image_flowable(img.get("image_path"), img["detections"])
+    flowable = _annotated_image_flowable(
+        img.get("image_path"), img["detections"],
+        box_w=w, box_h=(3.0 * inch if full_width else 2.3 * inch),
+    )
     if flowable is not None:
         block.append(flowable)
         block.append(Spacer(1, 0.08 * inch))
@@ -423,36 +439,113 @@ def _image_block(img: dict) -> list:
         det_rows.append(row)
 
     if show_segment:
-        col_widths = [0.7 * inch, 1.6 * inch, w - 2.3 * inch]
+        col_widths = [0.55 * inch, 1.2 * inch, w - 1.75 * inch] if not full_width \
+            else [0.7 * inch, 1.6 * inch, w - 2.3 * inch]
     else:
-        col_widths = [0.7 * inch, w - 0.7 * inch]
-    dt = Table(det_rows, colWidths=col_widths)
+        col_widths = [0.55 * inch, w - 0.55 * inch] if not full_width \
+            else [0.7 * inch, w - 0.7 * inch]
+    # repeatRows keeps the header visible when a (full-width) table splits
+    dt = Table(det_rows, colWidths=col_widths, repeatRows=1)
     dt.setStyle(TableStyle(_standard_table_style()))
+    if not full_width:
+        # tighter cells in grid columns so two rows fit per page
+        dt.setStyle(TableStyle([
+            ("FONTSIZE",      (0, 0), (-1, -1), 8),
+            ("TOPPADDING",    (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
     block.append(dt)
-    block.append(Spacer(1, 0.06 * inch))
+    block.append(Spacer(1, 0.04 * inch))
 
     n = len(img["detections"])
     block.append(Paragraph(f"{n} annotation{'s' if n != 1 else ''}", _SMALL))
-    block.append(Spacer(1, 0.25 * inch))
+    block.append(Spacer(1, 0.25 * inch if full_width else 0.08 * inch))
     return block
 
 
-def _image_findings_pages(findings: list[dict]) -> list:
-    # Two image findings per page. Photos are height-capped in
-    # _annotated_image_flowable so two blocks (image + findings table) fit
-    # on one letter page. Blocks with unusually large detection tables may
-    # still flow to a second page, which reportlab handles automatically.
-    elems: list = []
-    i = 0
-    while i < len(findings):
-        elems.extend(_image_block(findings[i]))
-        if i + 1 < len(findings):
-            elems.extend(_image_block(findings[i + 1]))
-            i += 2
-        else:
-            i += 1
-        elems.append(PageBreak())
+def _image_card(img: dict) -> Table:
+    """One bordered card in the classic deliverable layout: annotated image on
+    the left, DAMAGE FINDINGS table on the right. Built as a single-row outer
+    table, which platypus cannot split — the card always moves to the next
+    page whole, so a table can never be orphaned from its image."""
+    w = _content_width()
+    pad = 0.09 * inch
+    left_w = 3.05 * inch
+    right_w = w - left_w
 
+    # left column: filename heading + annotated image
+    left: list = [Paragraph(img["image_filename"], _H3), Spacer(1, 0.05 * inch)]
+    flowable = _annotated_image_flowable(
+        img.get("image_path"), img["detections"],
+        box_w=left_w - 2 * pad, box_h=3.1 * inch,
+    )
+    if flowable is not None:
+        left.append(flowable)
+
+    # right column: findings table + annotation count
+    right: list = [Paragraph("DAMAGE FINDINGS", _BOLD), Spacer(1, 0.05 * inch)]
+    show_segment = any((d.get("segment") or "UNK") != "UNK" for d in img["detections"])
+    header = ["Type", "Severity", "Segment(s)"] if show_segment else ["Type", "Severity"]
+    det_rows: list = [header]
+    for d in img["detections"]:
+        sev_para = Paragraph(
+            d["severity_label"],
+            ParagraphStyle("sev_cell", fontName="Helvetica-Bold", fontSize=8,
+                           textColor=_LABEL_COLOR.get(d["severity_label"], _NAVY)),
+        )
+        row = [d["damage_code"], sev_para]
+        if show_segment:
+            row.append(d["segment"])
+        det_rows.append(row)
+    tw = right_w - 2 * pad
+    col_widths = [0.55 * inch, 1.15 * inch, tw - 1.7 * inch] if show_segment \
+        else [0.55 * inch, tw - 0.55 * inch]
+    dt = Table(det_rows, colWidths=col_widths, repeatRows=1)
+    dt.setStyle(TableStyle(_standard_table_style()))
+    dt.setStyle(TableStyle([
+        ("FONTSIZE",      (0, 0), (-1, -1), 8),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    right.append(dt)
+    right.append(Spacer(1, 0.05 * inch))
+    n = len(img["detections"])
+    right.append(Paragraph(f"{n} annotation{'s' if n != 1 else ''}", _SMALL))
+
+    card = Table([[left, right]], colWidths=[left_w, right_w])
+    card.setStyle(TableStyle([
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("BOX",           (0, 0), (-1, -1), 0.75, _BORDER),
+        ("LEFTPADDING",   (0, 0), (-1, -1), pad),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), pad),
+        ("TOPPADDING",    (0, 0), (-1, -1), pad),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
+    ]))
+    return card
+
+
+def _image_findings_pages(findings: list[dict]) -> list:
+    # Classic deliverable layout: bordered cards (image left, findings right),
+    # two cards per letter page. Each card is a single-row table that platypus
+    # cannot split, so cards always move to the next page whole — no orphaned
+    # tables and no continuation pages, the old Word format's failure modes.
+    elems: list = []
+
+    # A card cannot split, so one taller than a page would be unrenderable —
+    # sections with very large detection tables fall back to the flowing
+    # full-width layout instead.
+    max_card_detections = 20
+
+    for img in findings:
+        if len(img["detections"]) > max_card_detections:
+            elems.extend(_image_block(img))
+        else:
+            elems.append(_image_card(img))
+            elems.append(Spacer(1, 0.18 * inch))
+
+    # keep the following section (narrative/review) on its own page
+    if elems:
+        elems.append(PageBreak())
     return elems
 
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, BigInteger, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, Integer, BigInteger, DateTime, Text, ForeignKey
 from sqlalchemy import JSON as JSONB
 from sqlalchemy.sql import func
 from app.database import Base
@@ -6,7 +6,7 @@ from app.database import Base
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
-    log_id          = Column(BigInteger, primary_key=True, autoincrement=True)
+    log_id          = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     organization_id = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True)
     user_id         = Column(String(36), ForeignKey("users.id"), nullable=True)
 
