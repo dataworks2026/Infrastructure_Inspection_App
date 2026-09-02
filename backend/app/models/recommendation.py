@@ -86,8 +86,12 @@ class RecommendationLibraryEntry(Base):
 
     # rule key (LIB-2): class + severity mandatory, asset type + asset id
     # optional narrowing. class is normalized (trimmed, lowercased) before
-    # it reaches here, and bound to the per-org vocabulary the same way
-    # DAT-1 requires (enforced app-side, dual-enforcement pattern).
+    # it reaches here, and bound to the per-org vocabulary via the
+    # composite FK below -- DAT-1's dual-enforcement backstop. Note that
+    # FK semantics only bite when organization_id is populated (a NULL
+    # in any part of a composite FK satisfies it trivially); every path
+    # that creates an entry always supplies a real organization_id, so
+    # this is not a live gap, just a thing to keep true.
     detection_class = Column(Text, nullable=False)
     severity = Column(SmallInteger, ForeignKey("recommendation_severities.severity"), nullable=False)
     asset_type = Column(Text, nullable=True)
@@ -104,6 +108,16 @@ class RecommendationLibraryEntry(Base):
 
     __table_args__ = (
         CheckConstraint("version >= 1", name="ck_rec_entry_version_positive"),
+        # Belt-and-suspenders with the FK to recommendation_severities:
+        # a FK is only as strong as the dialect's FK enforcement, and
+        # SQLite does not check foreign keys at all unless a
+        # connection-level PRAGMA is turned on (not something this
+        # platform's engine setup does, for any table). Severity's valid
+        # domain is a small, fixed set, so a direct CHECK gives the same
+        # guarantee independent of that -- caught missing when
+        # test_out_of_range_severity_rejected_by_database only passed on
+        # Postgres without it.
+        CheckConstraint("severity BETWEEN 1 AND 4", name="ck_rec_entry_severity_range"),
         CheckConstraint(
             "detection_class = lower(trim(detection_class)) AND detection_class <> ''",
             name="ck_rec_entry_class_normalized",
@@ -118,6 +132,14 @@ class RecommendationLibraryEntry(Base):
         CheckConstraint(
             "tier_override IS NULL OR tier_override <= derived_tier",
             name="ck_rec_entry_tier_override_not_less_urgent",
+        ),
+        # DAT-1: a rule can only name a class this organization's
+        # vocabulary audit has actually observed -- the database-level
+        # half of the check authoring.py already makes app-side.
+        ForeignKeyConstraint(
+            ["organization_id", "detection_class"],
+            ["recommendation_class_vocabulary.organization_id", "recommendation_class_vocabulary.class_value"],
+            name="fk_rec_entry_class_vocabulary",
         ),
         # MAT-3, dev/test side: the same partial unique index the d8
         # migration installs, declared here too so create_all() (which
@@ -153,7 +175,12 @@ class RecommendationAuditEvent(Base):
     # migration), not just convention — holds no matter what calls it.
     __tablename__ = "recommendation_audit_events"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # BigInteger().with_variant(Integer, "sqlite"): a bare BigInteger PK
+    # works as BIGSERIAL on Postgres but is not SQLite's INTEGER PRIMARY
+    # KEY rowid alias, so autoincrement silently breaks on SQLite dev --
+    # the same fix already applied to audit_logs.log_id and
+    # telemetry_points.id elsewhere in this codebase.
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     organization_id = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True, index=True)
     actor = Column(String(255), nullable=False)
     action = Column(Text, nullable=False)
@@ -254,7 +281,7 @@ class RecommendationDetectionLink(Base):
     # rule is — not by everyone agreeing not to touch it.
     __tablename__ = "recommendation_detection_links"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     organization_id = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True, index=True)
     record_id = Column(String(36), ForeignKey("recommendation_records.id"), nullable=False, index=True)
 

@@ -61,6 +61,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("archived_at", sa.DateTime(), nullable=True),
         sa.CheckConstraint("version >= 1", name="ck_rec_entry_version_positive"),
+        # Belt-and-suspenders with the FK below -- see the model's
+        # comment on this same constraint for why (SQLite does not
+        # enforce foreign keys without a PRAGMA this platform never sets).
+        sa.CheckConstraint("severity BETWEEN 1 AND 4", name="ck_rec_entry_severity_range"),
         sa.CheckConstraint(
             "detection_class = lower(trim(detection_class)) AND detection_class <> ''",
             name="ck_rec_entry_class_normalized",
@@ -74,12 +78,23 @@ def upgrade() -> None:
             "tier_override IS NULL OR tier_override <= derived_tier",
             name="ck_rec_entry_tier_override_not_less_urgent",
         ),
+        # DAT-1: a rule can only name a class this organization's
+        # vocabulary audit has actually observed.
+        sa.ForeignKeyConstraint(
+            ["organization_id", "detection_class"],
+            ["recommendation_class_vocabulary.organization_id", "recommendation_class_vocabulary.class_value"],
+            name="fk_rec_entry_class_vocabulary",
+        ),
     )
     op.create_index("ix_rec_library_entries_org", "recommendation_library_entries", ["organization_id"])
 
     op.create_table(
         "recommendation_audit_events",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        # BigInteger().with_variant(Integer, "sqlite"): a bare BigInteger
+        # PK works as BIGSERIAL on Postgres but breaks autoincrement on
+        # SQLite dev, same fix already applied to audit_logs.log_id and
+        # telemetry_points.id elsewhere in this codebase.
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), primary_key=True, autoincrement=True),
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.organization_id"), nullable=True),
         sa.Column("actor", sa.String(255), nullable=False),
         sa.Column("action", sa.Text(), nullable=False),
@@ -149,7 +164,11 @@ def upgrade() -> None:
 
     op.create_table(
         "recommendation_detection_links",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        # BigInteger().with_variant(Integer, "sqlite"): a bare BigInteger
+        # PK works as BIGSERIAL on Postgres but breaks autoincrement on
+        # SQLite dev, same fix already applied to audit_logs.log_id and
+        # telemetry_points.id elsewhere in this codebase.
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), primary_key=True, autoincrement=True),
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.organization_id"), nullable=True),
         sa.Column("record_id", sa.String(36), sa.ForeignKey("recommendation_records.id"), nullable=False),
         sa.Column("detection_id", sa.String(36), sa.ForeignKey("detections.id"), nullable=False),
