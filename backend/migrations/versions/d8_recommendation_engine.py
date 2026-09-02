@@ -279,12 +279,30 @@ def upgrade() -> None:
             """
         )
     else:
-        op.create_index(
-            "uq_rec_entry_active_rule_key_sqlite",
-            "recommendation_library_entries",
-            ["organization_id", "detection_class", "severity", "asset_type", "asset_id"],
-            unique=True,
-            sqlite_where=sa.text("is_active AND is_latest"),
+        # SQLite side of MAT-3. asset_type/asset_id are coalesced to ''
+        # for the same reason the Postgres branch above coalesces them:
+        # a plain index treats every NULL as distinct from every other
+        # NULL, which would let two fully-unscoped active entries with
+        # the same class+severity both exist -- verified by hand against
+        # SQLite directly (a plain-column partial index silently let a
+        # duplicate unscoped pair through; the coalesced version rejects
+        # it). Mirrors the Index already declared on the model so
+        # create_all() (dev/test) and this migration (real dev/prod)
+        # produce the identical constraint.
+        #
+        # Two separate statements -- SQLite's DBAPI cursor only accepts
+        # one statement per execute() call, unlike psycopg2 above.
+        op.execute("DROP INDEX IF EXISTS uq_rec_entry_active_rule_key_sqlite")
+        op.execute(
+            """
+            CREATE UNIQUE INDEX uq_rec_entry_active_rule_key_sqlite ON recommendation_library_entries (
+                organization_id,
+                detection_class,
+                severity,
+                coalesce(asset_type, ''),
+                coalesce(asset_id, '')
+            ) WHERE is_active AND is_latest
+            """
         )
 
 

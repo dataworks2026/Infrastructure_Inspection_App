@@ -9,6 +9,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -117,6 +118,32 @@ class RecommendationLibraryEntry(Base):
         CheckConstraint(
             "tier_override IS NULL OR tier_override <= derived_tier",
             name="ck_rec_entry_tier_override_not_less_urgent",
+        ),
+        # MAT-3, dev/test side: the same partial unique index the d8
+        # migration installs, declared here too so create_all() (which
+        # never runs the migration, and which app/main.py calls
+        # unconditionally on every boot regardless of dialect) can't ever
+        # produce an unconditional -- i.e. wrong -- unique index if it
+        # somehow creates this table before a migration does. asset_type
+        # and asset_id are coalesced to '' for the same reason the
+        # Postgres migration coalesces them: a plain index treats every
+        # NULL as distinct from every other NULL, which would let two
+        # fully-unscoped active entries with the same class+severity
+        # both exist -- confirmed by hand against SQLite directly, not
+        # just assumed from the Postgres case. On Postgres this index is
+        # a redundant safety net (the migration's own is authoritative);
+        # on SQLite (the only place create_all() is the real schema
+        # source) this is the sole DB-level backstop for MAT-3.
+        Index(
+            "uq_rec_entry_active_rule_key_sqlite",
+            "organization_id",
+            "detection_class",
+            "severity",
+            text("coalesce(asset_type, '')"),
+            text("coalesce(asset_id, '')"),
+            unique=True,
+            sqlite_where=text("is_active AND is_latest"),
+            postgresql_where=text("is_active AND is_latest"),
         ),
     )
 
