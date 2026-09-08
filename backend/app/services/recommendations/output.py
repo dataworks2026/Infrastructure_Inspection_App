@@ -70,8 +70,8 @@ def build_output(db: Session, organization_id: str) -> dict:
                 "recommendation_text": entry.recommendation_text,
                 "action_class": entry.action_class,
                 "quantity": len(links),
-                "detection_ids": [l.detection_id for l in links],
-                "locations": [l.location for l in links if l.location is not None],
+                "detection_ids": [link.detection_id for link in links],
+                "locations": [link.location for link in links if link.location is not None],
             }
         )
         approved_counts_by_tier[effective_tier] += 1

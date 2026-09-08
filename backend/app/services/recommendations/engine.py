@@ -370,7 +370,7 @@ def rerun_resolution(
         links = db.execute(
             select(RecommendationDetectionLink).where(RecommendationDetectionLink.record_id == record.id)
         ).scalars().all()
-        chain_keys = frozenset(l.chain_key for l in links)
+        chain_keys = frozenset(link.chain_key for link in links)
         identity = _undispositioned_identity(
             record.matched_entry_id, record.matched_entry_version, record.scope_key, chain_keys
         )
@@ -408,13 +408,13 @@ def rerun_resolution(
             select(RecommendationDetectionLink).where(RecommendationDetectionLink.record_id == record.id)
         ).scalars().all()
 
-        changed = [l for l in links if _chain_changed(l, effective_by_chain)]
-        unchanged = [l for l in links if l not in changed]
+        changed = [link for link in links if _chain_changed(link, effective_by_chain)]
+        unchanged = [link for link in links if link not in changed]
 
         if not changed:
             # nothing about this record's contributors moved, so it's
             # still accurate; leave it alone entirely
-            excluded_from_fresh_run.update(l.chain_key for l in links)
+            excluded_from_fresh_run.update(link.chain_key for link in links)
             continue
 
         record.status = "Superseded"
@@ -435,20 +435,20 @@ def rerun_resolution(
             )
             db.add(successor)
             db.flush()
-            for l in unchanged:
+            for link in unchanged:
                 db.add(
                     RecommendationDetectionLink(
                         organization_id=organization_id,
                         record_id=successor.id,
-                        detection_id=l.detection_id,
-                        chain_key=l.chain_key,
-                        severity_at_generation=l.severity_at_generation,
-                        detection_class=l.detection_class,
-                        confidence=l.confidence,
-                        location=l.location,
+                        detection_id=link.detection_id,
+                        chain_key=link.chain_key,
+                        severity_at_generation=link.severity_at_generation,
+                        detection_class=link.detection_class,
+                        confidence=link.confidence,
+                        location=link.location,
                     )
                 )
-                excluded_from_fresh_run.add(l.chain_key)
+                excluded_from_fresh_run.add(link.chain_key)
             supersede_pairs.append((record.id, successor.id))
         else:
             supersede_pairs.append((record.id, None))
