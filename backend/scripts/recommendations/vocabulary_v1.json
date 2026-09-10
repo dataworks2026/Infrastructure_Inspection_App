@@ -1,0 +1,37 @@
+{
+  "vocabulary_version": 1,
+  "status": "signed",
+  "signed_by": "Sindhu, Dataworks (Mira Intel)",
+  "signed_at": "2026-09-10",
+  "source": "production detections.damage_type, all 2,979 rows as of 2026-09-09, read-only query via the platform backend",
+  "normalization": "NFKC, trim, collapse whitespace, lowercase, dash fold (same rule the engine applies at the detection boundary)",
+  "hash_method": "sha256 of json.dumps(sorted(vocabulary), sort_keys=True), first 16 hex characters (identical to tools/class_vocabulary_audit.py in the Phase 1 tool; that method reproduces the Aug 6 fixture hash 1471ba6fe5b839bb exactly)",
+  "vocabulary_hash": "00665c5900276850",
+  "supersedes": {
+    "vocabulary_hash": "1471ba6fe5b839bb",
+    "generated_at": "2026-08-06",
+    "basis": "36-record fixture, 6 classes (biological growth, corrosion, cracking, decay, erosion, spalling). Never signed off. erosion has zero production rows; loss, coating failure and rust staining were absent from the fixture."
+  },
+  "vocabulary": [
+    "biological growth",
+    "coating failure",
+    "corrosion",
+    "cracking",
+    "decay",
+    "loss",
+    "rust staining",
+    "spalling"
+  ],
+  "classes": [
+    {"normalized": "corrosion", "production_rows": 1083, "raw_values": {"Corrosion": 1083}},
+    {"normalized": "biological growth", "production_rows": 1060, "raw_values": {"Biological Growth": 1060}},
+    {"normalized": "decay", "production_rows": 438, "raw_values": {"Decay": 438}},
+    {"normalized": "loss", "production_rows": 169, "raw_values": {"Loss": 169}},
+    {"normalized": "cracking", "production_rows": 95, "raw_values": {"Cracking": 95}},
+    {"normalized": "coating failure", "production_rows": 87, "raw_values": {"Coating Failure": 87}},
+    {"normalized": "spalling", "production_rows": 45, "raw_values": {"Spalling": 30, "spalling": 15}, "note": "case duplicate folded by normalization"},
+    {"normalized": "rust staining", "production_rows": 2, "raw_values": {"Rust Staining": 2}}
+  ],
+  "total_production_rows": 2979,
+  "rows_outside_vocabulary": 0
+}

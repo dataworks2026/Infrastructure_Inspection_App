@@ -137,6 +137,13 @@ def upgrade() -> None:
         sa.Column("scope_key", sa.Text(), nullable=False),
         sa.Column("run_id", sa.String(36), sa.ForeignKey("recommendation_runs.id"), nullable=False),
         sa.Column("supersedes_record_id", sa.String(36), nullable=True),
+        # Rev B 8.3 Reopen: lineage of a Superseded record. chain_changed
+        # comes from the MAT-11 rerun path and has a successor;
+        # inspection_reopened comes from the platform reopen, has no
+        # successor, and carries the reopen reason.
+        sa.Column("superseded_at", sa.DateTime(), nullable=True),
+        sa.Column("supersede_reason", sa.Text(), nullable=True),
+        sa.Column("reopen_reason", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(
@@ -150,6 +157,18 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "status IN ('Draft', 'Approved', 'Rejected', 'Needs Recommendation', 'Superseded')",
             name="ck_rec_record_status_valid",
+        ),
+        sa.CheckConstraint(
+            "supersede_reason IS NULL OR supersede_reason IN ('chain_changed', 'inspection_reopened')",
+            name="ck_rec_record_supersede_reason_valid",
+        ),
+        sa.CheckConstraint(
+            "(status = 'Superseded') = (supersede_reason IS NOT NULL)",
+            name="ck_rec_record_superseded_has_reason",
+        ),
+        sa.CheckConstraint(
+            "reopen_reason IS NULL OR (supersede_reason = 'inspection_reopened' AND trim(reopen_reason) <> '')",
+            name="ck_rec_record_reopen_reason_only_on_reopen",
         ),
         sa.CheckConstraint("rollup_scope IN ('image', 'asset', 'inspection')", name="ck_rec_record_scope_valid"),
         sa.CheckConstraint(
@@ -171,7 +190,11 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), primary_key=True, autoincrement=True),
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.organization_id"), nullable=True),
         sa.Column("record_id", sa.String(36), sa.ForeignKey("recommendation_records.id"), nullable=False),
-        sa.Column("detection_id", sa.String(36), sa.ForeignKey("detections.id"), nullable=False),
+        # Snapshot reference, not a foreign key (Rev B 8.3 Reopen): the
+        # platform reopen deletes engineer detections, and a foreign key
+        # would either block that or cascade a signed link set away. The
+        # consumed class, severity and confidence are copied onto the row.
+        sa.Column("detection_id", sa.String(36), nullable=False),
         sa.Column("chain_key", sa.String(36), nullable=False),
         sa.Column("severity_at_generation", sa.SmallInteger(), nullable=False),
         sa.Column("detection_class", sa.Text(), nullable=False),
@@ -184,6 +207,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_rec_links_org", "recommendation_detection_links", ["organization_id"])
     op.create_index("ix_rec_links_record", "recommendation_detection_links", ["record_id"])
+    op.create_index("ix_rec_links_detection", "recommendation_detection_links", ["detection_id"])
     op.create_index("ix_rec_links_chain_key", "recommendation_detection_links", ["chain_key"])
 
     op.create_table(
@@ -269,7 +293,10 @@ def upgrade() -> None:
             """
         )
 
-        # DAT-5: the link set of a dispositioned record is immutable.
+        # DAT-5: the link set of a dispositioned record is immutable. A
+        # Superseded record was dispositioned once and stays readable
+        # through its links after the source rows are gone (Rev B 8.3
+        # Reopen), so its link set is frozen the same way.
         op.execute(
             """
             CREATE OR REPLACE FUNCTION recommendation_links_immutable_once_dispositioned()
@@ -280,7 +307,7 @@ def upgrade() -> None:
                 SELECT status INTO record_status FROM recommendation_records
                 WHERE id = COALESCE(NEW.record_id, OLD.record_id);
 
-                IF record_status IN ('Approved', 'Rejected') THEN
+                IF record_status IN ('Approved', 'Rejected', 'Superseded') THEN
                     RAISE EXCEPTION 'the link set of a dispositioned record is immutable (status: %)', record_status;
                 END IF;
 

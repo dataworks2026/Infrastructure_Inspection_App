@@ -245,6 +245,15 @@ class RecommendationRecord(Base):
     # set only on a successor record created by the MAT-11 supersede path
     supersedes_record_id = Column(String(36), ForeignKey("recommendation_records.id"), nullable=True)
 
+    # Lineage of a Superseded record (baseline Rev B, 8.3 Reopen).
+    # chain_changed: MAT-11 rerun supersede, a successor record exists.
+    # inspection_reopened: the platform reopen deleted the source detections,
+    # so there is no successor; the links below are the only readable copy
+    # and reopen_reason says why the signed content was retired.
+    superseded_at = Column(DateTime, nullable=True)
+    supersede_reason = Column(Text, nullable=True)
+    reopen_reason = Column(Text, nullable=True)
+
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now())
 
@@ -257,6 +266,18 @@ class RecommendationRecord(Base):
         CheckConstraint(
             "status IN ('Draft', 'Approved', 'Rejected', 'Needs Recommendation', 'Superseded')",
             name="ck_rec_record_status_valid",
+        ),
+        CheckConstraint(
+            "supersede_reason IS NULL OR supersede_reason IN ('chain_changed', 'inspection_reopened')",
+            name="ck_rec_record_supersede_reason_valid",
+        ),
+        CheckConstraint(
+            "(status = 'Superseded') = (supersede_reason IS NOT NULL)",
+            name="ck_rec_record_superseded_has_reason",
+        ),
+        CheckConstraint(
+            "reopen_reason IS NULL OR (supersede_reason = 'inspection_reopened' AND trim(reopen_reason) <> '')",
+            name="ck_rec_record_reopen_reason_only_on_reopen",
         ),
         CheckConstraint("rollup_scope IN ('image', 'asset', 'inspection')", name="ck_rec_record_scope_valid"),
         # DAT-4: no record exists without a resolvable entry version, except
@@ -278,14 +299,21 @@ class RecommendationDetectionLink(Base):
     #
     # The link set of a dispositioned record is immutable (DAT-5), enforced
     # by a DB trigger (d8 migration) the same way audit_events' append-only
-    # rule is — not by everyone agreeing not to touch it.
+    # rule is, not by everyone agreeing not to touch it.
+    #
+    # detection_id is a snapshot reference, deliberately not a foreign key
+    # (Rev B, 8.3 Reopen): the platform's reopen deletes engineer detections,
+    # and a foreign key here would either block that reopen or cascade the
+    # signed link set away. The class, severity and confidence consumed are
+    # copied onto the link so a superseded record stays readable after the
+    # source row is gone.
     __tablename__ = "recommendation_detection_links"
 
     id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     organization_id = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True, index=True)
     record_id = Column(String(36), ForeignKey("recommendation_records.id"), nullable=False, index=True)
 
-    detection_id = Column(String(36), ForeignKey("detections.id"), nullable=False)
+    detection_id = Column(String(36), nullable=False, index=True)
     chain_key = Column(String(36), nullable=False, index=True)
 
     severity_at_generation = Column(SmallInteger, nullable=False)

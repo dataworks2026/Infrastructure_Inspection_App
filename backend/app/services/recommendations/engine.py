@@ -55,6 +55,7 @@ from app.models.recommendation import (
     RecommendationRun,
 )
 from app.services.recommendations.audit import record_audit_event
+from app.services.recommendations.errors import FieldValidationError
 from app.services.recommendations.matching import resolve_detection
 from app.services.recommendations.types import MatchableDetection
 
@@ -418,6 +419,8 @@ def rerun_resolution(
             continue
 
         record.status = "Superseded"
+        record.superseded_at = now
+        record.supersede_reason = "chain_changed"
         record.updated_at = now
         superseded_count += 1
 
@@ -550,11 +553,103 @@ def rerun_resolution(
             action="record_superseded",
             entity_type="recommendation_record",
             entity_id=old_id,
-            detail={"successor_record_id": str(successor_id) if successor_id else None},
+            detail={
+                "successor_record_id": str(successor_id) if successor_id else None,
+                "supersede_reason": "chain_changed",
+            },
         )
     db.commit()
     db.refresh(run)
     return run
+
+
+def supersede_for_reopen(
+    db: Session,
+    organization_id: str,
+    inspection_id: str,
+    actor: str,
+    reopen_reason: str,
+) -> dict:
+    """Baseline Rev B 8.3, Reopen. The platform's reopen deletes the
+    inspection's review rows and engineer detections; this runs in the same
+    transaction so signed content is retired deliberately rather than lost.
+
+    Dispositioned records (Approved, Rejected) on the inspection become
+    Superseded with supersede_reason 'inspection_reopened' and the reason
+    the user gave. No successor is created: the rows it would describe are
+    gone. Their links are left exactly as they are; the snapshot columns on
+    the link (class, severity, confidence) are what keeps a superseded
+    record readable afterwards, and DAT-5's trigger freezes them.
+
+    Unsigned records (Draft, Needs Recommendation) are discarded outright.
+    They are recomputable, so the next run rebuilds them from whatever the
+    reopened review produces.
+    """
+    if reopen_reason is None or not reopen_reason.strip():
+        raise FieldValidationError("reopen_reason", "a reopen must state its reason")
+    reason = reopen_reason.strip()
+    now = datetime.now(timezone.utc)
+
+    records = db.execute(
+        select(RecommendationRecord)
+        .join(RecommendationRun, RecommendationRecord.run_id == RecommendationRun.id)
+        .where(
+            RecommendationRecord.organization_id == organization_id,
+            RecommendationRun.inspection_id == inspection_id,
+        )
+    ).scalars().all()
+
+    superseded_ids: list[str] = []
+    discarded_ids: list[str] = []
+    for record in records:
+        if record.status in ("Approved", "Rejected"):
+            record.status = "Superseded"
+            record.superseded_at = now
+            record.supersede_reason = "inspection_reopened"
+            record.reopen_reason = reason
+            record.updated_at = now
+            superseded_ids.append(record.id)
+            record_audit_event(
+                db,
+                organization_id=organization_id,
+                actor=actor,
+                action="record_superseded",
+                entity_type="recommendation_record",
+                entity_id=record.id,
+                detail={
+                    "successor_record_id": None,
+                    "supersede_reason": "inspection_reopened",
+                    "reopen_reason": reason,
+                },
+            )
+        elif record.status in ("Draft", "Needs Recommendation"):
+            # synchronize_session="fetch" for the same SQLite rowid-reuse
+            # reason rerun_resolution gives above
+            db.execute(
+                delete(RecommendationDetectionLink)
+                .where(RecommendationDetectionLink.record_id == record.id)
+                .execution_options(synchronize_session="fetch")
+            )
+            db.delete(record)
+            discarded_ids.append(record.id)
+        # an already Superseded record is history and stays untouched
+    db.flush()
+
+    record_audit_event(
+        db,
+        organization_id=organization_id,
+        actor=actor,
+        action="inspection_reopened",
+        entity_type="inspection",
+        entity_id=inspection_id,
+        detail={
+            "reopen_reason": reason,
+            "superseded": superseded_ids,
+            "discarded": discarded_ids,
+        },
+    )
+    db.commit()
+    return {"superseded": superseded_ids, "discarded": discarded_ids}
 
 
 def get_records_for_run(db: Session, run_id: str) -> list[RecommendationRecord]:
