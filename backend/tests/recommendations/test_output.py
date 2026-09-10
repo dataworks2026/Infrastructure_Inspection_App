@@ -92,7 +92,7 @@ class TestRenderContent:
             make_detection("d1", detection_class="corrosion", severity=4, asset_id="asset-1"),
             make_detection("d2", detection_class="cracking", severity=1, asset_id="asset-2"),
         ]
-        run = engine.run_resolution(db_session, test_org.organization_id, "inspection-1", detections, "asset", "engineer@example.com")
+        engine.run_resolution(db_session, test_org.organization_id, "inspection-1", detections, "asset", "engineer@example.com")
         workflow.bulk_disposition(db_session, test_org.organization_id, "approve", "engineer@example.com", rollup_scope="asset", scope_key="asset-1")
         workflow.bulk_disposition(db_session, test_org.organization_id, "approve", "engineer@example.com", rollup_scope="asset", scope_key="asset-2")
 
@@ -120,7 +120,7 @@ class TestRenderContent:
             make_detection("d2", severity=4, asset_id="asset-1", location={"lat": 1.1, "lng": 2.1}),
             make_detection("d3", severity=4, asset_id="asset-1"),
         ]
-        run = engine.run_resolution(db_session, test_org.organization_id, "inspection-1", detections, "asset", "engineer@example.com")
+        engine.run_resolution(db_session, test_org.organization_id, "inspection-1", detections, "asset", "engineer@example.com")
         workflow.bulk_disposition(db_session, test_org.organization_id, "approve", "engineer@example.com", rollup_scope="asset", scope_key="asset-1")
 
         result = output.build_output(db_session, test_org.organization_id)
