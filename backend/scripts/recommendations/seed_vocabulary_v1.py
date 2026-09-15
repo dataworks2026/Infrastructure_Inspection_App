@@ -1,9 +1,10 @@
 """Load the signed class vocabulary (vocabulary_v1.json) for one organization.
 
 Idempotent: rows already present are left alone, so it can run again after a
-partial load. Rows are written with provisional=False because v1 is signed;
-the source column records the vocabulary hash so an audit can tie every row
-back to the signed file.
+partial load. Rows are written provisional=False only once the file's status
+is "signed" (the sign off is the CTO's act); until then they load as
+provisional. The source column records the vocabulary hash so an audit can
+tie every row back to the file.
 
     python scripts/recommendations/seed_vocabulary_v1.py --org <organization_id>
 """
@@ -32,7 +33,9 @@ def load_signed_vocabulary() -> dict:
 
 def seed(organization_id: str) -> tuple[int, int]:
     data = load_signed_vocabulary()
-    source = f"vocabulary_v{data['vocabulary_version']} {data['vocabulary_hash']} signed {data['signed_at']}"
+    signed = data.get("status") == "signed" and data.get("signed_at")
+    state = f"signed {data['signed_at']}" if signed else f"prepared {data.get('prepared_at')}, unsigned"
+    source = f"vocabulary_v{data['vocabulary_version']} {data['vocabulary_hash']} {state}"
     added = skipped = 0
     db = SessionLocal()
     try:
@@ -44,7 +47,7 @@ def seed(organization_id: str) -> tuple[int, int]:
                 RecommendationClassVocabulary(
                     organization_id=organization_id,
                     class_value=class_value,
-                    provisional=False,
+                    provisional=not signed,
                     source=source,
                 )
             )
