@@ -24,11 +24,17 @@ TEST_VOCABULARY = ["corrosion", "cracking", "spalling", "decay", "erosion", "bio
 
 @pytest.fixture
 def rec_lookups(db_session):
-    """Seed the two fixed lookup tables every library entry FKs to."""
+    """Seed the two fixed lookup tables every library entry FKs to.
+
+    On SQLite the schema comes from create_all and the tables are empty;
+    on Postgres the d8 migration has already seeded them, so this only
+    fills what is missing."""
     for severity, label in [(1, "S1"), (2, "S2"), (3, "S3"), (4, "S4")]:
-        db_session.add(RecommendationSeverity(severity=severity, label=label))
+        if db_session.get(RecommendationSeverity, severity) is None:
+            db_session.add(RecommendationSeverity(severity=severity, label=label))
     for tier, label in [(1, "Immediate action"), (2, "Planned repair"), (3, "Monitor and maintain")]:
-        db_session.add(RecommendationPriorityTier(tier=tier, label=label))
+        if db_session.get(RecommendationPriorityTier, tier) is None:
+            db_session.add(RecommendationPriorityTier(tier=tier, label=label))
     db_session.commit()
 
 
