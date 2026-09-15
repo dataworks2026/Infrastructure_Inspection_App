@@ -1,0 +1,2204 @@
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 4a1f72c..c81194c 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -1,42 +1,43 @@
+-import os
+-from fastapi import FastAPI
+-from fastapi.middleware.cors import CORSMiddleware
+-from fastapi.staticfiles import StaticFiles
+-from app.core.config import settings
+-from app.database import engine, Base
+-from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
+-from app.routers import missions, telemetry, flight_logs, odm, thermal
+-import app.models  # noqa: ensure all models are registered
+-
+-Base.metadata.create_all(bind=engine)
+-os.makedirs(settings.STORAGE_BASE_PATH, exist_ok=True)
+-
+-app = FastAPI(title="Mira Intel API", version="1.0.0")
+-
+-app.add_middleware(
+-    CORSMiddleware,
+-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+-    allow_credentials=True,
+-    allow_methods=["*"],
+-    allow_headers=["*"],
+-)
+-
+-app.mount("/storage", StaticFiles(directory=settings.STORAGE_BASE_PATH), name="storage")
+-
+-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+-app.include_router(assets.router, prefix="/api/v1/assets", tags=["assets"])
+-app.include_router(inspections.router, prefix="/api/v1/inspections", tags=["inspections"])
+-app.include_router(images.router, prefix="/api/v1", tags=["images"])
+-app.include_router(analysis.router, prefix="/api/v1", tags=["analysis"])
+-app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+-app.include_router(environmental.router, prefix="/api/v1/environmental", tags=["environmental"])
+-app.include_router(sensors.router, prefix="/api/v1/sensors", tags=["sensors"])
+-app.include_router(missions.router, prefix="/api/v1/missions", tags=["missions"])
+-app.include_router(telemetry.router, prefix="/api/v1/telemetry", tags=["telemetry"])
+-app.include_router(flight_logs.router, prefix="/api/v1/flight-logs", tags=["flight-logs"])
+-app.include_router(odm.router, prefix="/api/v1/odm", tags=["odm"])
+-app.include_router(thermal.router, prefix="/api/v1/thermal", tags=["thermal"])
+-
+-@app.get("/health")
+-async def health():
+-    return {"status": "healthy"}
++import os
++from fastapi import FastAPI
++from fastapi.middleware.cors import CORSMiddleware
++from fastapi.staticfiles import StaticFiles
++from app.core.config import settings
++from app.database import engine, Base
++from app.routers import auth, assets, inspections, images, analysis, dashboard, environmental, sensors
++from app.routers import missions, telemetry, flight_logs, odm, thermal, predictive
++import app.models  # noqa: ensure all models are registered
++
++Base.metadata.create_all(bind=engine)
++os.makedirs(settings.STORAGE_BASE_PATH, exist_ok=True)
++
++app = FastAPI(title="Mira Intel API", version="1.0.0")
++
++app.add_middleware(
++    CORSMiddleware,
++    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
++    allow_credentials=True,
++    allow_methods=["*"],
++    allow_headers=["*"],
++)
++
++app.mount("/storage", StaticFiles(directory=settings.STORAGE_BASE_PATH), name="storage")
++
++app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
++app.include_router(assets.router, prefix="/api/v1/assets", tags=["assets"])
++app.include_router(inspections.router, prefix="/api/v1/inspections", tags=["inspections"])
++app.include_router(images.router, prefix="/api/v1", tags=["images"])
++app.include_router(analysis.router, prefix="/api/v1", tags=["analysis"])
++app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
++app.include_router(environmental.router, prefix="/api/v1/environmental", tags=["environmental"])
++app.include_router(sensors.router, prefix="/api/v1/sensors", tags=["sensors"])
++app.include_router(missions.router, prefix="/api/v1/missions", tags=["missions"])
++app.include_router(telemetry.router, prefix="/api/v1/telemetry", tags=["telemetry"])
++app.include_router(flight_logs.router, prefix="/api/v1/flight-logs", tags=["flight-logs"])
++app.include_router(odm.router, prefix="/api/v1/odm", tags=["odm"])
++app.include_router(thermal.router, prefix="/api/v1/thermal", tags=["thermal"])
++app.include_router(predictive.router, prefix="/api/v1/predictive", tags=["predictive"])
++
++@app.get("/health")
++async def health():
++    return {"status": "healthy"}
+diff --git a/backend/app/models/v1_analytics_run.py b/backend/app/models/v1_analytics_run.py
+index 071822d..cd1ce06 100644
+--- a/backend/app/models/v1_analytics_run.py
++++ b/backend/app/models/v1_analytics_run.py
+@@ -1,25 +1,42 @@
+-import uuid
+-from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey
+-from sqlalchemy import JSON as JSONB
+-from sqlalchemy.sql import func
+-from app.database import Base
+-
+-class V1AnalyticsRun(Base):
+-    __tablename__ = "v1_analytics_run"
+-
+-    id                       = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+-    inspection_id            = Column(String(36), ForeignKey("inspections.id"), nullable=False)
+-    baseline_inspection_id   = Column(String(36), ForeignKey("inspections.id"), nullable=True)
+-    organization_id          = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True)
+-    asset_id                 = Column(String(36), ForeignKey("assets.id"), nullable=False)
+-
+-    status                   = Column(String(20), nullable=False)    # running|completed|failed
+-    engine_version           = Column(String(10), nullable=False)
+-    schema_version           = Column(String(10), nullable=False)
+-
+-    created_at               = Column(DateTime, server_default=func.now(), nullable=False)
+-    completed_at             = Column(DateTime, nullable=True)
+-    processing_time_ms       = Column(Integer, nullable=True)
+-    total_items_analyzed     = Column(Integer, nullable=False, default=0)
+-    error_message            = Column(Text, nullable=True)
+-    run_metadata             = Column(JSONB, nullable=True, default=dict)
++import uuid
++from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey
++from sqlalchemy import JSON as JSONB
++from sqlalchemy.sql import func
++from app.database import Base
++
++class V1AnalyticsRun(Base):
++    """One execution of the analytics pipeline.
++
++    A run can be scoped at three different levels depending on how
++    it is triggered:
++      - Org-wide run    : analyses every asset in an organization;
++                          inspection_id and asset_id are NULL.
++      - Per-asset run   : deep dive on a single asset;
++                          asset_id is populated, inspection_id may be NULL.
++      - Per-inspection  : tied to one specific inspection (legacy scope);
++                          both inspection_id and asset_id are populated.
++
++    organization_id is always populated for multi-tenant isolation.
++    """
++
++    __tablename__ = "v1_analytics_run"
++
++    id                       = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
++    # inspection_id / asset_id are nullable so org-wide runs (the
++    # default POST /api/v1/predictive/run scope) can be recorded
++    # without a synthetic placeholder FK.
++    inspection_id            = Column(String(36), ForeignKey("inspections.id"), nullable=True)
++    baseline_inspection_id   = Column(String(36), ForeignKey("inspections.id"), nullable=True)
++    organization_id          = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True)
++    asset_id                 = Column(String(36), ForeignKey("assets.id"), nullable=True)
++
++    status                   = Column(String(20), nullable=False)    # running|completed|failed
++    engine_version           = Column(String(10), nullable=False)
++    schema_version           = Column(String(10), nullable=False)
++
++    created_at               = Column(DateTime, server_default=func.now(), nullable=False)
++    completed_at             = Column(DateTime, nullable=True)
++    processing_time_ms       = Column(Integer, nullable=True)
++    total_items_analyzed     = Column(Integer, nullable=False, default=0)
++    error_message            = Column(Text, nullable=True)
++    run_metadata             = Column(JSONB, nullable=True, default=dict)
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index f2ebe97..f0d99d6 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -1,22 +1,31 @@
+-fastapi>=0.104.0
+-uvicorn[standard]>=0.24.0
+-python-multipart>=0.0.6
+-pydantic>=2.10.0
+-pydantic-settings>=2.1.0
+-sqlalchemy>=2.0.23
+-psycopg2-binary>=2.9.9
+-python-jose[cryptography]==3.3.0
+-passlib[bcrypt]==1.7.4
+-pillow>=10.2.0
+-numpy>=1.26.0
+-opencv-python>=4.9.0.80
+-ultralytics>=8.0.200
+-torch>=2.6.0
+-torchvision>=0.21.0
+-python-dotenv>=1.0.0
+-aiofiles>=23.2.1
+-email-validator>=2.1.0
+-bcrypt>=4.0.1
+-httpx>=0.27.0
+-PyMuPDF>=1.24.0
+-matplotlib>=3.8.0
++fastapi>=0.104.0
++uvicorn[standard]>=0.24.0
++python-multipart>=0.0.6
++pydantic>=2.10.0
++pydantic-settings>=2.1.0
++sqlalchemy>=2.0.23
++psycopg2-binary>=2.9.9
++python-jose[cryptography]==3.3.0
++passlib[bcrypt]==1.7.4
++pillow>=10.2.0
++numpy>=1.26.0
++opencv-python>=4.9.0.80
++ultralytics>=8.0.200
++torch>=2.6.0
++torchvision>=0.21.0
++python-dotenv>=1.0.0
++aiofiles>=23.2.1
++email-validator>=2.1.0
++bcrypt>=4.0.1
++httpx>=0.27.0
++PyMuPDF>=1.24.0
++
++# Predictive analytics dependencies (consumed by
++# app.services.analytics.* — deterioration, anomaly, priority,
++# tti, engine, and data_adapter).
++pandas>=2.0.0
++scipy>=1.11.0
++PyYAML>=6.0
++
++# Testing
++pytest>=8.0
+diff --git a/frontend/app/(dashboard)/assets/[id]/page.tsx b/frontend/app/(dashboard)/assets/[id]/page.tsx
+index 5814953..eb95f52 100644
+--- a/frontend/app/(dashboard)/assets/[id]/page.tsx
++++ b/frontend/app/(dashboard)/assets/[id]/page.tsx
+@@ -1,303 +1,307 @@
+-'use client';
+-import { useState } from 'react';
+-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+-import { assetsApi, inspectionsApi } from '@/lib/api';
+-import { useParams } from 'next/navigation';
+-import Link from 'next/link';
+-import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation } from 'lucide-react';
+-import { InfrastructureType } from '@/types';
+-
+-const PRESET_LOCATIONS = [
+-  { name: 'Hornsea Wind Farm, UK',       lat: 53.885,  lng: 1.791 },
+-  { name: 'Dogger Bank Wind Farm, UK',   lat: 54.750,  lng: 2.250 },
+-  { name: 'London Array, UK',            lat: 51.628,  lng: 1.450 },
+-  { name: 'Walney Extension, UK',        lat: 54.040,  lng: -3.520 },
+-  { name: 'Block Island Wind Farm, US',  lat: 41.127,  lng: -71.520 },
+-  { name: 'Vineyard Wind, US',           lat: 41.133,  lng: -70.600 },
+-  { name: 'South Fork Wind Farm, US',    lat: 40.960,  lng: -72.140 },
+-  { name: 'Dover Harbour, UK',           lat: 51.117,  lng: 1.320 },
+-  { name: 'Plymouth Breakwater, UK',     lat: 50.330,  lng: -4.152 },
+-  { name: 'Felixstowe Port, UK',         lat: 51.957,  lng: 1.305 },
+-];
+-
+-export default function AssetDetailPage() {
+-  const params = useParams();
+-  const assetId = params.id as string;
+-  const queryClient = useQueryClient();
+-
+-  const [editing, setEditing] = useState(false);
+-  const [editForm, setEditForm] = useState({
+-    name: '',
+-    location_name: '',
+-    latitude: '',
+-    longitude: '',
+-    status: '',
+-  });
+-  const [showPresets, setShowPresets] = useState(false);
+-
+-  const { data: asset, isLoading: assetLoading } = useQuery({
+-    queryKey: ['asset', assetId],
+-    queryFn: () => assetsApi.get(assetId),
+-  });
+-
+-  const { data: inspections = [] } = useQuery({
+-    queryKey: ['inspections', { asset_id: assetId }],
+-    queryFn: () => inspectionsApi.list({ asset_id: assetId }),
+-  });
+-
+-  const updateMutation = useMutation({
+-    mutationFn: (data: any) => assetsApi.update(assetId, data),
+-    onSuccess: () => {
+-      queryClient.invalidateQueries({ queryKey: ['asset', assetId] });
+-      queryClient.invalidateQueries({ queryKey: ['assets'] });
+-      setEditing(false);
+-    },
+-  });
+-
+-  function startEditing() {
+-    if (!asset) return;
+-    setEditForm({
+-      name: asset.name || '',
+-      location_name: asset.location_name || '',
+-      latitude: asset.latitude?.toString() || '',
+-      longitude: asset.longitude?.toString() || '',
+-      status: asset.status || 'active',
+-    });
+-    setEditing(true);
+-  }
+-
+-  function handleSave(e: React.FormEvent) {
+-    e.preventDefault();
+-    const payload: any = {
+-      name: editForm.name,
+-      location_name: editForm.location_name || undefined,
+-      status: editForm.status,
+-    };
+-    if (editForm.latitude && editForm.longitude) {
+-      payload.latitude = parseFloat(editForm.latitude);
+-      payload.longitude = parseFloat(editForm.longitude);
+-    } else {
+-      payload.latitude = null;
+-      payload.longitude = null;
+-    }
+-    updateMutation.mutate(payload);
+-  }
+-
+-  function applyPreset(preset: typeof PRESET_LOCATIONS[0]) {
+-    setEditForm({
+-      ...editForm,
+-      location_name: preset.name,
+-      latitude: preset.lat.toString(),
+-      longitude: preset.lng.toString(),
+-    });
+-    setShowPresets(false);
+-  }
+-
+-  if (assetLoading) return (
+-    <div className="flex items-center justify-center h-40">
+-      <div className="w-6 h-6 border-2 border-mira-blue border-t-transparent rounded-full animate-spin" />
+-    </div>
+-  );
+-
+-  if (!asset) return <div className="text-red-500">Asset not found.</div>;
+-
+-  return (
+-    <div>
+-      <Link href="/assets" className="inline-flex items-center gap-2 text-base text-mira-muted hover:text-mira-blue mb-6 font-medium">
+-        <ArrowLeft size={18} /> Back to Assets
+-      </Link>
+-
+-      {/* Asset info card */}
+-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card mb-6">
+-        {!editing ? (
+-          /* View mode */
+-          <>
+-            <div className="flex items-start justify-between">
+-              <div>
+-                <h1 className="text-2xl font-bold text-slate-800">{asset.name}</h1>
+-                <div className="flex items-center gap-3 mt-2 flex-wrap">
+-                  <span className="text-sm px-2.5 py-1 rounded-md font-medium bg-sky-100 text-sky-700">{asset.infrastructure_type.replace('_', ' ')}</span>
+-                  <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
+-                    asset.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
+-                    asset.status === 'maintenance' ? 'bg-amber-50 text-amber-700' :
+-                    'bg-slate-100 text-slate-500'
+-                  }`}>{asset.status}</span>
+-                </div>
+-              </div>
+-              <div className="flex items-center gap-2">
+-                <button onClick={startEditing}
+-                  className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition-all">
+-                  <Pencil size={15} /> Edit
+-                </button>
+-                <Link href="/upload"
+-                  className="bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all">
+-                  New Inspection
+-                </Link>
+-              </div>
+-            </div>
+-
+-            {/* Location info */}
+-            <div className="mt-4 space-y-1.5">
+-              {asset.location_name && (
+-                <div className="flex items-center gap-2 text-base text-mira-muted">
+-                  <MapPin size={16} /> {asset.location_name}
+-                </div>
+-              )}
+-              {asset.latitude != null && asset.longitude != null ? (
+-                <div className="flex items-center gap-2 text-sm text-mira-faint font-mono ml-5">
+-                  {asset.latitude.toFixed(4)}°, {asset.longitude.toFixed(4)}°
+-                  <Link href="/map" className="text-sky-500 hover:text-sky-700 font-sans font-medium ml-1">
+-                    View on Map →
+-                  </Link>
+-                </div>
+-              ) : (
+-                <div className="flex items-center gap-2 text-sm text-amber-600 mt-2 bg-amber-50 px-3 py-2 rounded-lg">
+-                  <Navigation size={14} />
+-                  No coordinates set.
+-                  <button onClick={startEditing} className="underline font-medium hover:text-amber-800">Add location</button>
+-                  to see this asset on the map.
+-                </div>
+-              )}
+-              <div className="flex items-center gap-2 text-base text-mira-faint">
+-                <Calendar size={16} /> Created {new Date(asset.created_at).toLocaleDateString()}
+-              </div>
+-            </div>
+-          </>
+-        ) : (
+-          /* Edit mode */
+-          <form onSubmit={handleSave}>
+-            <div className="flex items-center justify-between mb-5">
+-              <h2 className="text-lg font-semibold text-slate-800">Edit Asset</h2>
+-              <button type="button" onClick={() => setEditing(false)}
+-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100">
+-                <X size={18} />
+-              </button>
+-            </div>
+-
+-            <div className="space-y-4">
+-              {/* Name */}
+-              <div>
+-                <label className="text-sm font-semibold text-slate-600 uppercase tracking-wider block mb-1.5">Asset Name</label>
+-                <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} required
+-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-base text-slate-800 placeholder:text-slate-400 focus:bg-white"
+-                  placeholder="e.g. Turbine T-12" />
+-              </div>
+-
+-              {/* Status */}
+-              <div>
+-                <label className="text-sm font-semibold text-slate-600 uppercase tracking-wider block mb-1.5">Status</label>
+-                <select value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})}
+-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-base text-slate-800 focus:bg-white">
+-                  <option value="active">Active</option>
+-                  <option value="maintenance">Maintenance</option>
+-                  <option value="decommissioned">Decommissioned</option>
+-                </select>
+-              </div>
+-
+-              {/* Location section */}
+-              <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+-                <div className="flex items-center justify-between mb-3">
+-                  <label className="text-sm font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+-                    <Navigation size={14} /> Location & Coordinates
+-                  </label>
+-                  <div className="relative">
+-                    <button type="button" onClick={() => setShowPresets(!showPresets)}
+-                      className="text-[11px] font-semibold text-sky-600 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-md flex items-center gap-1 transition-all">
+-                      Quick Fill <ChevronDown size={10} />
+-                    </button>
+-                    {showPresets && (
+-                      <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 w-64 max-h-56 overflow-y-auto">
+-                        {PRESET_LOCATIONS.map((p, i) => (
+-                          <button key={i} type="button" onClick={() => applyPreset(p)}
+-                            className="w-full text-left px-3 py-2 text-sm hover:bg-sky-50 transition-colors border-b border-slate-50 last:border-0">
+-                            <span className="font-medium text-slate-700">{p.name}</span>
+-                            <span className="text-[11px] text-mira-faint block mt-0.5">
+-                              {p.lat.toFixed(3)}°, {p.lng.toFixed(3)}°
+-                            </span>
+-                          </button>
+-                        ))}
+-                      </div>
+-                    )}
+-                  </div>
+-                </div>
+-                <div className="space-y-3">
+-                  <input value={editForm.location_name} onChange={e => setEditForm({...editForm, location_name: e.target.value})}
+-                    className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-base text-slate-800 placeholder:text-slate-400 focus:border-sky-300"
+-                    placeholder="Location name, e.g. Hornsea Wind Farm" />
+-                  <div className="grid grid-cols-2 gap-3">
+-                    <div>
+-                      <label className="text-[11px] font-medium text-mira-faint block mb-1">Latitude</label>
+-                      <input value={editForm.latitude}
+-                        onChange={e => setEditForm({...editForm, latitude: e.target.value})}
+-                        type="number" step="any" min="-90" max="90"
+-                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-base text-slate-800 placeholder:text-slate-400 font-mono focus:border-sky-300"
+-                        placeholder="e.g. 53.885" />
+-                    </div>
+-                    <div>
+-                      <label className="text-[11px] font-medium text-mira-faint block mb-1">Longitude</label>
+-                      <input value={editForm.longitude}
+-                        onChange={e => setEditForm({...editForm, longitude: e.target.value})}
+-                        type="number" step="any" min="-180" max="180"
+-                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-base text-slate-800 placeholder:text-slate-400 font-mono focus:border-sky-300"
+-                        placeholder="e.g. 1.791" />
+-                    </div>
+-                  </div>
+-                  <p className="text-[11px] text-mira-faint">
+-                    Use &quot;Quick Fill&quot; to pick from known locations, or enter coordinates from Google Maps.
+-                  </p>
+-                </div>
+-              </div>
+-
+-              {/* Actions */}
+-              <div className="flex gap-3 pt-2">
+-                <button type="submit" disabled={updateMutation.isPending}
+-                  className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white py-2.5 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50">
+-                  <Check size={17} /> {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+-                </button>
+-                <button type="button" onClick={() => setEditing(false)}
+-                  className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-lg text-base font-medium hover:bg-slate-50 transition-all">
+-                  Cancel
+-                </button>
+-              </div>
+-
+-              {updateMutation.isError && (
+-                <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+-                  Failed to update. Please try again.
+-                </p>
+-              )}
+-            </div>
+-          </form>
+-        )}
+-      </div>
+-
+-      {/* Inspections list */}
+-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card">
+-        <h2 className="text-base font-semibold text-slate-700 uppercase tracking-wider mb-4">Inspections ({inspections.length})</h2>
+-        {inspections.length === 0 ? (
+-          <div className="text-center py-8">
+-            <ClipboardList size={32} className="mx-auto mb-2 text-slate-300" />
+-            <p className="text-base text-mira-muted">No inspections for this asset yet.</p>
+-            <Link href="/upload" className="text-base text-mira-blue hover:underline font-medium mt-1 inline-block">Upload one</Link>
+-          </div>
+-        ) : (
+-          <div className="space-y-2">
+-            {inspections.map((insp: any) => (
+-              <Link key={insp.id} href={`/inspections/${insp.id}`}
+-                className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+-                <div>
+-                  <p className="text-base font-medium text-slate-700">{insp.name}</p>
+-                  <p className="text-sm text-mira-faint mt-0.5">{insp.image_count} image{insp.image_count !== 1 ? 's' : ''} &middot; {new Date(insp.inspected_at || insp.created_at).toLocaleDateString()}</p>
+-                </div>
+-                <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
+-                  insp.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+-                  insp.status === 'pending' ? 'bg-amber-50 text-amber-700' :
+-                  'bg-slate-100 text-slate-500'
+-                }`}>{insp.status}</span>
+-              </Link>
+-            ))}
+-          </div>
+-        )}
+-      </div>
+-    </div>
+-  );
+-}
++'use client';
++import { useState } from 'react';
++import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
++import { assetsApi, inspectionsApi } from '@/lib/api';
++import { useParams } from 'next/navigation';
++import Link from 'next/link';
++import { ArrowLeft, MapPin, ClipboardList, Calendar, Pencil, X, Check, ChevronDown, Navigation } from 'lucide-react';
++import { InfrastructureType } from '@/types';
++import AnalyticsPanel from './AnalyticsPanel';
++
++const PRESET_LOCATIONS = [
++  { name: 'Hornsea Wind Farm, UK',       lat: 53.885,  lng: 1.791 },
++  { name: 'Dogger Bank Wind Farm, UK',   lat: 54.750,  lng: 2.250 },
++  { name: 'London Array, UK',            lat: 51.628,  lng: 1.450 },
++  { name: 'Walney Extension, UK',        lat: 54.040,  lng: -3.520 },
++  { name: 'Block Island Wind Farm, US',  lat: 41.127,  lng: -71.520 },
++  { name: 'Vineyard Wind, US',           lat: 41.133,  lng: -70.600 },
++  { name: 'South Fork Wind Farm, US',    lat: 40.960,  lng: -72.140 },
++  { name: 'Dover Harbour, UK',           lat: 51.117,  lng: 1.320 },
++  { name: 'Plymouth Breakwater, UK',     lat: 50.330,  lng: -4.152 },
++  { name: 'Felixstowe Port, UK',         lat: 51.957,  lng: 1.305 },
++];
++
++export default function AssetDetailPage() {
++  const params = useParams();
++  const assetId = params.id as string;
++  const queryClient = useQueryClient();
++
++  const [editing, setEditing] = useState(false);
++  const [editForm, setEditForm] = useState({
++    name: '',
++    location_name: '',
++    latitude: '',
++    longitude: '',
++    status: '',
++  });
++  const [showPresets, setShowPresets] = useState(false);
++
++  const { data: asset, isLoading: assetLoading } = useQuery({
++    queryKey: ['asset', assetId],
++    queryFn: () => assetsApi.get(assetId),
++  });
++
++  const { data: inspections = [] } = useQuery({
++    queryKey: ['inspections', { asset_id: assetId }],
++    queryFn: () => inspectionsApi.list({ asset_id: assetId }),
++  });
++
++  const updateMutation = useMutation({
++    mutationFn: (data: any) => assetsApi.update(assetId, data),
++    onSuccess: () => {
++      queryClient.invalidateQueries({ queryKey: ['asset', assetId] });
++      queryClient.invalidateQueries({ queryKey: ['assets'] });
++      setEditing(false);
++    },
++  });
++
++  function startEditing() {
++    if (!asset) return;
++    setEditForm({
++      name: asset.name || '',
++      location_name: asset.location_name || '',
++      latitude: asset.latitude?.toString() || '',
++      longitude: asset.longitude?.toString() || '',
++      status: asset.status || 'active',
++    });
++    setEditing(true);
++  }
++
++  function handleSave(e: React.FormEvent) {
++    e.preventDefault();
++    const payload: any = {
++      name: editForm.name,
++      location_name: editForm.location_name || undefined,
++      status: editForm.status,
++    };
++    if (editForm.latitude && editForm.longitude) {
++      payload.latitude = parseFloat(editForm.latitude);
++      payload.longitude = parseFloat(editForm.longitude);
++    } else {
++      payload.latitude = null;
++      payload.longitude = null;
++    }
++    updateMutation.mutate(payload);
++  }
++
++  function applyPreset(preset: typeof PRESET_LOCATIONS[0]) {
++    setEditForm({
++      ...editForm,
++      location_name: preset.name,
++      latitude: preset.lat.toString(),
++      longitude: preset.lng.toString(),
++    });
++    setShowPresets(false);
++  }
++
++  if (assetLoading) return (
++    <div className="flex items-center justify-center h-40">
++      <div className="w-6 h-6 border-2 border-mira-blue border-t-transparent rounded-full animate-spin" />
++    </div>
++  );
++
++  if (!asset) return <div className="text-red-500">Asset not found.</div>;
++
++  return (
++    <div>
++      <Link href="/assets" className="inline-flex items-center gap-2 text-base text-mira-muted hover:text-mira-blue mb-6 font-medium">
++        <ArrowLeft size={18} /> Back to Assets
++      </Link>
++
++      {/* Asset info card */}
++      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card mb-6">
++        {!editing ? (
++          /* View mode */
++          <>
++            <div className="flex items-start justify-between">
++              <div>
++                <h1 className="text-2xl font-bold text-slate-800">{asset.name}</h1>
++                <div className="flex items-center gap-3 mt-2 flex-wrap">
++                  <span className="text-sm px-2.5 py-1 rounded-md font-medium bg-sky-100 text-sky-700">{asset.infrastructure_type.replace('_', ' ')}</span>
++                  <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
++                    asset.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
++                    asset.status === 'maintenance' ? 'bg-amber-50 text-amber-700' :
++                    'bg-slate-100 text-slate-500'
++                  }`}>{asset.status}</span>
++                </div>
++              </div>
++              <div className="flex items-center gap-2">
++                <button onClick={startEditing}
++                  className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition-all">
++                  <Pencil size={15} /> Edit
++                </button>
++                <Link href="/upload"
++                  className="bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all">
++                  New Inspection
++                </Link>
++              </div>
++            </div>
++
++            {/* Location info */}
++            <div className="mt-4 space-y-1.5">
++              {asset.location_name && (
++                <div className="flex items-center gap-2 text-base text-mira-muted">
++                  <MapPin size={16} /> {asset.location_name}
++                </div>
++              )}
++              {asset.latitude != null && asset.longitude != null ? (
++                <div className="flex items-center gap-2 text-sm text-mira-faint font-mono ml-5">
++                  {asset.latitude.toFixed(4)}°, {asset.longitude.toFixed(4)}°
++                  <Link href="/map" className="text-sky-500 hover:text-sky-700 font-sans font-medium ml-1">
++                    View on Map →
++                  </Link>
++                </div>
++              ) : (
++                <div className="flex items-center gap-2 text-sm text-amber-600 mt-2 bg-amber-50 px-3 py-2 rounded-lg">
++                  <Navigation size={14} />
++                  No coordinates set.
++                  <button onClick={startEditing} className="underline font-medium hover:text-amber-800">Add location</button>
++                  to see this asset on the map.
++                </div>
++              )}
++              <div className="flex items-center gap-2 text-base text-mira-faint">
++                <Calendar size={16} /> Created {new Date(asset.created_at).toLocaleDateString()}
++              </div>
++            </div>
++          </>
++        ) : (
++          /* Edit mode */
++          <form onSubmit={handleSave}>
++            <div className="flex items-center justify-between mb-5">
++              <h2 className="text-lg font-semibold text-slate-800">Edit Asset</h2>
++              <button type="button" onClick={() => setEditing(false)}
++                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100">
++                <X size={18} />
++              </button>
++            </div>
++
++            <div className="space-y-4">
++              {/* Name */}
++              <div>
++                <label className="text-sm font-semibold text-slate-600 uppercase tracking-wider block mb-1.5">Asset Name</label>
++                <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} required
++                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-base text-slate-800 placeholder:text-slate-400 focus:bg-white"
++                  placeholder="e.g. Turbine T-12" />
++              </div>
++
++              {/* Status */}
++              <div>
++                <label className="text-sm font-semibold text-slate-600 uppercase tracking-wider block mb-1.5">Status</label>
++                <select value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})}
++                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-base text-slate-800 focus:bg-white">
++                  <option value="active">Active</option>
++                  <option value="maintenance">Maintenance</option>
++                  <option value="decommissioned">Decommissioned</option>
++                </select>
++              </div>
++
++              {/* Location section */}
++              <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
++                <div className="flex items-center justify-between mb-3">
++                  <label className="text-sm font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
++                    <Navigation size={14} /> Location & Coordinates
++                  </label>
++                  <div className="relative">
++                    <button type="button" onClick={() => setShowPresets(!showPresets)}
++                      className="text-[11px] font-semibold text-sky-600 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-md flex items-center gap-1 transition-all">
++                      Quick Fill <ChevronDown size={10} />
++                    </button>
++                    {showPresets && (
++                      <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 w-64 max-h-56 overflow-y-auto">
++                        {PRESET_LOCATIONS.map((p, i) => (
++                          <button key={i} type="button" onClick={() => applyPreset(p)}
++                            className="w-full text-left px-3 py-2 text-sm hover:bg-sky-50 transition-colors border-b border-slate-50 last:border-0">
++                            <span className="font-medium text-slate-700">{p.name}</span>
++                            <span className="text-[11px] text-mira-faint block mt-0.5">
++                              {p.lat.toFixed(3)}°, {p.lng.toFixed(3)}°
++                            </span>
++                          </button>
++                        ))}
++                      </div>
++                    )}
++                  </div>
++                </div>
++                <div className="space-y-3">
++                  <input value={editForm.location_name} onChange={e => setEditForm({...editForm, location_name: e.target.value})}
++                    className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-base text-slate-800 placeholder:text-slate-400 focus:border-sky-300"
++                    placeholder="Location name, e.g. Hornsea Wind Farm" />
++                  <div className="grid grid-cols-2 gap-3">
++                    <div>
++                      <label className="text-[11px] font-medium text-mira-faint block mb-1">Latitude</label>
++                      <input value={editForm.latitude}
++                        onChange={e => setEditForm({...editForm, latitude: e.target.value})}
++                        type="number" step="any" min="-90" max="90"
++                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-base text-slate-800 placeholder:text-slate-400 font-mono focus:border-sky-300"
++                        placeholder="e.g. 53.885" />
++                    </div>
++                    <div>
++                      <label className="text-[11px] font-medium text-mira-faint block mb-1">Longitude</label>
++                      <input value={editForm.longitude}
++                        onChange={e => setEditForm({...editForm, longitude: e.target.value})}
++                        type="number" step="any" min="-180" max="180"
++                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-base text-slate-800 placeholder:text-slate-400 font-mono focus:border-sky-300"
++                        placeholder="e.g. 1.791" />
++                    </div>
++                  </div>
++                  <p className="text-[11px] text-mira-faint">
++                    Use &quot;Quick Fill&quot; to pick from known locations, or enter coordinates from Google Maps.
++                  </p>
++                </div>
++              </div>
++
++              {/* Actions */}
++              <div className="flex gap-3 pt-2">
++                <button type="submit" disabled={updateMutation.isPending}
++                  className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white py-2.5 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50">
++                  <Check size={17} /> {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
++                </button>
++                <button type="button" onClick={() => setEditing(false)}
++                  className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-lg text-base font-medium hover:bg-slate-50 transition-all">
++                  Cancel
++                </button>
++              </div>
++
++              {updateMutation.isError && (
++                <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
++                  Failed to update. Please try again.
++                </p>
++              )}
++            </div>
++          </form>
++        )}
++      </div>
++
++      {/* Predictive analytics panel */}
++      <AnalyticsPanel assetId={assetId} />
++
++      {/* Inspections list */}
++      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-card">
++        <h2 className="text-base font-semibold text-slate-700 uppercase tracking-wider mb-4">Inspections ({inspections.length})</h2>
++        {inspections.length === 0 ? (
++          <div className="text-center py-8">
++            <ClipboardList size={32} className="mx-auto mb-2 text-slate-300" />
++            <p className="text-base text-mira-muted">No inspections for this asset yet.</p>
++            <Link href="/upload" className="text-base text-mira-blue hover:underline font-medium mt-1 inline-block">Upload one</Link>
++          </div>
++        ) : (
++          <div className="space-y-2">
++            {inspections.map((insp: any) => (
++              <Link key={insp.id} href={`/inspections/${insp.id}`}
++                className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
++                <div>
++                  <p className="text-base font-medium text-slate-700">{insp.name}</p>
++                  <p className="text-sm text-mira-faint mt-0.5">{insp.image_count} image{insp.image_count !== 1 ? 's' : ''} &middot; {new Date(insp.inspected_at || insp.created_at).toLocaleDateString()}</p>
++                </div>
++                <span className={`text-sm px-2.5 py-1 rounded-md font-medium ${
++                  insp.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
++                  insp.status === 'pending' ? 'bg-amber-50 text-amber-700' :
++                  'bg-slate-100 text-slate-500'
++                }`}>{insp.status}</span>
++              </Link>
++            ))}
++          </div>
++        )}
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/components/layout/Sidebar.tsx b/frontend/components/layout/Sidebar.tsx
+index 8bd1173..e2ca31a 100644
+--- a/frontend/components/layout/Sidebar.tsx
++++ b/frontend/components/layout/Sidebar.tsx
+@@ -1,350 +1,351 @@
+-'use client';
+-import { usePathname, useRouter } from 'next/navigation';
+-import Link from 'next/link';
+-import { memo, useCallback, useEffect, useState } from 'react';
+-import {
+-  LayoutDashboard, Building2, ClipboardList, Upload, FileText,
+-  LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
+-  Settings, Search, HelpCircle, X, Activity,
+-} from 'lucide-react';
+-import { clearAuth } from '@/lib/auth';
+-import { useCurrentUser } from '@/app/providers';
+-
+-const TEAL  = '#082E29';
+-const BLUE  = '#93C5FD';
+-const BRAND = '#0891B2';
+-
+-const NAV_ITEMS = [
+-  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
+-  { href: '/assets',      label: 'Assets',      icon: Building2,       tourId: 'nav-assets' },
+-  { href: '/map',         label: 'Map',         icon: Map,             tourId: 'nav-map' },
+-  { href: '/inspections', label: 'Inspections', icon: ClipboardList,   tourId: 'nav-inspections' },
+-  { href: '/sensors',     label: 'Sensors',     icon: Activity,        tourId: 'nav-sensors' },
+-  { href: '/upload',      label: 'Upload',      icon: Upload,          tourId: 'nav-upload' },
+-  { href: '/reports',     label: 'Reports',     icon: FileText },
+-];
+-
+-const TWIN_ITEMS = [
+-  { href: '/digital-twin',         label: 'Overview',  icon: Box },
+-  { href: '/digital-twin/viewer',  label: '3D Viewer', icon: Box },
+-  { href: '/digital-twin/compare', label: 'Compare',   icon: GitCompareArrows },
+-  { href: '/digital-twin/heatmap', label: 'Heatmap',   icon: Flame },
+-];
+-
+-function LogoMark({ size = 34 }: { size?: number }) {
+-  return (
+-    <div className="flex items-center justify-center flex-shrink-0"
+-      style={{
+-        width: size, height: size,
+-        filter: 'drop-shadow(0 0 6px rgba(8,145,178,0.5)) drop-shadow(0 0 14px rgba(147,197,253,0.3))',
+-      }}>
+-      <img src="/logo.png" alt="Mira Intel"
+-        style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+-    </div>
+-  );
+-}
+-
+-const NavLink = memo(function NavLink({
+-  href, label, icon: Icon, active, small, collapsed, tourId, onClick,
+-}: {
+-  href: string; label: string; icon: React.ElementType;
+-  active: boolean; small?: boolean; collapsed: boolean; tourId?: string;
+-  onClick?: () => void;
+-}) {
+-  return (
+-    <Link
+-      href={href}
+-      title={collapsed ? label : undefined}
+-      data-tour={tourId}
+-      onClick={onClick}
+-      className="sidebar-nav-link flex items-center gap-3 rounded-xl group relative"
+-      style={{
+-        padding: collapsed ? '10px 0' : '10px 12px',
+-        justifyContent: collapsed ? 'center' : 'flex-start',
+-        ...(active
+-          ? { background: 'rgba(147,197,253,0.12)', color: BLUE }
+-          : { color: small ? '#5B8A78' : '#A5D4BB' }),
+-      }}
+-    >
+-      <Icon size={small ? 17 : 19} style={{ flexShrink: 0 }}
+-        className="transition-colors group-hover:text-[#93C5FD]" />
+-      {!collapsed && (
+-        <span className="text-[13px] font-semibold truncate transition-colors group-hover:text-[#93C5FD]">
+-          {label}
+-        </span>
+-      )}
+-      {active && (
+-        <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-l-full"
+-          style={{ background: BLUE }} />
+-      )}
+-    </Link>
+-  );
+-});
+-
+-interface SidebarProps {
+-  collapsed: boolean;
+-  onToggle: () => void;
+-  onStartTour?: () => void;
+-  mobileOpen: boolean;
+-  onMobileClose: () => void;
+-}
+-
+-export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileOpen, onMobileClose }: SidebarProps) {
+-  const pathname = usePathname();
+-  const router = useRouter();
+-  const user = useCurrentUser();
+-  const [isDesktop, setIsDesktop] = useState(true);
+-
+-  // Track screen size
+-  useEffect(() => {
+-    const mq = window.matchMedia('(min-width: 1024px)');
+-    setIsDesktop(mq.matches);
+-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+-    mq.addEventListener('change', handler);
+-    return () => mq.removeEventListener('change', handler);
+-  }, []);
+-
+-  const handleLogout = useCallback(() => {
+-    clearAuth();
+-    router.replace('/login');
+-  }, [router]);
+-
+-  // Keyboard shortcut: press [ to toggle (desktop only)
+-  useEffect(() => {
+-    const handler = (e: KeyboardEvent) => {
+-      if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+-        const tag = (e.target as HTMLElement)?.tagName;
+-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+-        onToggle();
+-      }
+-    };
+-    window.addEventListener('keydown', handler);
+-    return () => window.removeEventListener('keydown', handler);
+-  }, [onToggle]);
+-
+-  // Close mobile sidebar on route change
+-  useEffect(() => {
+-    onMobileClose();
+-  }, [pathname, onMobileClose]);
+-
+-  // Lock body scroll when mobile sidebar is open
+-  useEffect(() => {
+-    if (mobileOpen) {
+-      document.body.style.overflow = 'hidden';
+-      return () => { document.body.style.overflow = ''; };
+-    }
+-  }, [mobileOpen]);
+-
+-  const initials = user?.full_name
+-    ? user.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+-    : user?.email?.[0]?.toUpperCase() ?? 'U';
+-
+-  // On desktop, use collapsed state. On mobile, sidebar is always full-width drawer.
+-  const isCollapsed = isDesktop && collapsed;
+-  const w = isCollapsed ? 64 : 240;
+-
+-  const handleNavClick = useCallback(() => {
+-    if (!isDesktop) onMobileClose();
+-  }, [isDesktop, onMobileClose]);
+-
+-  return (
+-    <>
+-      {/* Mobile overlay backdrop */}
+-      <div
+-        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden transition-opacity duration-300 ${
+-          mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+-        }`}
+-        onClick={onMobileClose}
+-      />
+-
+-      {/* Sidebar */}
+-      <aside
+-        className={`fixed top-0 left-0 bottom-0 flex flex-col flex-shrink-0 overflow-hidden
+-          z-50 lg:z-30
+-          transition-transform duration-300 ease-out lg:translate-x-0
+-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+-        `}
+-        style={{
+-          width: isDesktop ? w : 240,
+-          background: TEAL,
+-          ...(isDesktop ? { transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' } : {}),
+-        }}
+-      >
+-        {/* Logo row */}
+-        <div className="flex items-center gap-3 flex-shrink-0"
+-          style={{
+-            padding: isCollapsed ? '16px 15px' : '16px 16px',
+-            borderBottom: '1px solid rgba(255,255,255,0.06)',
+-          }}>
+-          <LogoMark size={34} />
+-          {!isCollapsed && (
+-            <div className="flex-1 min-w-0">
+-              <p className="text-[13px] font-black tracking-wide truncate" style={{ color: '#F0FDF4', letterSpacing: '0.04em' }}>
+-                MIRA INTEL
+-              </p>
+-              <p className="text-[10px] font-medium truncate" style={{ color: '#6B9A87', letterSpacing: '0.06em' }}>
+-                INSPECTION PLATFORM
+-              </p>
+-            </div>
+-          )}
+-          {/* Mobile close button */}
+-          {!isDesktop && (
+-            <button
+-              onClick={onMobileClose}
+-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors ml-auto"
+-              style={{ color: '#6B9A87' }}>
+-              <X size={18} />
+-            </button>
+-          )}
+-        </div>
+-
+-        {/* Search trigger */}
+-        <div style={{ padding: isCollapsed ? '8px 8px 0' : '8px 10px 0' }}>
+-          <button
+-            onClick={() => {
+-              onMobileClose();
+-              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+-            }}
+-            data-tour="search-trigger"
+-            className="sidebar-nav-link flex items-center gap-2.5 rounded-xl w-full"
+-            style={{
+-              padding: isCollapsed ? '9px 0' : '9px 12px',
+-              justifyContent: isCollapsed ? 'center' : 'flex-start',
+-              background: 'rgba(255,255,255,0.06)',
+-              border: '1px solid rgba(255,255,255,0.08)',
+-              color: '#6B9A87',
+-            }}
+-            title={isCollapsed ? 'Search (⌘K)' : undefined}
+-          >
+-            <Search size={16} style={{ flexShrink: 0 }} />
+-            {!isCollapsed && (
+-              <>
+-                <span className="text-[12px] font-semibold flex-1 text-left">Search...</span>
+-                <span className="flex items-center gap-0.5 ml-auto">
+-                  <kbd className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>⌘</kbd>
+-                  <kbd className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>K</kbd>
+-                </span>
+-              </>
+-            )}
+-          </button>
+-        </div>
+-
+-        {/* Navigation */}
+-        <nav className="flex-1 overflow-y-auto overflow-x-hidden"
+-          style={{ padding: isCollapsed ? '16px 8px' : '16px 10px' }}>
+-
+-          {!isCollapsed && (
+-            <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+-              Menu
+-            </p>
+-          )}
+-          <div className="space-y-0.5">
+-            {NAV_ITEMS.map(({ href, label, icon, tourId }) => (
+-              <NavLink key={href} href={href} label={label} icon={icon} collapsed={isCollapsed}
+-                tourId={tourId} onClick={handleNavClick}
+-                active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))} />
+-            ))}
+-          </div>
+-
+-          <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+-            {!isCollapsed ? (
+-              <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
+-                Digital Twin
+-              </p>
+-            ) : (
+-              <div className="mx-auto mb-2" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+-            )}
+-            <div className="space-y-0.5">
+-              {TWIN_ITEMS.map(({ href, label, icon }) => (
+-                <NavLink key={href} href={href} label={label} icon={icon} collapsed={isCollapsed}
+-                  small onClick={handleNavClick}
+-                  active={pathname === href || (href !== '/digital-twin' && pathname.startsWith(href))} />
+-              ))}
+-            </div>
+-          </div>
+-        </nav>
+-
+-        {/* Bottom: user + actions */}
+-        <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: isCollapsed ? '12px 8px' : '12px 10px' }}>
+-          {!isCollapsed ? (
+-            <>
+-              <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
+-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black flex-shrink-0"
+-                  style={{ background: BRAND, color: 'white' }}>
+-                  {initials}
+-                </div>
+-                <div className="flex-1 min-w-0">
+-                  <p className="text-[13px] font-semibold truncate" style={{ color: '#F0FDF4' }}>
+-                    {user?.full_name || user?.email || '\u00A0'}
+-                  </p>
+-                  <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
+-                    {user?.organization_name || user?.role || '\u00A0'}
+-                  </p>
+-                </div>
+-              </div>
+-              {onStartTour && (
+-                <button onClick={() => { onStartTour(); onMobileClose(); }}
+-                  className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
+-                  style={{ color: '#6B9A87' }}>
+-                  <HelpCircle size={17} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
+-                  <span className="text-[13px] font-semibold transition-colors group-hover:text-[#93C5FD]">Take a Tour</span>
+-                </button>
+-              )}
+-              <Link href="/settings" onClick={handleNavClick}
+-                className="sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-xl group"
+-                style={{ color: '#6B9A87' }}>
+-                <Settings size={17} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
+-                <span className="text-[13px] font-semibold transition-colors group-hover:text-[#93C5FD]">Settings</span>
+-              </Link>
+-              <button onClick={handleLogout}
+-                className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
+-                style={{ color: '#6B9A87' }}>
+-                <LogOut size={17} className="flex-shrink-0 transition-colors group-hover:text-red-400" />
+-                <span className="text-[13px] font-semibold transition-colors group-hover:text-red-400">Sign out</span>
+-              </button>
+-            </>
+-          ) : (
+-            <div className="flex flex-col items-center gap-1.5">
+-              <div title={user?.full_name || user?.email || 'User'}
+-                className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black"
+-                style={{ background: BRAND, color: 'white' }}>
+-                {initials}
+-              </div>
+-              {onStartTour && (
+-                <button onClick={onStartTour} title="Take a Tour"
+-                  className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
+-                  style={{ color: '#6B9A87' }}>
+-                  <HelpCircle size={17} />
+-                </button>
+-              )}
+-              <Link href="/settings" title="Settings"
+-                className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
+-                style={{ color: '#6B9A87' }}>
+-                <Settings size={17} />
+-              </Link>
+-              <button onClick={handleLogout} title="Sign out"
+-                className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-red-500/10"
+-                style={{ color: '#6B9A87' }}>
+-                <LogOut size={17} />
+-              </button>
+-            </div>
+-          )}
+-        </div>
+-      </aside>
+-
+-      {/* Desktop: Floating circle toggle on sidebar edge */}
+-      <button
+-        onClick={onToggle}
+-        className="sidebar-toggle-circle fixed z-40 hidden lg:flex"
+-        style={{
+-          left: w - 14,
+-          top: '50%',
+-          transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+-        }}
+-        title={collapsed ? 'Expand sidebar (press [)' : 'Collapse sidebar (press [)'}
+-      >
+-        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+-      </button>
+-    </>
+-  );
+-});
++'use client';
++import { usePathname, useRouter } from 'next/navigation';
++import Link from 'next/link';
++import { memo, useCallback, useEffect, useState } from 'react';
++import {
++  LayoutDashboard, Building2, ClipboardList, Upload, FileText,
++  LogOut, Map, Box, GitCompareArrows, Flame, ChevronLeft, ChevronRight,
++  Settings, Search, HelpCircle, X, Activity, TrendingDown,
++} from 'lucide-react';
++import { clearAuth } from '@/lib/auth';
++import { useCurrentUser } from '@/app/providers';
++
++const TEAL  = '#082E29';
++const BLUE  = '#93C5FD';
++const BRAND = '#0891B2';
++
++const NAV_ITEMS = [
++  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tourId: 'nav-dashboard' },
++  { href: '/analytics',   label: 'Analytics',   icon: TrendingDown,    tourId: 'nav-analytics' },
++  { href: '/assets',      label: 'Assets',      icon: Building2,       tourId: 'nav-assets' },
++  { href: '/map',         label: 'Map',         icon: Map,             tourId: 'nav-map' },
++  { href: '/inspections', label: 'Inspections', icon: ClipboardList,   tourId: 'nav-inspections' },
++  { href: '/sensors',     label: 'Sensors',     icon: Activity,        tourId: 'nav-sensors' },
++  { href: '/upload',      label: 'Upload',      icon: Upload,          tourId: 'nav-upload' },
++  { href: '/reports',     label: 'Reports',     icon: FileText },
++];
++
++const TWIN_ITEMS = [
++  { href: '/digital-twin',         label: 'Overview',  icon: Box },
++  { href: '/digital-twin/viewer',  label: '3D Viewer', icon: Box },
++  { href: '/digital-twin/compare', label: 'Compare',   icon: GitCompareArrows },
++  { href: '/digital-twin/heatmap', label: 'Heatmap',   icon: Flame },
++];
++
++function LogoMark({ size = 34 }: { size?: number }) {
++  return (
++    <div className="flex items-center justify-center flex-shrink-0"
++      style={{
++        width: size, height: size,
++        filter: 'drop-shadow(0 0 6px rgba(8,145,178,0.5)) drop-shadow(0 0 14px rgba(147,197,253,0.3))',
++      }}>
++      <img src="/logo.png" alt="Mira Intel"
++        style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
++    </div>
++  );
++}
++
++const NavLink = memo(function NavLink({
++  href, label, icon: Icon, active, small, collapsed, tourId, onClick,
++}: {
++  href: string; label: string; icon: React.ElementType;
++  active: boolean; small?: boolean; collapsed: boolean; tourId?: string;
++  onClick?: () => void;
++}) {
++  return (
++    <Link
++      href={href}
++      title={collapsed ? label : undefined}
++      data-tour={tourId}
++      onClick={onClick}
++      className="sidebar-nav-link flex items-center gap-3 rounded-xl group relative"
++      style={{
++        padding: collapsed ? '10px 0' : '10px 12px',
++        justifyContent: collapsed ? 'center' : 'flex-start',
++        ...(active
++          ? { background: 'rgba(147,197,253,0.12)', color: BLUE }
++          : { color: small ? '#5B8A78' : '#A5D4BB' }),
++      }}
++    >
++      <Icon size={small ? 17 : 19} style={{ flexShrink: 0 }}
++        className="transition-colors group-hover:text-[#93C5FD]" />
++      {!collapsed && (
++        <span className="text-[13px] font-semibold truncate transition-colors group-hover:text-[#93C5FD]">
++          {label}
++        </span>
++      )}
++      {active && (
++        <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-l-full"
++          style={{ background: BLUE }} />
++      )}
++    </Link>
++  );
++});
++
++interface SidebarProps {
++  collapsed: boolean;
++  onToggle: () => void;
++  onStartTour?: () => void;
++  mobileOpen: boolean;
++  onMobileClose: () => void;
++}
++
++export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileOpen, onMobileClose }: SidebarProps) {
++  const pathname = usePathname();
++  const router = useRouter();
++  const user = useCurrentUser();
++  const [isDesktop, setIsDesktop] = useState(true);
++
++  // Track screen size
++  useEffect(() => {
++    const mq = window.matchMedia('(min-width: 1024px)');
++    setIsDesktop(mq.matches);
++    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
++    mq.addEventListener('change', handler);
++    return () => mq.removeEventListener('change', handler);
++  }, []);
++
++  const handleLogout = useCallback(() => {
++    clearAuth();
++    router.replace('/login');
++  }, [router]);
++
++  // Keyboard shortcut: press [ to toggle (desktop only)
++  useEffect(() => {
++    const handler = (e: KeyboardEvent) => {
++      if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey) {
++        const tag = (e.target as HTMLElement)?.tagName;
++        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
++        onToggle();
++      }
++    };
++    window.addEventListener('keydown', handler);
++    return () => window.removeEventListener('keydown', handler);
++  }, [onToggle]);
++
++  // Close mobile sidebar on route change
++  useEffect(() => {
++    onMobileClose();
++  }, [pathname, onMobileClose]);
++
++  // Lock body scroll when mobile sidebar is open
++  useEffect(() => {
++    if (mobileOpen) {
++      document.body.style.overflow = 'hidden';
++      return () => { document.body.style.overflow = ''; };
++    }
++  }, [mobileOpen]);
++
++  const initials = user?.full_name
++    ? user.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
++    : user?.email?.[0]?.toUpperCase() ?? 'U';
++
++  // On desktop, use collapsed state. On mobile, sidebar is always full-width drawer.
++  const isCollapsed = isDesktop && collapsed;
++  const w = isCollapsed ? 64 : 240;
++
++  const handleNavClick = useCallback(() => {
++    if (!isDesktop) onMobileClose();
++  }, [isDesktop, onMobileClose]);
++
++  return (
++    <>
++      {/* Mobile overlay backdrop */}
++      <div
++        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden transition-opacity duration-300 ${
++          mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
++        }`}
++        onClick={onMobileClose}
++      />
++
++      {/* Sidebar */}
++      <aside
++        className={`fixed top-0 left-0 bottom-0 flex flex-col flex-shrink-0 overflow-hidden
++          z-50 lg:z-30
++          transition-transform duration-300 ease-out lg:translate-x-0
++          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
++        `}
++        style={{
++          width: isDesktop ? w : 240,
++          background: TEAL,
++          ...(isDesktop ? { transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)' } : {}),
++        }}
++      >
++        {/* Logo row */}
++        <div className="flex items-center gap-3 flex-shrink-0"
++          style={{
++            padding: isCollapsed ? '16px 15px' : '16px 16px',
++            borderBottom: '1px solid rgba(255,255,255,0.06)',
++          }}>
++          <LogoMark size={34} />
++          {!isCollapsed && (
++            <div className="flex-1 min-w-0">
++              <p className="text-[13px] font-black tracking-wide truncate" style={{ color: '#F0FDF4', letterSpacing: '0.04em' }}>
++                MIRA INTEL
++              </p>
++              <p className="text-[10px] font-medium truncate" style={{ color: '#6B9A87', letterSpacing: '0.06em' }}>
++                INSPECTION PLATFORM
++              </p>
++            </div>
++          )}
++          {/* Mobile close button */}
++          {!isDesktop && (
++            <button
++              onClick={onMobileClose}
++              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors ml-auto"
++              style={{ color: '#6B9A87' }}>
++              <X size={18} />
++            </button>
++          )}
++        </div>
++
++        {/* Search trigger */}
++        <div style={{ padding: isCollapsed ? '8px 8px 0' : '8px 10px 0' }}>
++          <button
++            onClick={() => {
++              onMobileClose();
++              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
++            }}
++            data-tour="search-trigger"
++            className="sidebar-nav-link flex items-center gap-2.5 rounded-xl w-full"
++            style={{
++              padding: isCollapsed ? '9px 0' : '9px 12px',
++              justifyContent: isCollapsed ? 'center' : 'flex-start',
++              background: 'rgba(255,255,255,0.06)',
++              border: '1px solid rgba(255,255,255,0.08)',
++              color: '#6B9A87',
++            }}
++            title={isCollapsed ? 'Search (⌘K)' : undefined}
++          >
++            <Search size={16} style={{ flexShrink: 0 }} />
++            {!isCollapsed && (
++              <>
++                <span className="text-[12px] font-semibold flex-1 text-left">Search...</span>
++                <span className="flex items-center gap-0.5 ml-auto">
++                  <kbd className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>⌘</kbd>
++                  <kbd className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(255,255,255,0.08)', color: '#5B8A78' }}>K</kbd>
++                </span>
++              </>
++            )}
++          </button>
++        </div>
++
++        {/* Navigation */}
++        <nav className="flex-1 overflow-y-auto overflow-x-hidden"
++          style={{ padding: isCollapsed ? '16px 8px' : '16px 10px' }}>
++
++          {!isCollapsed && (
++            <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
++              Menu
++            </p>
++          )}
++          <div className="space-y-0.5">
++            {NAV_ITEMS.map(({ href, label, icon, tourId }) => (
++              <NavLink key={href} href={href} label={label} icon={icon} collapsed={isCollapsed}
++                tourId={tourId} onClick={handleNavClick}
++                active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))} />
++            ))}
++          </div>
++
++          <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
++            {!isCollapsed ? (
++              <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: '#3D6B5E' }}>
++                Digital Twin
++              </p>
++            ) : (
++              <div className="mx-auto mb-2" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
++            )}
++            <div className="space-y-0.5">
++              {TWIN_ITEMS.map(({ href, label, icon }) => (
++                <NavLink key={href} href={href} label={label} icon={icon} collapsed={isCollapsed}
++                  small onClick={handleNavClick}
++                  active={pathname === href || (href !== '/digital-twin' && pathname.startsWith(href))} />
++              ))}
++            </div>
++          </div>
++        </nav>
++
++        {/* Bottom: user + actions */}
++        <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: isCollapsed ? '12px 8px' : '12px 10px' }}>
++          {!isCollapsed ? (
++            <>
++              <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
++                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black flex-shrink-0"
++                  style={{ background: BRAND, color: 'white' }}>
++                  {initials}
++                </div>
++                <div className="flex-1 min-w-0">
++                  <p className="text-[13px] font-semibold truncate" style={{ color: '#F0FDF4' }}>
++                    {user?.full_name || user?.email || '\u00A0'}
++                  </p>
++                  <p className="text-[11px] truncate" style={{ color: '#6B9A87' }}>
++                    {user?.organization_name || user?.role || '\u00A0'}
++                  </p>
++                </div>
++              </div>
++              {onStartTour && (
++                <button onClick={() => { onStartTour(); onMobileClose(); }}
++                  className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
++                  style={{ color: '#6B9A87' }}>
++                  <HelpCircle size={17} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
++                  <span className="text-[13px] font-semibold transition-colors group-hover:text-[#93C5FD]">Take a Tour</span>
++                </button>
++              )}
++              <Link href="/settings" onClick={handleNavClick}
++                className="sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-xl group"
++                style={{ color: '#6B9A87' }}>
++                <Settings size={17} className="flex-shrink-0 transition-colors group-hover:text-[#93C5FD]" />
++                <span className="text-[13px] font-semibold transition-colors group-hover:text-[#93C5FD]">Settings</span>
++              </Link>
++              <button onClick={handleLogout}
++                className="sidebar-nav-link w-full flex items-center gap-3 px-3 py-2 rounded-xl group"
++                style={{ color: '#6B9A87' }}>
++                <LogOut size={17} className="flex-shrink-0 transition-colors group-hover:text-red-400" />
++                <span className="text-[13px] font-semibold transition-colors group-hover:text-red-400">Sign out</span>
++              </button>
++            </>
++          ) : (
++            <div className="flex flex-col items-center gap-1.5">
++              <div title={user?.full_name || user?.email || 'User'}
++                className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black"
++                style={{ background: BRAND, color: 'white' }}>
++                {initials}
++              </div>
++              {onStartTour && (
++                <button onClick={onStartTour} title="Take a Tour"
++                  className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
++                  style={{ color: '#6B9A87' }}>
++                  <HelpCircle size={17} />
++                </button>
++              )}
++              <Link href="/settings" title="Settings"
++                className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10"
++                style={{ color: '#6B9A87' }}>
++                <Settings size={17} />
++              </Link>
++              <button onClick={handleLogout} title="Sign out"
++                className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-red-500/10"
++                style={{ color: '#6B9A87' }}>
++                <LogOut size={17} />
++              </button>
++            </div>
++          )}
++        </div>
++      </aside>
++
++      {/* Desktop: Floating circle toggle on sidebar edge */}
++      <button
++        onClick={onToggle}
++        className="sidebar-toggle-circle fixed z-40 hidden lg:flex"
++        style={{
++          left: w - 14,
++          top: '50%',
++          transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
++        }}
++        title={collapsed ? 'Expand sidebar (press [)' : 'Collapse sidebar (press [)'}
++      >
++        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
++      </button>
++    </>
++  );
++});
+diff --git a/frontend/lib/api.ts b/frontend/lib/api.ts
+index 4fc92f6..635be68 100644
+--- a/frontend/lib/api.ts
++++ b/frontend/lib/api.ts
+@@ -1,107 +1,123 @@
+-import axios from 'axios';
+-import { getToken, clearAuth } from './auth';
+-import type {
+-  AuthToken, Asset, Inspection, ImageRecord,
+-  AnalysisResult, DashboardOverview
+-} from '@/types';
+-
+-const api = axios.create({ baseURL: '/api/v1' });
+-
+-api.interceptors.request.use((config) => {
+-  const token = getToken();
+-  if (token) config.headers.Authorization = `Bearer ${token}`;
+-  return config;
+-});
+-
+-api.interceptors.response.use(
+-  (r) => r,
+-  (error) => {
+-    if (error.response?.status === 401) { clearAuth(); window.location.href = '/login'; }
+-    return Promise.reject(error);
+-  }
+-);
+-
+-// Auth
+-export const authApi = {
+-  login: (email: string, password: string) =>
+-    api.post<AuthToken>('/auth/login', { email, password }).then(r => r.data),
+-  register: (email: string, password: string, full_name?: string, organization_name?: string) =>
+-    api.post<AuthToken>('/auth/register', { email, password, full_name, organization_name }).then(r => r.data),
+-  me: () => api.get('/auth/me').then(r => r.data),
+-  updateMe: (data: { full_name?: string; username?: string; organization_name?: string }) =>
+-    api.patch('/auth/me', data).then(r => r.data),
+-};
+-
+-// Dashboard
+-export const dashboardApi = {
+-  overview: () => api.get<DashboardOverview>('/dashboard/overview').then(r => r.data),
+-  defectSummary: () => api.get('/dashboard/defect-summary').then(r => r.data),
+-};
+-
+-// Assets
+-export const assetsApi = {
+-  list: (params?: { infrastructure_type?: string; status?: string }) =>
+-    api.get<Asset[]>('/assets', { params }).then(r => r.data),
+-  get: (id: string) => api.get<Asset>(`/assets/${id}`).then(r => r.data),
+-  create: (data: Partial<Asset>) => api.post<Asset>('/assets', data).then(r => r.data),
+-  update: (id: string, data: Partial<Asset>) => api.patch<Asset>(`/assets/${id}`, data).then(r => r.data),
+-  delete: (id: string) => api.delete(`/assets/${id}`),
+-};
+-
+-// Inspections
+-export const inspectionsApi = {
+-  list: (params?: { asset_id?: string }) =>
+-    api.get<Inspection[]>('/inspections', { params }).then(r => r.data),
+-  get: (id: string) => api.get<Inspection>(`/inspections/${id}`).then(r => r.data),
+-  create: (data: Partial<Inspection>) => api.post<Inspection>('/inspections', data).then(r => r.data),
+-  update: (id: string, data: Partial<Inspection>) => api.patch<Inspection>(`/inspections/${id}`, data).then(r => r.data),
+-  delete: (id: string) => api.delete(`/inspections/${id}`),
+-};
+-
+-// Images
+-export const imagesApi = {
+-  upload: (inspectionId: string, files: File[], componentType?: string) => {
+-    const form = new FormData();
+-    files.forEach(f => form.append('files', f));
+-    if (componentType) form.append('component_type', componentType);
+-    return api.post(`/inspections/${inspectionId}/images/upload`, form,
+-      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+-  },
+-  uploadPdf: (inspectionId: string, file: File, componentType?: string) => {
+-    const form = new FormData();
+-    form.append('file', file);
+-    if (componentType) form.append('component_type', componentType);
+-    return api.post(`/inspections/${inspectionId}/images/upload-pdf`, form,
+-      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+-  },
+-  list: (inspectionId: string) =>
+-    api.get<ImageRecord[]>(`/inspections/${inspectionId}/images`).then(r => r.data),
+-  get: (id: string) => api.get<ImageRecord>(`/images/${id}`).then(r => r.data),
+-  update: (id: string, data: Partial<ImageRecord>) =>
+-    api.patch<ImageRecord>(`/images/${id}`, data).then(r => r.data),
+-  gpsPoints: () => api.get('/images/gps-points').then(r => r.data),
+-};
+-
+-// Environmental (live conditions — Open-Meteo, dashboard pills)
+-export const environmentalApi = {
+-  getAssetData: () => api.get('/environmental/assets').then(r => r.data),
+-};
+-
+-// Sensors (NOAA government data)
+-export const sensorsApi = {
+-  getLive: () => api.get('/sensors/live').then(r => r.data),
+-  getHistory: (params: { asset_id: string; sensor_type: string; start: string; end: string }) =>
+-    api.get('/sensors/history', { params }).then(r => r.data),
+-};
+-
+-// Analysis
+-export const analysisApi = {
+-  analyze: (imageId: string) =>
+-    api.post<AnalysisResult>(`/images/${imageId}/analyze`).then(r => r.data),
+-  getDetections: (imageId: string) =>
+-    api.get(`/images/${imageId}/detections`).then(r => r.data),
+-  getAllDetections: (inspectionId: string) =>
+-    api.get<Record<string, any>>(`/inspections/${inspectionId}/all-detections`).then(r => r.data),
+-};
+-
+-export default api;
++import axios from 'axios';
++import { getToken, clearAuth } from './auth';
++import type {
++  AuthToken, Asset, Inspection, ImageRecord,
++  AnalysisResult, DashboardOverview,
++  PredictiveAssetResult, PredictiveRunDetail,
++  PredictiveRunSummary, PredictiveRunTriggerResponse,
++} from '@/types';
++
++const api = axios.create({ baseURL: '/api/v1' });
++
++api.interceptors.request.use((config) => {
++  const token = getToken();
++  if (token) config.headers.Authorization = `Bearer ${token}`;
++  return config;
++});
++
++api.interceptors.response.use(
++  (r) => r,
++  (error) => {
++    if (error.response?.status === 401) { clearAuth(); window.location.href = '/login'; }
++    return Promise.reject(error);
++  }
++);
++
++// Auth
++export const authApi = {
++  login: (email: string, password: string) =>
++    api.post<AuthToken>('/auth/login', { email, password }).then(r => r.data),
++  register: (email: string, password: string, full_name?: string, organization_name?: string) =>
++    api.post<AuthToken>('/auth/register', { email, password, full_name, organization_name }).then(r => r.data),
++  me: () => api.get('/auth/me').then(r => r.data),
++  updateMe: (data: { full_name?: string; username?: string; organization_name?: string }) =>
++    api.patch('/auth/me', data).then(r => r.data),
++};
++
++// Dashboard
++export const dashboardApi = {
++  overview: () => api.get<DashboardOverview>('/dashboard/overview').then(r => r.data),
++  defectSummary: () => api.get('/dashboard/defect-summary').then(r => r.data),
++};
++
++// Assets
++export const assetsApi = {
++  list: (params?: { infrastructure_type?: string; status?: string }) =>
++    api.get<Asset[]>('/assets', { params }).then(r => r.data),
++  get: (id: string) => api.get<Asset>(`/assets/${id}`).then(r => r.data),
++  create: (data: Partial<Asset>) => api.post<Asset>('/assets', data).then(r => r.data),
++  update: (id: string, data: Partial<Asset>) => api.patch<Asset>(`/assets/${id}`, data).then(r => r.data),
++  delete: (id: string) => api.delete(`/assets/${id}`),
++};
++
++// Inspections
++export const inspectionsApi = {
++  list: (params?: { asset_id?: string }) =>
++    api.get<Inspection[]>('/inspections', { params }).then(r => r.data),
++  get: (id: string) => api.get<Inspection>(`/inspections/${id}`).then(r => r.data),
++  create: (data: Partial<Inspection>) => api.post<Inspection>('/inspections', data).then(r => r.data),
++  update: (id: string, data: Partial<Inspection>) => api.patch<Inspection>(`/inspections/${id}`, data).then(r => r.data),
++  delete: (id: string) => api.delete(`/inspections/${id}`),
++};
++
++// Images
++export const imagesApi = {
++  upload: (inspectionId: string, files: File[], componentType?: string) => {
++    const form = new FormData();
++    files.forEach(f => form.append('files', f));
++    if (componentType) form.append('component_type', componentType);
++    return api.post(`/inspections/${inspectionId}/images/upload`, form,
++      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
++  },
++  uploadPdf: (inspectionId: string, file: File, componentType?: string) => {
++    const form = new FormData();
++    form.append('file', file);
++    if (componentType) form.append('component_type', componentType);
++    return api.post(`/inspections/${inspectionId}/images/upload-pdf`, form,
++      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
++  },
++  list: (inspectionId: string) =>
++    api.get<ImageRecord[]>(`/inspections/${inspectionId}/images`).then(r => r.data),
++  get: (id: string) => api.get<ImageRecord>(`/images/${id}`).then(r => r.data),
++  update: (id: string, data: Partial<ImageRecord>) =>
++    api.patch<ImageRecord>(`/images/${id}`, data).then(r => r.data),
++  gpsPoints: () => api.get('/images/gps-points').then(r => r.data),
++};
++
++// Environmental (live conditions — Open-Meteo, dashboard pills)
++export const environmentalApi = {
++  getAssetData: () => api.get('/environmental/assets').then(r => r.data),
++};
++
++// Sensors (NOAA government data)
++export const sensorsApi = {
++  getLive: () => api.get('/sensors/live').then(r => r.data),
++  getHistory: (params: { asset_id: string; sensor_type: string; start: string; end: string }) =>
++    api.get('/sensors/history', { params }).then(r => r.data),
++};
++
++// Analysis
++export const analysisApi = {
++  analyze: (imageId: string) =>
++    api.post<AnalysisResult>(`/images/${imageId}/analyze`).then(r => r.data),
++  getDetections: (imageId: string) =>
++    api.get(`/images/${imageId}/detections`).then(r => r.data),
++  getAllDetections: (inspectionId: string) =>
++    api.get<Record<string, any>>(`/inspections/${inspectionId}/all-detections`).then(r => r.data),
++};
++
++// Predictive Analytics (deterioration / anomaly / priority / TTI)
++export const predictiveApi = {
++  runAnalysis: () =>
++    api.post<PredictiveRunTriggerResponse>('/predictive/run').then(r => r.data),
++  getLatest: () =>
++    api.get<PredictiveRunDetail>('/predictive/latest').then(r => r.data),
++  getRuns: () =>
++    api.get<PredictiveRunSummary[]>('/predictive/runs').then(r => r.data),
++  getRun: (runId: string) =>
++    api.get<PredictiveRunDetail>(`/predictive/runs/${runId}`).then(r => r.data),
++  getAssetAnalytics: (assetId: string) =>
++    api.get<PredictiveAssetResult>(`/predictive/assets/${assetId}`).then(r => r.data),
++};
++
++export default api;
+diff --git a/frontend/types/index.ts b/frontend/types/index.ts
+index 7506bf8..5097611 100644
+--- a/frontend/types/index.ts
++++ b/frontend/types/index.ts
+@@ -1,174 +1,249 @@
+-export type InfrastructureType = 'wind_turbine' | 'coastal' | 'pier' | 'railway';
+-export type AssetStatus = 'active' | 'maintenance' | 'decommissioned';
+-export type InspectionStatus = 'pending' | 'processing' | 'completed' | 'failed';
+-export type AnalysisStatus = 'queued' | 'processing' | 'completed' | 'failed';
+-export type UserRole = 'admin' | 'analyst' | 'viewer';
+-
+-export interface User {
+-  id: string;
+-  email: string;
+-  full_name?: string;
+-  username?: string;
+-  role: UserRole;
+-  organization_id?: string;
+-  organization_name?: string;
+-}
+-
+-export interface Asset {
+-  id: string;
+-  name: string;
+-  infrastructure_type: InfrastructureType;
+-  location_name?: string;
+-  latitude?: number;
+-  longitude?: number;
+-  status: AssetStatus;
+-  created_at: string;
+-  inspection_count: number;
+-  image_count: number;
+-  last_inspection_at?: string;
+-}
+-
+-export interface Inspection {
+-  id: string;
+-  asset_id: string;
+-  name: string;
+-  inspected_at?: string;
+-  weather_conditions?: string;
+-  inspector_name?: string;
+-  status: InspectionStatus;
+-  created_at: string;
+-  image_count: number;
+-}
+-
+-export interface BoundingBox {
+-  x1: number; y1: number; x2: number; y2: number;
+-}
+-
+-export interface Detection {
+-  id: string;
+-  image_id: string;
+-  infrastructure_type: InfrastructureType;
+-  damage_type: string;
+-  confidence: number;
+-  bbox: BoundingBox;
+-  severity?: string;
+-  created_at: string;
+-}
+-
+-export interface ImageRecord {
+-  id: string;
+-  filename: string;
+-  component_type?: string;
+-  analysis_status: AnalysisStatus;
+-  url: string;
+-}
+-
+-export interface AnalysisResult {
+-  image_id: string;
+-  status: string;
+-  infrastructure_type: InfrastructureType;
+-  total_detections: number;
+-  detections: Detection[];
+-  annotated_image_url?: string;
+-  message: string;
+-}
+-
+-export interface DashboardDetection {
+-  damage_type: string;
+-  confidence: number;
+-  severity: string | null;
+-  bbox: { x1: number; y1: number; x2: number; y2: number };
+-}
+-
+-export interface DashboardAnalyzedImage {
+-  id: string;
+-  filename: string;
+-  url: string;
+-  inspection_id: string;
+-  inspection_name: string;
+-  asset_id: string;
+-  asset_name: string;
+-  detection_count: number;
+-  max_severity: string | null;
+-  damage_types: { damage_type: string; count: number }[];
+-  detections: DashboardDetection[];
+-}
+-
+-export interface DashboardAssetHealth {
+-  id: string;
+-  name: string;
+-  infrastructure_type: string;
+-  status: string;
+-  inspection_count: number;
+-  total_detections: number;
+-  worst_severity: string | null;
+-}
+-
+-export interface DashboardOverview {
+-  total_assets: number;
+-  active_assets: number;
+-  total_inspections: number;
+-  pending_inspections: number;
+-  total_images: number;
+-  total_detections: number;
+-  fleet_health_pct: number;
+-  assets_by_type: Record<string, number>;
+-  severity_breakdown: Record<string, number>;
+-  recent_inspections: Array<{id: string; name: string; asset_id: string; status: string; created_at: string}>;
+-  recent_analyzed_images: DashboardAnalyzedImage[];
+-  asset_health: DashboardAssetHealth[];
+-}
+-
+-// ── Sensors (NOAA) ──────────────────────────────────────────
+-export interface SensorAssetLive {
+-  asset_name: string;
+-  location_name: string | null;
+-  latitude: number;
+-  longitude: number;
+-  temperature_f: number | null;
+-  water_level_ft: number | null;
+-  wind_speed_kn: number | null;
+-  wind_direction_deg: number | null;
+-  wind_gust_kn: number | null;
+-  wind_speed_mph: number | null;
+-  wave_height_m: number | null;
+-  wave_period_s: number | null;
+-  water_temp_f: number | null;
+-  air_temp_ndbc_f: number | null;
+-  sources: { coops_station: string; ndbc_station: string };
+-}
+-
+-export interface SensorLiveResponse {
+-  assets: Record<string, SensorAssetLive>;
+-  updated_at: number;
+-}
+-
+-export interface SensorHistoryReading {
+-  t: string;   // timestamp
+-  v: string;   // value
+-  f?: string;  // flags
+-  s?: string;  // speed (wind)
+-  d?: string;  // direction (wind)
+-  g?: string;  // gust (wind)
+-}
+-
+-export interface SensorHistoryResponse {
+-  asset_id: number;
+-  sensor_type: string;
+-  station: string;
+-  start: string;
+-  end: string;
+-  readings: SensorHistoryReading[];
+-}
+-
+-export interface AuthToken {
+-  access_token: string;
+-  token_type: string;
+-  user_id: string;
+-  email: string;
+-  full_name?: string;
+-  username?: string;
+-  role: UserRole;
+-  organization_id?: string;
+-  organization_name?: string;
+-}
++export type InfrastructureType = 'wind_turbine' | 'coastal' | 'pier' | 'railway';
++export type AssetStatus = 'active' | 'maintenance' | 'decommissioned';
++export type InspectionStatus = 'pending' | 'processing' | 'completed' | 'failed';
++export type AnalysisStatus = 'queued' | 'processing' | 'completed' | 'failed';
++export type UserRole = 'admin' | 'analyst' | 'viewer';
++
++export interface User {
++  id: string;
++  email: string;
++  full_name?: string;
++  username?: string;
++  role: UserRole;
++  organization_id?: string;
++  organization_name?: string;
++}
++
++export interface Asset {
++  id: string;
++  name: string;
++  infrastructure_type: InfrastructureType;
++  location_name?: string;
++  latitude?: number;
++  longitude?: number;
++  status: AssetStatus;
++  created_at: string;
++  inspection_count: number;
++  image_count: number;
++  last_inspection_at?: string;
++}
++
++export interface Inspection {
++  id: string;
++  asset_id: string;
++  name: string;
++  inspected_at?: string;
++  weather_conditions?: string;
++  inspector_name?: string;
++  status: InspectionStatus;
++  created_at: string;
++  image_count: number;
++}
++
++export interface BoundingBox {
++  x1: number; y1: number; x2: number; y2: number;
++}
++
++export interface Detection {
++  id: string;
++  image_id: string;
++  infrastructure_type: InfrastructureType;
++  damage_type: string;
++  confidence: number;
++  bbox: BoundingBox;
++  severity?: string;
++  created_at: string;
++}
++
++export interface ImageRecord {
++  id: string;
++  filename: string;
++  component_type?: string;
++  analysis_status: AnalysisStatus;
++  url: string;
++}
++
++export interface AnalysisResult {
++  image_id: string;
++  status: string;
++  infrastructure_type: InfrastructureType;
++  total_detections: number;
++  detections: Detection[];
++  annotated_image_url?: string;
++  message: string;
++}
++
++export interface DashboardDetection {
++  damage_type: string;
++  confidence: number;
++  severity: string | null;
++  bbox: { x1: number; y1: number; x2: number; y2: number };
++}
++
++export interface DashboardAnalyzedImage {
++  id: string;
++  filename: string;
++  url: string;
++  inspection_id: string;
++  inspection_name: string;
++  asset_id: string;
++  asset_name: string;
++  detection_count: number;
++  max_severity: string | null;
++  damage_types: { damage_type: string; count: number }[];
++  detections: DashboardDetection[];
++}
++
++export interface DashboardAssetHealth {
++  id: string;
++  name: string;
++  infrastructure_type: string;
++  status: string;
++  inspection_count: number;
++  total_detections: number;
++  worst_severity: string | null;
++}
++
++export interface DashboardOverview {
++  total_assets: number;
++  active_assets: number;
++  total_inspections: number;
++  pending_inspections: number;
++  total_images: number;
++  total_detections: number;
++  fleet_health_pct: number;
++  assets_by_type: Record<string, number>;
++  severity_breakdown: Record<string, number>;
++  recent_inspections: Array<{id: string; name: string; asset_id: string; status: string; created_at: string}>;
++  recent_analyzed_images: DashboardAnalyzedImage[];
++  asset_health: DashboardAssetHealth[];
++}
++
++// ── Sensors (NOAA) ──────────────────────────────────────────
++export interface SensorAssetLive {
++  asset_name: string;
++  location_name: string | null;
++  latitude: number;
++  longitude: number;
++  temperature_f: number | null;
++  water_level_ft: number | null;
++  wind_speed_kn: number | null;
++  wind_direction_deg: number | null;
++  wind_gust_kn: number | null;
++  wind_speed_mph: number | null;
++  wave_height_m: number | null;
++  wave_period_s: number | null;
++  water_temp_f: number | null;
++  air_temp_ndbc_f: number | null;
++  sources: { coops_station: string; ndbc_station: string };
++}
++
++export interface SensorLiveResponse {
++  assets: Record<string, SensorAssetLive>;
++  updated_at: number;
++}
++
++export interface SensorHistoryReading {
++  t: string;   // timestamp
++  v: string;   // value
++  f?: string;  // flags
++  s?: string;  // speed (wind)
++  d?: string;  // direction (wind)
++  g?: string;  // gust (wind)
++}
++
++export interface SensorHistoryResponse {
++  asset_id: number;
++  sensor_type: string;
++  station: string;
++  start: string;
++  end: string;
++  readings: SensorHistoryReading[];
++}
++
++export interface AuthToken {
++  access_token: string;
++  token_type: string;
++  user_id: string;
++  email: string;
++  full_name?: string;
++  username?: string;
++  role: UserRole;
++  organization_id?: string;
++  organization_name?: string;
++}
++
++// ── Predictive Analytics ────────────────────────────────────
++// Shape of responses from /api/v1/predictive/*. Field names match
++// the backend Pydantic schemas (app/schemas/predictive.py) which
++// in turn mirror the engine's V2 output DataFrame.
++
++export type PredictivePriorityLabel =
++  | 'Critical' | 'High' | 'Medium' | 'Low' | 'Minimal';
++
++export type PredictiveTrendDirection =
++  | 'accelerating' | 'worsening' | 'stable' | 'improving' | 'fluctuating';
++
++export type PredictiveTtiLabel =
++  | 'Immediate' | 'Near-term' | 'Medium-term' | 'Long-term' | 'Not applicable';
++
++export type PredictiveRunStatus = 'running' | 'completed' | 'failed';
++
++export interface SeverityHistoryPoint {
++  date: string;       // 'YYYY-MM-DD'
++  severity: number;   // 1..4
++}
++
++export interface PredictiveAnalyticsReason {
++  reason_code: string;          // e.g. 'deterioration' | 'anomaly' | 'tti' | 'current_severity'
++  reason_category?: string;     // e.g. 'trend' | 'anomaly' | 'projection' | 'severity'
++  reason_text: string;
++  weight?: number;              // 0..1, null for informational reasons (e.g. TTI)
++  display_order?: number;
++}
++
++export interface PredictiveAssetResult {
++  asset_id: string;
++  asset_name: string;
++  asset_type?: string;
++  priority_rank: number;
++  priority_score: number;
++  priority_label: PredictivePriorityLabel;
++  latest_severity: number;          // 1..4
++  trend_direction: PredictiveTrendDirection;
++  severity_change_rate: number;     // per year
++  acceleration: boolean;
++  has_anomaly: boolean;
++  anomaly_reason?: string;
++  tti_days?: number;
++  tti_label: PredictiveTtiLabel;
++  tti_note: string;
++  // Chronological severity timeline for sparkline rendering;
++  // empty list when the run was older than the history feature.
++  severity_history: SeverityHistoryPoint[];
++  // Per-component breakdown of how the score was reached.
++  // Empty list for runs that pre-date reason persistence.
++  reasons: PredictiveAnalyticsReason[];
++}
++
++export interface PredictiveRunTriggerResponse {
++  run_id: string;
++  status: PredictiveRunStatus;
++  total_items_analyzed: number;
++  message: string;
++}
++
++export interface PredictiveRunSummary {
++  id: string;
++  status: PredictiveRunStatus;
++  created_at: string;                // ISO 8601
++  completed_at?: string;
++  total_items_analyzed: number;
++  processing_time_ms?: number;
++  engine_version: string;
++  schema_version: string;
++}
++
++export interface PredictiveRunDetail extends PredictiveRunSummary {
++  results: PredictiveAssetResult[];
++}
