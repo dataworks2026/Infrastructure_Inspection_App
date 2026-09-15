@@ -1,4 +1,4 @@
-"""D-8: recommendation engine — 9 additive tables, no changes to existing schema
+"""D-8: recommendation engine, 9 additive tables, no changes to existing schema
 
 Revision ID: d8_recommendation_engine
 Revises: d7_detection_review
