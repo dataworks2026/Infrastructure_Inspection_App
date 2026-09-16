@@ -55,6 +55,7 @@ def review_data(db_session, test_org):
         name="Review Test Inspection",
         inspector_name="Test Inspector",
     ))
+    db_session.flush()
 
     img1, img2 = str(uuid.uuid4()), str(uuid.uuid4())
     for img_id, fname in ((img1, "img1.jpg"), (img2, "img2.jpg")):
@@ -66,6 +67,7 @@ def review_data(db_session, test_org):
             upload_completed=True,
             analysis_status="completed",
         ))
+    db_session.flush()
 
     def _det(image_id, damage_type):
         d = Detection(

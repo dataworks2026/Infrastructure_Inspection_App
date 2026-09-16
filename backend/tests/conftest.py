@@ -324,6 +324,7 @@ def seed_inspection(
         name            = f"Inspection {inspection_date or inspected_at}",
         inspector_name  = "Test Inspector",
     ))
+    db.flush()
     db.add(Image(
         id              = img_id,
         organization_id = organization_id,
@@ -332,6 +333,7 @@ def seed_inspection(
         upload_completed= True,
         analysis_status = "completed",
     ))
+    db.flush()
     db.add(Detection(
         image_id        = img_id,
         organization_id = organization_id,
