@@ -215,6 +215,7 @@ def test_multiple_detections_aggregate_to_max_severity(db_session, test_org):
             id=img_id, organization_id=test_org.organization_id,
             inspection_id=insp_id, filename=f"{sev}.jpg",
         ))
+        db_session.flush()
         db_session.add(Detection(
             image_id=img_id, organization_id=test_org.organization_id,
             severity=sev, damage_type="corrosion",
@@ -249,6 +250,7 @@ def _add_image_with_detection(db, *, org_id, inspection_id, severity, det_id=Non
         id=img_id, organization_id=org_id,
         inspection_id=inspection_id, filename=f"{severity}.jpg",
     ))
+    db.flush()
     db.add(Detection(
         id=det_id, image_id=img_id, organization_id=org_id,
         severity=severity, damage_type="corrosion",
@@ -271,6 +273,7 @@ def test_reviewed_inspection_is_included(db_session, test_org):
         asset_id="REV", inspection_date=date(2024, 3, 1),
         status="review_completed", name="Reviewed", inspector_name="T",
     ))
+    db_session.flush()
     _add_image_with_detection(
         db_session, org_id=test_org.organization_id,
         inspection_id=insp_id, severity="S3")
@@ -298,6 +301,7 @@ def test_rejected_and_modified_cv_detections_excluded(db_session, test_org):
         asset_id="VER", inspection_date=date(2024, 4, 1),
         status="review_completed", name="Verified", inspector_name="T",
     ))
+    db_session.flush()
     # Accepted S2, rejected S4 (the worst — must be excluded so max is S2)
     _, accepted_id = _add_image_with_detection(
         db_session, org_id=test_org.organization_id,
