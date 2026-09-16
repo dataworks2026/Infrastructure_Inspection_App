@@ -1458,6 +1458,7 @@ def test_delete_asset_cascades_inspections_and_missions(client, db_session, revi
         routine_type="orbit",
         status="aborted",
     ))
+    db_session.flush()
     # a mission child row — must not FK-block the asset delete
     db_session.add(MissionWaypoint(
         id=str(uuid.uuid4()), mission_id=mission_id,
@@ -1474,11 +1475,13 @@ def test_delete_asset_cascades_inspections_and_missions(client, db_session, revi
         id=run_id, organization_id=org_id, status="completed",
         engine_version="1.0", schema_version="v3",
     ))
+    db_session.flush()
     db_session.add(V1AnalyticsItem(
         id=item_id, analytics_run_id=run_id, asset_id=asset_id, organization_id=org_id,
         status="completed", severity_now="S2", priority_score=50.0, priority_rank=1,
         recommended_action="monitor",
     ))
+    db_session.flush()
     db_session.add(V1AnalyticsReason(
         id=str(uuid.uuid4()), analytics_item_id=item_id,
         reason_code="TEST", reason_text="test reason",
