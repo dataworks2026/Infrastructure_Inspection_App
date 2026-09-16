@@ -16,7 +16,6 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-import os
 import pytest
 
 from app.core.deps import get_db, get_current_user
@@ -1437,12 +1436,6 @@ def test_delete_reviewed_inspection_cascades_reviews(client, db_session, review_
 
 # ─── delete an asset with reviewed inspections + missions (regression) ─────
 
-@pytest.mark.xfail(
-    os.environ.get("DATABASE_URL", "").startswith("postgresql"),
-    reason="asset delete is not ordered after the inspection cascade; fails on Postgres today. "
-           "Product change pending CTO decision (deleting an asset destroys its inspections and reviews).",
-    strict=True,
-)
 def test_delete_asset_cascades_inspections_and_missions(client, db_session, review_data):
     """Deleting an asset must remove its inspections' full subtree (incl. review
     rows) and asset-level drone missions — the old endpoint did a bare
