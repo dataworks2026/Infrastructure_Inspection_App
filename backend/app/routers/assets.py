@@ -155,13 +155,6 @@ def delete_asset(asset_id: str, db: Session = Depends(get_db), current_user: Use
     inspections = db.query(Inspection).filter(Inspection.asset_id == asset_id).all()
     for insp in inspections:
         cascade_delete_inspection(db, insp)
-    # cascade_delete_inspection schedules the inspection rows for deletion
-    # through the ORM; the asset delete below is scheduled the same way, and
-    # with no relationship() between the two models the unit of work has no
-    # ordering rule between them. Flush here so inspections are gone before
-    # the asset row is, or Postgres rejects the asset delete on
-    # inspections_asset_id_fkey.
-    db.flush()
 
     # 2. Asset-level drone missions (the "Twin Updates" — asset_id FK, no cascade).
     #    Clear rows that reference these missions (mission_waypoints, …) first,
