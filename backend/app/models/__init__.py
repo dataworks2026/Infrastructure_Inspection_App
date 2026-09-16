@@ -44,3 +44,16 @@ from app.models.pilot import Pilot  # noqa: F401
 from app.models.alert import Alert  # noqa: F401
 from app.models.geofence import Geofence  # noqa: F401
 from app.models.mission_record import MissionRecord  # noqa: F401
+
+# Recommendation Engine Layer (Stage 1)
+from app.models.recommendation import (  # noqa: F401
+    RecommendationClassVocabulary,
+    RecommendationSeverity,
+    RecommendationPriorityTier,
+    RecommendationLibraryEntry,
+    RecommendationAuditEvent,
+    RecommendationRun,
+    RecommendationRecord,
+    RecommendationDetectionLink,
+    RecommendationReportSnapshot,
+)
