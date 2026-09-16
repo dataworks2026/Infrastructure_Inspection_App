@@ -38,8 +38,50 @@ def rec_lookups(db_session):
     db_session.commit()
 
 
+REC_INSPECTION_IDS = ("inspection-1", "inspection-2", "inspection-shared")
+
+
 @pytest.fixture
-def rec_vocab(db_session, test_org, rec_lookups):
+def rec_inspections(db_session, test_org):
+    """The engine tests name inspections by fixed ids. On Postgres the
+    runs table's foreign key needs those rows to exist (SQLite never
+    checked), so one asset and the three inspections are seeded under
+    test_org."""
+    from datetime import date
+
+    from app.models.asset import Asset
+    from app.models.inspection import Inspection
+
+    if db_session.get(Asset, "asset-rec") is None:
+        db_session.add(
+            Asset(
+                id="asset-rec",
+                organization_id=test_org.organization_id,
+                name="Recommendation test asset",
+                infrastructure_type="coastal",
+                status="active",
+            )
+        )
+        db_session.flush()
+    for insp_id in REC_INSPECTION_IDS:
+        if db_session.get(Inspection, insp_id) is None:
+            db_session.add(
+                Inspection(
+                    id=insp_id,
+                    organization_id=test_org.organization_id,
+                    asset_id="asset-rec",
+                    inspection_date=date(2026, 9, 1),
+                    status="completed",
+                    name=insp_id,
+                    inspector_name="Test Inspector",
+                )
+            )
+    db_session.commit()
+    return REC_INSPECTION_IDS
+
+
+@pytest.fixture
+def rec_vocab(db_session, test_org, rec_lookups, rec_inspections):
     """Seed the standard six-class vocabulary for test_org, mirroring
     Tahya's own conftest.py TEST_VOCABULARY fixture."""
     for class_value in TEST_VOCABULARY:
