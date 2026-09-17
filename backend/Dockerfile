@@ -1,4 +1,8 @@
 FROM python:3.11-slim
+# Commit the image was built from; passed by docker compose as GIT_REVISION.
+# Read with: docker image inspect app-backend --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+ARG GIT_REVISION=unknown
+LABEL org.opencontainers.image.revision=$GIT_REVISION
 WORKDIR /app
 
 # System deps for OpenCV / image processing
