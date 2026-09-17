@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user, require_review_flow
 from app.models.user import User
 from app.models.image import Image
 from app.models.inspection import Inspection, InspectionStatus
@@ -30,7 +30,7 @@ from app.schemas.review import (
 from app.services.reports.review_diff import compute_review_diff
 from app.services.reports.damage_codes import CODE_LABELS
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_review_flow)])
 
 BBOX_TOLERANCE_PX = 0.5
 

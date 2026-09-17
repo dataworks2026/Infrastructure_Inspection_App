@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db
+from app.core.deps import get_current_user, get_db, require_review_flow
 from app.models.image import Image
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.user import User
@@ -24,7 +24,7 @@ router = APIRouter()
 
 # Mounted at /api/v1 (NOT /api/v1/reports) so the download URL matches the
 # review flow's /inspections/{id}/... endpoint family.
-review_report_router = APIRouter()
+review_report_router = APIRouter(dependencies=[Depends(require_review_flow)])
 
 
 def _require_org(user: User) -> str:
