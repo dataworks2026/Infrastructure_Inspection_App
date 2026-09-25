@@ -59,4 +59,4 @@ jobs:
         run: ruff check app/ --select E,F,W --ignore E501
 
       - name: Run tests
-        run: pytest tests/ -x -q --ignore=tests/MANUAL_E2E.md
+        run: pytest tests/ -q --ignore=tests/MANUAL_E2E.md
