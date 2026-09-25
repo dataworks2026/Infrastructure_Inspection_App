@@ -549,7 +549,7 @@ function NarrativeCard({ narrative }: { narrative: ReportNarrative }) {
       {narrative.recommendations.length > 0 && (
         <div className="mb-2">
           <p className="text-[11px] font-bold tracking-wider mb-2" style={{ color: MINT }}>
-            RECOMMENDATIONS
+            AUTOMATED ASSESSMENT
           </p>
           <ul className="space-y-2.5">
             {narrative.recommendations.map((r, i) => (
