@@ -26,17 +26,23 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
+from app.models.recommendation import RecommendationVocabulary
 from app.services.recommendations.audit import record_audit_event
-from tests.recommendations.conftest import seed_vocab
+from tests.recommendations.conftest import ensure_vocabulary, seed_vocab
 
 INSERT_ENTRY = """
 INSERT INTO recommendation_library_entries
-    (entry_id, version, organization_id, is_active, is_latest, detection_class, severity,
+    (entry_id, version, organization_id, vocabulary_id, is_active, is_latest, detection_class, severity,
      recommendation_text, action_class, derived_tier, tier_override, created_by)
 VALUES
-    (:entry_id, 1, :organization_id, true, true, :detection_class, :severity,
+    (:entry_id, 1, :organization_id, :vocabulary_id, true, true, :detection_class, :severity,
      :recommendation_text, :action_class, :derived_tier, :tier_override, 'raw_sql_test')
 """
+
+
+def _vocabulary_id(db) -> str:
+    vocab = db.query(RecommendationVocabulary).filter(RecommendationVocabulary.producer == "coastal").first()
+    return vocab.id if vocab is not None else ensure_vocabulary(db).id
 
 
 def _is_postgres(db_session) -> bool:
@@ -52,6 +58,7 @@ def _try_insert(db_session, organization_id, **kwargs):
     params = {
         "entry_id": str(uuid.uuid4()),
         "organization_id": organization_id,
+        "vocabulary_id": _vocabulary_id(db_session),
         "detection_class": "corrosion",
         "severity": 2,
         "recommendation_text": "valid text",
@@ -90,7 +97,7 @@ class TestDatabaseRejectsBadDataDirectly:
             _try_insert(db_session, test_org.organization_id, detection_class="  Corrosion  ")
         db_session.rollback()
 
-    def test_class_not_in_the_vocabulary_rejected_by_database(self, db_session, test_org, rec_lookups):
+    def test_class_not_in_the_vocabulary_rejected_by_database(self, db_session, test_org, rec_vocab):
         _skip_unless_postgres(db_session, "DAT-1's vocabulary foreign key")
         # 'titanium fatigue' is properly normalized (lowercase, trimmed)
         # so the ck_entry_class_normalized check has nothing to object
@@ -107,11 +114,11 @@ class TestDatabaseRejectsBadDataDirectly:
         db_session.execute(
             text(
                 "INSERT INTO recommendation_library_entries "
-                "(entry_id, version, organization_id, detection_class, severity, "
+                "(entry_id, version, organization_id, vocabulary_id, detection_class, severity, "
                 " recommendation_text, action_class, derived_tier, created_by) "
-                "VALUES (:entry_id, 1, :organization_id, 'corrosion', 2, 'valid text', 'monitor', 3, 'raw_sql_test')"
+                "VALUES (:entry_id, 1, :organization_id, :vocabulary_id, 'corrosion', 2, 'valid text', 'monitor', 3, 'raw_sql_test')"
             ),
-            {"entry_id": entry_id, "organization_id": test_org.organization_id},
+            {"entry_id": entry_id, "organization_id": test_org.organization_id, "vocabulary_id": _vocabulary_id(db_session)},
         )
         db_session.commit()
         row = db_session.execute(
@@ -216,14 +223,14 @@ class TestLinkSetImmutableOnceDispositionedAtTheDatabase:
             {"id": run_id, "org_id": test_org.organization_id},
         )
         entry_id = str(uuid.uuid4())
-        seed_vocab(db_session, test_org.organization_id, "corrosion")
+        seed_vocab(db_session, "corrosion")
         db_session.execute(
             text(
                 "INSERT INTO recommendation_library_entries "
-                "(entry_id, version, organization_id, detection_class, severity, recommendation_text, action_class, derived_tier, created_by) "
-                "VALUES (:entry_id, 1, :org_id, 'corrosion', 4, 'text', 'monitor', 1, 'test')"
+                "(entry_id, version, organization_id, vocabulary_id, detection_class, severity, recommendation_text, action_class, derived_tier, created_by) "
+                "VALUES (:entry_id, 1, :org_id, :vocabulary_id, 'corrosion', 4, 'text', 'monitor', 1, 'test')"
             ),
-            {"entry_id": entry_id, "org_id": test_org.organization_id},
+            {"entry_id": entry_id, "org_id": test_org.organization_id, "vocabulary_id": _vocabulary_id(db_session)},
         )
         record_id = str(uuid.uuid4())
         db_session.execute(

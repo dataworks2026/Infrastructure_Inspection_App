@@ -21,6 +21,9 @@ def _normalize_class(value: str) -> str:
 
 class EntryWrite(BaseModel):
     actor: str
+    # the model family whose vocabulary this rule is written against; the
+    # authoring service resolves it to the current vocabulary version
+    producer: str = "coastal"
     detection_class: str
     severity: int
     asset_type: Optional[str] = None
@@ -36,6 +39,14 @@ class EntryWrite(BaseModel):
         if not stripped:
             raise ValueError("must not be blank")
         return stripped
+
+    @field_validator("producer")
+    @classmethod
+    def _normalize_producer(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError("must not be blank")
+        return normalized
 
     @field_validator("detection_class")
     @classmethod

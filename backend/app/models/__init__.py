@@ -47,6 +47,7 @@ from app.models.mission_record import MissionRecord  # noqa: F401
 
 # Recommendation Engine Layer (Stage 1)
 from app.models.recommendation import (  # noqa: F401
+    RecommendationVocabulary,
     RecommendationClassVocabulary,
     RecommendationSeverity,
     RecommendationPriorityTier,

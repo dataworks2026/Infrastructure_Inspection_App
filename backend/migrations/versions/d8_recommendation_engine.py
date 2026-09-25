@@ -1,4 +1,4 @@
-"""D-8: recommendation engine, 9 additive tables, no changes to existing schema
+"""D-8: recommendation engine, 10 additive tables, no changes to existing schema
 
 Revision ID: d8_recommendation_engine
 Revises: d7_detection_review
@@ -15,12 +15,34 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # One vocabulary per producer (model weights file), global, signed once
+    # (CTO decision 2026-09-24). Entries stay per organization.
+    op.create_table(
+        "recommendation_vocabularies",
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("producer", sa.Text(), nullable=False),
+        sa.Column("weights_sha256", sa.String(64), nullable=False, unique=True),
+        sa.Column("version", sa.Integer(), nullable=False),
+        sa.Column("vocabulary_hash", sa.String(16), nullable=False),
+        sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'provisional'")),
+        sa.Column("signed_by", sa.String(255), nullable=True),
+        sa.Column("signed_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.UniqueConstraint("producer", "version", name="uq_rec_vocabulary_producer_version"),
+        sa.CheckConstraint("producer = lower(trim(producer)) AND producer <> ''", name="ck_rec_vocabulary_producer_normalized"),
+        sa.CheckConstraint("length(weights_sha256) = 64", name="ck_rec_vocabulary_weights_hash_len"),
+        sa.CheckConstraint("version >= 1", name="ck_rec_vocabulary_version_positive"),
+        sa.CheckConstraint("status IN ('provisional', 'signed')", name="ck_rec_vocabulary_status_valid"),
+        sa.CheckConstraint(
+            "(status = 'signed') = (signed_by IS NOT NULL AND signed_at IS NOT NULL)",
+            name="ck_rec_vocabulary_signed_fields",
+        ),
+    )
+
     op.create_table(
         "recommendation_class_vocabulary",
-        sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.organization_id"), primary_key=True),
+        sa.Column("vocabulary_id", sa.String(36), sa.ForeignKey("recommendation_vocabularies.id"), primary_key=True),
         sa.Column("class_value", sa.Text(), primary_key=True),
-        sa.Column("provisional", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("source", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.CheckConstraint(
             "class_value = lower(trim(class_value)) AND class_value <> ''",
@@ -47,6 +69,7 @@ def upgrade() -> None:
         sa.Column("entry_id", sa.String(36), primary_key=True),
         sa.Column("version", sa.Integer(), primary_key=True),
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.organization_id"), nullable=True),
+        sa.Column("vocabulary_id", sa.String(36), sa.ForeignKey("recommendation_vocabularies.id"), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("is_latest", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("detection_class", sa.Text(), nullable=False),
@@ -78,15 +101,15 @@ def upgrade() -> None:
             "tier_override IS NULL OR tier_override <= derived_tier",
             name="ck_rec_entry_tier_override_not_less_urgent",
         ),
-        # DAT-1: a rule can only name a class this organization's
-        # vocabulary audit has actually observed.
+        # DAT-1: a rule can only name a class its producer's vocabulary contains.
         sa.ForeignKeyConstraint(
-            ["organization_id", "detection_class"],
-            ["recommendation_class_vocabulary.organization_id", "recommendation_class_vocabulary.class_value"],
+            ["vocabulary_id", "detection_class"],
+            ["recommendation_class_vocabulary.vocabulary_id", "recommendation_class_vocabulary.class_value"],
             name="fk_rec_entry_class_vocabulary",
         ),
     )
     op.create_index("ix_rec_library_entries_org", "recommendation_library_entries", ["organization_id"])
+    op.create_index("ix_rec_library_entries_vocabulary", "recommendation_library_entries", ["vocabulary_id"])
 
     op.create_table(
         "recommendation_audit_events",
@@ -114,6 +137,7 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.organization_id"), nullable=True),
         sa.Column("inspection_id", sa.String(36), sa.ForeignKey("inspections.id"), nullable=True),
         sa.Column("rollup_scope", sa.Text(), nullable=False),
+        sa.Column("producer", sa.Text(), nullable=False, server_default=sa.text("'coastal'")),
         sa.Column("total_detections", sa.Integer(), nullable=False),
         sa.Column("total_matched", sa.Integer(), nullable=False),
         sa.Column("total_unmatched", sa.Integer(), nullable=False),
@@ -285,6 +309,7 @@ def upgrade() -> None:
             DROP INDEX IF EXISTS uq_rec_entry_active_rule_key;
             CREATE UNIQUE INDEX uq_rec_entry_active_rule_key ON recommendation_library_entries (
                 coalesce(organization_id, ''),
+                vocabulary_id,
                 detection_class,
                 severity,
                 coalesce(asset_type, ''),
@@ -343,6 +368,7 @@ def upgrade() -> None:
             """
             CREATE UNIQUE INDEX uq_rec_entry_active_rule_key_sqlite ON recommendation_library_entries (
                 organization_id,
+                vocabulary_id,
                 detection_class,
                 severity,
                 coalesce(asset_type, ''),
@@ -370,3 +396,4 @@ def downgrade() -> None:
     op.drop_table("recommendation_priority_tiers")
     op.drop_table("recommendation_severities")
     op.drop_table("recommendation_class_vocabulary")
+    op.drop_table("recommendation_vocabularies")

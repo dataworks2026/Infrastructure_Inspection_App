@@ -17,7 +17,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.recommendation import RecommendationClassVocabulary, RecommendationLibraryEntry
+from app.models.recommendation import RecommendationClassVocabulary, RecommendationLibraryEntry, RecommendationVocabulary
 from app.schemas.recommendation import EntryWrite
 from app.services.recommendations.audit import record_audit_event
 from app.services.recommendations.errors import FieldValidationError, NotFoundError
@@ -33,26 +33,44 @@ def _check_tier_override(derived_tier: int, tier_override: Optional[int]) -> Non
         )
 
 
-def _check_class_known(db: Session, organization_id: str, detection_class: str) -> None:
-    # DAT-1: a rule can only be authored for a class the vocabulary audit
-    # has actually observed for THIS organization, never one made up on
-    # the spot. The database's own foreign key on
-    # recommendation_library_entries.detection_class(-> vocabulary)
-    # doesn't exist at the DB level here (composite org+class key), so
-    # this check is the sole enforcement -- keep it authoritative.
-    exists = db.get(RecommendationClassVocabulary, (organization_id, detection_class))
+def resolve_vocabulary(db: Session, producer: str) -> RecommendationVocabulary:
+    """The current vocabulary for a producer: the highest version, which is
+    the one written for the weights in use. A signed one is what production
+    should be running on; a provisional one is allowed so authoring can start
+    before the CTO signs, with the rows carrying that state."""
+    stmt = (
+        select(RecommendationVocabulary)
+        .where(RecommendationVocabulary.producer == producer)
+        .order_by(RecommendationVocabulary.version.desc())
+    )
+    vocab = db.execute(stmt).scalars().first()
+    if vocab is None:
+        raise FieldValidationError(
+            "producer",
+            f"no vocabulary exists for producer '{producer}'; load one (scripts/recommendations) before authoring rules for it",
+        )
+    return vocab
+
+
+def _check_class_known(db: Session, vocabulary_id: str, detection_class: str) -> None:
+    # DAT-1: a rule can only be authored for a class its producer's
+    # vocabulary contains, never one made up on the spot. The composite
+    # foreign key on the entries table is the database half; SQLite does
+    # not enforce it, so this check stays authoritative.
+    exists = db.get(RecommendationClassVocabulary, (vocabulary_id, detection_class))
     if exists is None:
         raise FieldValidationError(
             "detection_class",
-            f"'{detection_class}' isn't in this organization's class vocabulary yet; "
-            "run the vocabulary audit against a real export first, or get it added "
-            "before authoring a rule for it",
+            f"'{detection_class}' isn't in this producer's class vocabulary; "
+            "the vocabulary is what the model can emit and the data confirms, "
+            "so a new class means a new signed vocabulary version, not a rule",
         )
 
 
 def _check_rule_key_collision(
     db: Session,
     organization_id: str,
+    vocabulary_id: str,
     data: EntryWrite,
     exclude_entry_id: Optional[str] = None,
 ) -> None:
@@ -62,6 +80,7 @@ def _check_rule_key_collision(
     # d8 migration backs this up independently on both dialects.
     stmt = select(RecommendationLibraryEntry).where(
         RecommendationLibraryEntry.organization_id == organization_id,
+        RecommendationLibraryEntry.vocabulary_id == vocabulary_id,
         RecommendationLibraryEntry.is_active.is_(True),
         RecommendationLibraryEntry.is_latest.is_(True),
         RecommendationLibraryEntry.detection_class == data.detection_class,
@@ -82,13 +101,15 @@ def _check_rule_key_collision(
 def create_entry(db: Session, organization_id: str, data: EntryWrite) -> RecommendationLibraryEntry:
     derived_tier = derive_tier(data.severity)
     _check_tier_override(derived_tier, data.tier_override)
-    _check_class_known(db, organization_id, data.detection_class)
-    _check_rule_key_collision(db, organization_id, data)
+    vocab = resolve_vocabulary(db, data.producer)
+    _check_class_known(db, vocab.id, data.detection_class)
+    _check_rule_key_collision(db, organization_id, vocab.id, data)
 
     entry = RecommendationLibraryEntry(
         entry_id=str(uuid4()),
         version=1,
         organization_id=organization_id,
+        vocabulary_id=vocab.id,
         is_active=True,
         is_latest=True,
         detection_class=data.detection_class,
@@ -141,13 +162,15 @@ def edit_entry(
 
     derived_tier = derive_tier(data.severity)
     _check_tier_override(derived_tier, data.tier_override)
-    _check_class_known(db, organization_id, data.detection_class)
-    _check_rule_key_collision(db, organization_id, data, exclude_entry_id=entry_id)
+    vocab = resolve_vocabulary(db, data.producer)
+    _check_class_known(db, vocab.id, data.detection_class)
+    _check_rule_key_collision(db, organization_id, vocab.id, data, exclude_entry_id=entry_id)
 
     new_version = RecommendationLibraryEntry(
         entry_id=entry_id,
         version=current.version + 1,
         organization_id=organization_id,
+        vocabulary_id=vocab.id,
         is_active=True,
         is_latest=True,
         detection_class=data.detection_class,

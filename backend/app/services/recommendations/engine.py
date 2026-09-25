@@ -53,6 +53,7 @@ from app.models.recommendation import (
     RecommendationLibraryEntry,
     RecommendationRecord,
     RecommendationRun,
+    RecommendationVocabulary,
 )
 from app.services.recommendations.audit import record_audit_event
 from app.services.recommendations.errors import FieldValidationError
@@ -92,21 +93,34 @@ def _skipped_manifest(skipped: list[MatchableDetection]) -> list[dict]:
     return [{"detection_id": d.id, "reason": d.skip_reason} for d in skipped]
 
 
-def _load_active_entries(db: Session, organization_id: str) -> list[RecommendationLibraryEntry]:
-    stmt = select(RecommendationLibraryEntry).where(
-        RecommendationLibraryEntry.organization_id == organization_id,
-        RecommendationLibraryEntry.is_active.is_(True),
-        RecommendationLibraryEntry.is_latest.is_(True),
+DEFAULT_PRODUCER = "coastal"
+
+
+def _load_active_entries(db: Session, organization_id: str, producer: str) -> list[RecommendationLibraryEntry]:
+    # only the organization's entries written against this producer's
+    # vocabulary can match this producer's detections (CTO decision
+    # 2026-09-24: vocabulary by producer, entries per organization)
+    stmt = (
+        select(RecommendationLibraryEntry)
+        .join(RecommendationVocabulary, RecommendationVocabulary.id == RecommendationLibraryEntry.vocabulary_id)
+        .where(
+            RecommendationLibraryEntry.organization_id == organization_id,
+            RecommendationVocabulary.producer == producer,
+            RecommendationLibraryEntry.is_active.is_(True),
+            RecommendationLibraryEntry.is_latest.is_(True),
+        )
     )
     return list(db.execute(stmt).scalars().all())
 
 
-def preview_matches(db: Session, organization_id: str, detections: list[MatchableDetection]) -> list[dict]:
+def preview_matches(
+    db: Session, organization_id: str, detections: list[MatchableDetection], producer: str = DEFAULT_PRODUCER
+) -> list[dict]:
     """Read only: what each detection would match against the library right
     now, without persisting anything. Same pure resolve_detection call a
     real run uses (MAT-4), just never written down.
     """
-    entries = _load_active_entries(db, organization_id)
+    entries = _load_active_entries(db, organization_id, producer)
     results = []
     for detection in detections:
         if detection.skip_reason is not None:
@@ -259,8 +273,9 @@ def run_resolution(
     detections: list[MatchableDetection],
     rollup_scope: str,
     actor: str,
+    producer: str = DEFAULT_PRODUCER,
 ) -> RecommendationRun:
-    entries = _load_active_entries(db, organization_id)
+    entries = _load_active_entries(db, organization_id, producer)
     eligible, dismissed, skipped = _classify(detections)
 
     groups, unmatched = _resolve_and_group(entries, eligible, rollup_scope)
@@ -271,6 +286,7 @@ def run_resolution(
         organization_id=organization_id,
         inspection_id=inspection_id,
         rollup_scope=rollup_scope,
+        producer=producer,
         total_detections=len(detections),
         total_matched=total_matched,
         total_unmatched=len(unmatched),
@@ -330,6 +346,7 @@ def rerun_resolution(
     detections: list[MatchableDetection],
     rollup_scope: str,
     actor: str,
+    producer: str = DEFAULT_PRODUCER,
 ) -> RecommendationRun:
     """MAT-11. Dispositioned records are protected unless a contributing
     chain changed (see _chain_changed), in which case they supersede.
@@ -394,6 +411,7 @@ def rerun_resolution(
         organization_id=organization_id,
         inspection_id=inspection_id,
         rollup_scope=rollup_scope,
+        producer=producer,
         total_detections=len(detections),
         total_matched=0,
         total_unmatched=0,
@@ -460,7 +478,7 @@ def rerun_resolution(
         # below, independently, per MAT-11 (a vanished or skip-flagged
         # chain simply never reappears there, which is correct)
 
-    entries = _load_active_entries(db, organization_id)
+    entries = _load_active_entries(db, organization_id, producer)
     eligible, _, _ = _classify(detections)
     fresh_pool = [d for d in eligible if d.chain_key not in excluded_from_fresh_run]
     groups, unmatched = _resolve_and_group(entries, fresh_pool, rollup_scope)

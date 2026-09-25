@@ -23,16 +23,46 @@ from sqlalchemy import JSON as JSONB
 from app.database import Base
 
 
+class RecommendationVocabulary(Base):
+    # LE3 (Vocabulary). One vocabulary per producer, where a producer is a
+    # model weights file: the class set is a property of the model, identical
+    # for every organization running it, so it is global and signed once
+    # (CTO decision 2026-09-24). Library entries stay per organization and
+    # point at the vocabulary they were authored against. A new weights file
+    # is a new vocabulary version, signed on its own.
+    __tablename__ = "recommendation_vocabularies"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    producer = Column(Text, nullable=False)  # e.g. 'coastal'; the model family the weights belong to
+    weights_sha256 = Column(String(64), nullable=False, unique=True)
+    version = Column(Integer, nullable=False)
+    vocabulary_hash = Column(String(16), nullable=False)  # same method as the Phase 1 audit tool
+    status = Column(Text, nullable=False, default="provisional", server_default=text("'provisional'"))
+    signed_by = Column(String(255), nullable=True)
+    signed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("producer", "version", name="uq_rec_vocabulary_producer_version"),
+        CheckConstraint("producer = lower(trim(producer)) AND producer <> ''", name="ck_rec_vocabulary_producer_normalized"),
+        CheckConstraint("length(weights_sha256) = 64", name="ck_rec_vocabulary_weights_hash_len"),
+        CheckConstraint("version >= 1", name="ck_rec_vocabulary_version_positive"),
+        CheckConstraint("status IN ('provisional', 'signed')", name="ck_rec_vocabulary_status_valid"),
+        # signed means someone signed it, on a date; provisional carries neither
+        CheckConstraint(
+            "(status = 'signed') = (signed_by IS NOT NULL AND signed_at IS NOT NULL)",
+            name="ck_rec_vocabulary_signed_fields",
+        ),
+    )
+
+
 class RecommendationClassVocabulary(Base):
-    # LE3 (Vocabulary), per-org. Observed, versioned class value set (DAT-1/OI-2).
-    # provisional stays true until a real export is reviewed and baselined —
-    # a manual decision; this table only makes sure that state is never lost.
+    # The class values a vocabulary contains (DAT-1 / OI-2). Membership is
+    # what authoring checks and what the entries' foreign key enforces.
     __tablename__ = "recommendation_class_vocabulary"
 
-    organization_id = Column(String(36), ForeignKey("organizations.organization_id"), primary_key=True)
+    vocabulary_id = Column(String(36), ForeignKey("recommendation_vocabularies.id"), primary_key=True)
     class_value = Column(Text, primary_key=True)
-    provisional = Column(Boolean, nullable=False, default=True, server_default=text("true"))
-    source = Column(Text, nullable=False, default="fixture")
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     __table_args__ = (
@@ -81,6 +111,8 @@ class RecommendationLibraryEntry(Base):
 
     organization_id = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True, index=True)
 
+    # the vocabulary (producer plus weights version) this rule was authored against
+    vocabulary_id = Column(String(36), ForeignKey("recommendation_vocabularies.id"), nullable=False, index=True)
     is_active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
     is_latest = Column(Boolean, nullable=False, default=True, server_default=text("true"))
 
@@ -133,12 +165,12 @@ class RecommendationLibraryEntry(Base):
             "tier_override IS NULL OR tier_override <= derived_tier",
             name="ck_rec_entry_tier_override_not_less_urgent",
         ),
-        # DAT-1: a rule can only name a class this organization's
-        # vocabulary audit has actually observed -- the database-level
-        # half of the check authoring.py already makes app-side.
+        # DAT-1: a rule can only name a class its producer's vocabulary
+        # contains -- the database-level half of the check authoring.py
+        # already makes app-side.
         ForeignKeyConstraint(
-            ["organization_id", "detection_class"],
-            ["recommendation_class_vocabulary.organization_id", "recommendation_class_vocabulary.class_value"],
+            ["vocabulary_id", "detection_class"],
+            ["recommendation_class_vocabulary.vocabulary_id", "recommendation_class_vocabulary.class_value"],
             name="fk_rec_entry_class_vocabulary",
         ),
         # MAT-3, dev/test side: the same partial unique index the d8
@@ -159,6 +191,7 @@ class RecommendationLibraryEntry(Base):
         Index(
             "uq_rec_entry_active_rule_key_sqlite",
             "organization_id",
+            "vocabulary_id",
             "detection_class",
             "severity",
             text("coalesce(asset_type, '')"),
@@ -208,6 +241,8 @@ class RecommendationRun(Base):
     inspection_id = Column(String(36), ForeignKey("inspections.id"), nullable=True, index=True)
 
     rollup_scope = Column(Text, nullable=False)
+    # which producer's vocabulary and entries this run resolved against
+    producer = Column(Text, nullable=False, default="coastal", server_default=text("'coastal'"))
     total_detections = Column(Integer, nullable=False)
     total_matched = Column(Integer, nullable=False)
     total_unmatched = Column(Integer, nullable=False)

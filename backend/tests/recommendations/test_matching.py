@@ -10,7 +10,7 @@ from tests.recommendations.conftest import make_detection
 
 def entry(**overrides) -> RecommendationLibraryEntry:
     defaults = dict(
-        entry_id="e1", version=1, organization_id="org1",
+        entry_id="e1", version=1, organization_id="org1", vocabulary_id="vocab1",
         is_active=True, is_latest=True,
         detection_class="corrosion", severity=4,
         asset_type=None, asset_id=None,

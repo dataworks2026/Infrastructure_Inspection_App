@@ -77,8 +77,7 @@ class TestAuditFiltering:
     def test_events_are_scoped_to_the_organization(self, db_session, test_org, other_org, rec_lookups):
         from tests.recommendations.conftest import seed_vocab
 
-        seed_vocab(db_session, test_org.organization_id, "corrosion")
-        seed_vocab(db_session, other_org.organization_id, "corrosion")
+        seed_vocab(db_session, "corrosion")
         authoring.create_entry(db_session, test_org.organization_id, entry_write())
         authoring.create_entry(db_session, other_org.organization_id, entry_write())
 

@@ -100,11 +100,26 @@ class TestClassVocabularyBinding:
         )
         assert entry.detection_class == "biological growth"
 
-    def test_vocabulary_is_scoped_per_organization(self, db_session, test_org, other_org, rec_lookups):
-        # a class vetted for one org is not automatically vetted for another
-        seed_vocab(db_session, test_org.organization_id, "corrosion")
-        with pytest.raises(FieldValidationError):
-            authoring.create_entry(db_session, other_org.organization_id, entry_write())
+    def test_vocabulary_is_global_per_producer(self, db_session, test_org, other_org, rec_lookups):
+        # the class set is a property of the model, so one vocabulary serves
+        # every organization running that producer (CTO decision 2026-09-24)
+        seed_vocab(db_session, "corrosion")
+        authoring.create_entry(db_session, test_org.organization_id, entry_write())
+        entry = authoring.create_entry(db_session, other_org.organization_id, entry_write())
+        assert entry.organization_id == other_org.organization_id
+
+    def test_a_producer_without_a_vocabulary_cannot_be_authored_against(self, db_session, test_org, rec_vocab):
+        with pytest.raises(FieldValidationError) as exc:
+            authoring.create_entry(db_session, test_org.organization_id, entry_write(producer="wind_turbine"))
+        assert exc.value.field == "producer"
+
+    def test_the_same_class_in_two_producers_are_separate_rules(self, db_session, test_org, rec_vocab):
+        # both models may emit 'cracking'; a rule for one producer never
+        # matches the other's detections and never collides with its key
+        seed_vocab(db_session, "cracking", producer="wind_turbine")
+        coastal = authoring.create_entry(db_session, test_org.organization_id, entry_write(detection_class="cracking", severity=2))
+        wind = authoring.create_entry(db_session, test_org.organization_id, entry_write(detection_class="cracking", severity=2, producer="wind_turbine"))
+        assert coastal.vocabulary_id != wind.vocabulary_id
 
 
 class TestVersioning:
@@ -222,8 +237,7 @@ class TestRuleKeyUniqueness:
         assert edited.version == 2
 
     def test_different_organizations_may_use_the_same_rule_key(self, db_session, test_org, other_org, rec_lookups):
-        seed_vocab(db_session, test_org.organization_id, "corrosion")
-        seed_vocab(db_session, other_org.organization_id, "corrosion")
+        seed_vocab(db_session, "corrosion")
         authoring.create_entry(db_session, test_org.organization_id, entry_write())
         # same exact key, different org -- must not collide
         entry = authoring.create_entry(db_session, other_org.organization_id, entry_write())

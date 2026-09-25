@@ -1,20 +1,19 @@
 {
   "vocabulary_version": 1,
-  "status": "prepared_for_signature",
+  "status": "signed",
+  "producer": "coastal",
+  "weights_file": "ml_models/coastal/coastal_best.pt",
+  "weights_sha256": "9e44e8fd969041e6379f660410508a35cbfcc2034faf8a545b0f626550b10521",
+  "scope": "by producer, global, signed once; library entries stay per organization (CTO decision 2026-09-24, item 2)",
   "prepared_by": "Sindhu, Dataworks (Mira Intel)",
   "prepared_at": "2026-09-15",
-  "signed_by": null,
-  "signed_at": null,
-  "sign_off_is": "the CTO's act per the vocabulary method; the seed script keeps rows provisional until status is signed",
+  "signed_by": "Matteo Pietrobelli (CTO)",
+  "signed_at": "2026-09-24",
+  "signature_record": "Slack #recommendations-feature, 2026-09-24 18:09: seven classes, hash 1ed642b1f0873c5c; Rust Staining excluded because the production weights cannot emit it and its two rows were inserted outside the model run; those rows surface in the skipped manifest as unvetted",
   "source": "production detections.damage_type, all 2,979 rows as of 2026-09-09, read-only query via the platform backend",
   "normalization": "NFKC, trim, collapse whitespace, lowercase, dash fold (same rule the engine applies at the detection boundary)",
   "hash_method": "sha256 of json.dumps(sorted(vocabulary), sort_keys=True), first 16 hex characters (identical to tools/class_vocabulary_audit.py in the Phase 1 tool; that method reproduces the Aug 6 fixture hash 1471ba6fe5b839bb exactly)",
   "vocabulary_hash": "1ed642b1f0873c5c",
-  "supersedes": {
-    "vocabulary_hash": "1471ba6fe5b839bb",
-    "generated_at": "2026-08-06",
-    "basis": "36-record fixture, 6 classes (biological growth, corrosion, cracking, decay, erosion, spalling). Never signed off. erosion has zero production rows; loss, coating failure and rust staining were absent from the fixture."
-  },
   "vocabulary": [
     "biological growth",
     "coating failure",
@@ -150,27 +149,35 @@
   },
   "total_production_rows": 2979,
   "rows_outside_vocabulary": 2,
-  "alternative_if_rust_staining_is_kept": {
-    "vocabulary": [
-      "biological growth",
-      "coating failure",
-      "corrosion",
-      "cracking",
-      "decay",
-      "loss",
-      "spalling",
-      "rust staining"
+  "declined_at_signature": {
+    "alternative": {
+      "vocabulary": [
+        "biological growth",
+        "coating failure",
+        "corrosion",
+        "cracking",
+        "decay",
+        "loss",
+        "spalling",
+        "rust staining"
+      ],
+      "vocabulary_hash": "00665c5900276850"
+    },
+    "held_out": [
+      {
+        "normalized": "rust staining",
+        "production_rows": 2,
+        "raw_values": {
+          "Rust Staining": 2
+        },
+        "note": "not emittable by the current coastal weights (model.names has seven classes); both rows are cv_model, created 2026-06-10 in one inspection, unreviewed, carrying a review-style domain_metadata code RS; kept in the prepared list for the CTO to keep or strike at signature"
+      }
     ],
-    "vocabulary_hash": "00665c5900276850"
+    "reason": "signing eight would let a rule be written for a class that never matches anything real; if the model or an engineer produces it through a real path, a v2 is signed that day"
   },
-  "held_out_pending_cto_decision": [
-    {
-      "normalized": "rust staining",
-      "production_rows": 2,
-      "raw_values": {
-        "Rust Staining": 2
-      },
-      "note": "not emittable by the current coastal weights (model.names has seven classes); both rows are cv_model, created 2026-06-10 in one inspection, unreviewed, carrying a review-style domain_metadata code RS; kept in the prepared list for the CTO to keep or strike at signature"
-    }
-  ]
+  "supersedes": {
+    "vocabulary_hash": "1471ba6fe5b839bb",
+    "generated_at": "2026-08-06",
+    "basis": "36-record fixture, 6 classes (biological growth, corrosion, cracking, decay, erosion, spalling). Never signed off. erosion has zero production rows; loss, coating failure and rust staining were absent from the fixture."
+  }
 }
