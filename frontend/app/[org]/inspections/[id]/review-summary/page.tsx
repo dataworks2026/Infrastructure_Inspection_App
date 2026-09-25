@@ -7,7 +7,7 @@ import {
   ArrowLeft, CheckCircle, Pencil,
   FileDown, FileJson, ClipboardList, AlertCircle, Check, X, Plus, Loader2,
 } from 'lucide-react';
-import { reviewApi, inspectionsApi } from '@/lib/api';
+import { reviewApi, inspectionsApi, featuresApi } from '@/lib/api';
 import type {
   ReviewAction,
   ModificationDelta,
@@ -207,6 +207,18 @@ export default function ReviewSummaryPage() {
   });
 
   // ── Loading ──
+  const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: 5 * 60_000 });
+
+  // Backend answers 404 for every review endpoint when the flow is off; this
+  // keeps the page from rendering a broken summary in that state.
+  if (features && !features.review_flow) {
+    return (
+      <div className="p-8">
+        <p className="text-sm text-card-muted">Engineer review is not enabled on this platform.</p>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
