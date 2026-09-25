@@ -1,4 +1,8 @@
 FROM python:3.11-slim
+# Commit the image was built from; passed by docker compose as GIT_REVISION.
+# Read with: docker image inspect app-backend --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+ARG GIT_REVISION=unknown
+LABEL org.opencontainers.image.revision=$GIT_REVISION
 WORKDIR /app
 
 # System deps for OpenCV / image processing
@@ -17,4 +21,5 @@ COPY . .
 RUN mkdir -p /app/storage
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+RUN chmod +x /app/entrypoint.sh
+CMD ["/app/entrypoint.sh"]

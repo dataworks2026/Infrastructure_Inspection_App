@@ -14,6 +14,9 @@ RUN npm run build
 
 # ── Stage 2: Production runner ────────────────────────────────────────────────
 FROM node:20-alpine AS runner
+# Commit the image was built from; passed by docker compose as GIT_REVISION.
+ARG GIT_REVISION=unknown
+LABEL org.opencontainers.image.revision=$GIT_REVISION
 WORKDIR /app
 
 ENV NODE_ENV=production
