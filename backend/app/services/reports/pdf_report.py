@@ -2,7 +2,6 @@ import os
 from io import BytesIO
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
@@ -359,8 +358,10 @@ def _annotated_image_flowable(
         rgb = _BBOX_COLOR_RGB.get(d["severity_label"], (30, 45, 74))
         x1, y1 = bbox["x1"] * scale, bbox["y1"] * scale
         x2, y2 = bbox["x2"] * scale, bbox["y2"] * scale
-        if x2 < x1: x1, x2 = x2, x1
-        if y2 < y1: y1, y2 = y2, y1
+        if x2 < x1:
+            x1, x2 = x2, x1
+        if y2 < y1:
+            y1, y2 = y2, y1
         draw.rectangle([x1, y1, x2, y2], outline=rgb, width=stroke)
 
         label = f"{d['damage_code']} · {d['severity_label'].split(' - ')[0]}"

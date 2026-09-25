@@ -31,7 +31,7 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://mira:mira@localhost:5432/mira_test
+      DATABASE_URL: postgresql+psycopg2://mira:mira@localhost:5432/mira_test
       SECRET_KEY: ci-test-secret-do-not-use-in-prod
       STORAGE_BASE_PATH: /tmp/mira-storage
 
@@ -59,4 +59,4 @@ jobs:
         run: ruff check app/ --select E,F,W --ignore E501
 
       - name: Run tests
-        run: pytest tests/ -x -q --ignore=tests/MANUAL_E2E.md
+        run: pytest tests/ -q --ignore=tests/MANUAL_E2E.md
