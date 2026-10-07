@@ -571,7 +571,10 @@ def _narrative_page(narrative: dict) -> list:
 
     recs = narrative.get("recommendations", [])
     if recs:
-        elems.append(Paragraph("<b>Recommendations</b>", _BOLD))
+        # Template text keyed to the risk band, not engineer authored: the heading
+        # must not read as engineering judgment. The engineer approved
+        # recommendations section arrives with the recommendation engine (Stage 4).
+        elems.append(Paragraph("<b>Automated assessment</b>", _BOLD))
         elems.append(Spacer(1, 0.08 * inch))
         for rec in recs:
             if isinstance(rec, str):
