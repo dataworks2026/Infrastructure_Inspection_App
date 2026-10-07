@@ -44,7 +44,13 @@ if settings.SENTRY_DSN:
         send_default_pii=False,
     )
 
-Base.metadata.create_all(bind=engine)
+# Alembic is the single schema authority everywhere except SQLite development,
+# where there is no migration chain to run from empty (the early revisions
+# were never written) and create_all is the bootstrap. In production the
+# container entrypoint runs `alembic upgrade head` before uvicorn and a failed
+# migration stops the boot; create_all must not paper over a missing one.
+if engine.dialect.name == "sqlite":
+    Base.metadata.create_all(bind=engine)
 os.makedirs(settings.STORAGE_BASE_PATH, exist_ok=True)
 
 app = FastAPI(title="Mira Intel API", version="1.0.0")

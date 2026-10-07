@@ -3,6 +3,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        # export GIT_REVISION=$(git rev-parse HEAD) before docker compose build
+        # so the image records the commit it came from
+        GIT_REVISION: ${GIT_REVISION:-unknown}
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -25,6 +29,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+        GIT_REVISION: ${GIT_REVISION:-unknown}
     restart: unless-stopped
     ports:
       - "3000:3000"
