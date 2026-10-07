@@ -1,11 +1,20 @@
 import uuid
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Boolean, Integer, Text
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Boolean, Integer, Text, CheckConstraint
 from sqlalchemy import JSON as JSONB
 from sqlalchemy.sql import func
 from app.database import Base
 
 class Detection(Base):
     __tablename__ = "detections"
+    __table_args__ = (
+        # Out of domain severity cannot enter the table (CTO decision
+        # 2026-09-24, issue #16). NULL stays allowed until the write paths
+        # have been checked. Migration d9 installs the same constraint.
+        CheckConstraint(
+            "severity IS NULL OR severity IN ('S1', 'S2', 'S3', 'S4')",
+            name="ck_detections_severity_domain",
+        ),
+    )
 
     id                          = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     organization_id             = Column(String(36), ForeignKey("organizations.organization_id"), nullable=True)
