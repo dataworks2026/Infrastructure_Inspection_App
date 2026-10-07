@@ -12,7 +12,6 @@ from app.models.mission import Mission
 from app.models.v1_analytics_run import V1AnalyticsRun
 from app.models.v1_analytics_item import V1AnalyticsItem
 from app.models.v1_analytics_reason import V1AnalyticsReason
-from app.routers.inspections import cascade_delete_inspection
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 
 router = APIRouter()
@@ -146,15 +145,25 @@ def update_asset(asset_id: str, data: AssetUpdate, db: Session = Depends(get_db)
 
 @router.delete("/{asset_id}", status_code=204)
 def delete_asset(asset_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only an admin can delete an asset")
     asset = db.query(Asset).filter(Asset.id == asset_id, Asset.organization_id == current_user.organization_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    # 1. Delete every inspection's full subtree (detections, images, reviews,
-    #    per-inspection analytics/risk). Missions keep their history (id nulled).
-    inspections = db.query(Inspection).filter(Inspection.asset_id == asset_id).all()
-    for insp in inspections:
-        cascade_delete_inspection(db, insp)
+    # 1. Inspection history is never destroyed through this endpoint. An asset
+    #    that has inspections is refused explicitly; the path that should exist
+    #    instead is archival (issue #19). Before this check the delete failed
+    #    by accident on Postgres (foreign key ordering); now it fails on purpose.
+    inspection_count = db.query(func.count(Inspection.id)).filter(Inspection.asset_id == asset_id).scalar() or 0
+    if inspection_count:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Asset has {inspection_count} inspection(s). Deleting an asset with inspection history "
+                "is not available; archive it instead once archival exists (issue #19)."
+            ),
+        )
 
     # 2. Asset-level drone missions (the "Twin Updates" — asset_id FK, no cascade).
     #    Clear rows that reference these missions (mission_waypoints, …) first,

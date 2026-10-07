@@ -16,7 +16,6 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-import os
 import pytest
 
 from app.core.deps import get_db, get_current_user
@@ -1435,80 +1434,103 @@ def test_delete_reviewed_inspection_cascades_reviews(client, db_session, review_
         assert db_session.get(Detection, d[det_key]) is None
 
 
-# ─── delete an asset with reviewed inspections + missions (regression) ─────
+# ─── asset delete: refused on purpose when inspection history exists ─────────
 
-@pytest.mark.xfail(
-    os.environ.get("DATABASE_URL", "").startswith("postgresql"),
-    reason="asset delete is not ordered after the inspection cascade; fails on Postgres today. "
-           "Product change pending CTO decision (deleting an asset destroys its inspections and reviews).",
-    strict=True,
-)
-def test_delete_asset_cascades_inspections_and_missions(client, db_session, review_data):
-    """Deleting an asset must remove its inspections' full subtree (incl. review
-    rows) and asset-level drone missions — the old endpoint did a bare
-    db.delete(asset) and FK-failed. Verify a reviewed asset deletes cleanly."""
-    from app.models.mission import Mission
+@pytest.fixture
+def admin_client(db_session, test_org):
+    """TestClient authenticated as an admin of test_org."""
+    admin = User(
+        id="admin-user-1",
+        organization_id=test_org.organization_id,
+        email="admin@example.com",
+        full_name="Admin User",
+        hashed_password=hash_password("testpass"),
+        role="admin",
+        is_active=True,
+    )
+    db_session.add(admin)
+    db_session.commit()
+
+    def _get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    def _get_current_user():
+        return admin
+
+    fastapi_app.dependency_overrides[get_db] = _get_db
+    fastapi_app.dependency_overrides[get_current_user] = _get_current_user
+    try:
+        yield TestClient(fastapi_app)
+    finally:
+        fastapi_app.dependency_overrides.clear()
+
+
+def test_delete_asset_with_inspections_is_refused(admin_client, db_session, review_data):
+    """CTO decision 2026-09-24: inspection history is never destroyed through
+    asset delete. The refusal is explicit (409 with the count), not a foreign
+    key accident, and nothing under the asset is touched."""
     d = review_data
-    asset_id = "asset-r1"
+    assert _start(admin_client, d["inspection_id"]).status_code == 200
+    _submit_all(admin_client, d)
 
-    # make it a reviewed asset + attach an asset-level mission (a "twin update")
-    assert _start(client, d["inspection_id"]).status_code == 200
-    r1, r2 = _submit_all(client, d)
-    assert r1.status_code == 200 and r2.status_code == 200
+    resp = admin_client.delete("/api/v1/assets/asset-r1")
+    assert resp.status_code == 409, resp.text
+    assert "1 inspection" in resp.json()["detail"]
+    assert "#19" in resp.json()["detail"]
+
+    db_session.expire_all()
+    assert db_session.get(Asset, "asset-r1") is not None
+    assert db_session.query(Inspection).filter(Inspection.asset_id == "asset-r1").count() == 1
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.inspection_id == d["inspection_id"]).count() > 0
+    for det_key in ("det_a", "det_b", "det_c", "det_d"):
+        assert db_session.get(Detection, d[det_key]) is not None
+
+
+def test_delete_asset_requires_admin(client, review_data):
+    # the default test user is an analyst
+    resp = client.delete("/api/v1/assets/asset-r1")
+    assert resp.status_code == 403
+    assert "admin" in resp.json()["detail"].lower()
+
+
+def test_admin_can_delete_asset_without_inspections(admin_client, db_session, test_org):
+    """An asset with no inspection history can still go, along with its own
+    missions and analytics items; a shared org wide analytics run survives."""
+    from app.models.mission import Mission
     from app.models.mission_waypoint import MissionWaypoint
-    mission_id = str(uuid.uuid4())
-    db_session.add(Mission(
-        id=mission_id,
-        organization_id=db_session.get(Inspection, d["inspection_id"]).organization_id,
-        asset_id=asset_id,
-        name="Twin mission",
-        routine_type="orbit",
-        status="aborted",
-    ))
-    db_session.flush()
-    # a mission child row — must not FK-block the asset delete
-    db_session.add(MissionWaypoint(
-        id=str(uuid.uuid4()), mission_id=mission_id,
-        sequence_index=0, latitude=40.0, longitude=-74.0, altitude_m=30.0,
-    ))
-    # analytics for this asset under a shared org-wide run: item + reason must be
-    # cleared (reason before item) without deleting the shared run
     from app.models.v1_analytics_run import V1AnalyticsRun
     from app.models.v1_analytics_item import V1AnalyticsItem
     from app.models.v1_analytics_reason import V1AnalyticsReason
-    org_id = db_session.get(Inspection, d["inspection_id"]).organization_id
+
+    org_id = test_org.organization_id
+    seed_asset(db_session, asset_id="asset-bare", organization_id=org_id, name="Bare pier")
+    mission_id = str(uuid.uuid4())
+    db_session.add(Mission(id=mission_id, organization_id=org_id, asset_id="asset-bare",
+                           name="Twin mission", routine_type="orbit", status="aborted"))
+    db_session.flush()
+    db_session.add(MissionWaypoint(id=str(uuid.uuid4()), mission_id=mission_id,
+                                   sequence_index=0, latitude=40.0, longitude=-74.0, altitude_m=30.0))
     run_id, item_id = str(uuid.uuid4()), str(uuid.uuid4())
-    db_session.add(V1AnalyticsRun(
-        id=run_id, organization_id=org_id, status="completed",
-        engine_version="1.0", schema_version="v3",
-    ))
+    db_session.add(V1AnalyticsRun(id=run_id, organization_id=org_id, status="completed",
+                                  engine_version="1.0", schema_version="v3"))
     db_session.flush()
-    db_session.add(V1AnalyticsItem(
-        id=item_id, analytics_run_id=run_id, asset_id=asset_id, organization_id=org_id,
-        status="completed", severity_now="S2", priority_score=50.0, priority_rank=1,
-        recommended_action="monitor",
-    ))
+    db_session.add(V1AnalyticsItem(id=item_id, analytics_run_id=run_id, asset_id="asset-bare", organization_id=org_id,
+                                   status="completed", severity_now="S2", priority_score=50.0, priority_rank=1,
+                                   recommended_action="monitor"))
     db_session.flush()
-    db_session.add(V1AnalyticsReason(
-        id=str(uuid.uuid4()), analytics_item_id=item_id,
-        reason_code="TEST", reason_text="test reason",
-    ))
+    db_session.add(V1AnalyticsReason(id=str(uuid.uuid4()), analytics_item_id=item_id,
+                                     reason_code="TEST", reason_text="test reason"))
     db_session.commit()
 
-    resp = client.delete(f"/api/v1/assets/{asset_id}")
+    resp = admin_client.delete("/api/v1/assets/asset-bare")
     assert resp.status_code == 204, resp.text
 
-    # asset + everything under it is gone (expire first so we read committed DB
-    # state, not the test session's identity map)
-    from app.models.asset import Asset
     db_session.expire_all()
-    assert db_session.get(Asset, asset_id) is None
-    assert db_session.query(Inspection).filter(Inspection.asset_id == asset_id).count() == 0
-    assert db_session.query(Mission).filter(Mission.asset_id == asset_id).count() == 0
-    assert db_session.query(DetectionReview).filter(
-        DetectionReview.inspection_id == d["inspection_id"]).count() == 0
-    # analytics item + reason gone; the shared run survives
-    assert db_session.query(V1AnalyticsItem).filter(V1AnalyticsItem.asset_id == asset_id).count() == 0
-    assert db_session.query(V1AnalyticsReason).filter(
-        V1AnalyticsReason.analytics_item_id == item_id).count() == 0
+    assert db_session.get(Asset, "asset-bare") is None
+    assert db_session.query(Mission).filter(Mission.asset_id == "asset-bare").count() == 0
+    assert db_session.query(V1AnalyticsItem).filter(V1AnalyticsItem.asset_id == "asset-bare").count() == 0
     assert db_session.get(V1AnalyticsRun, run_id) is not None
