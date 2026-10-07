@@ -135,6 +135,12 @@ export const analysisApi = {
     api.get<Record<string, any>>(`/inspections/${inspectionId}/all-detections`).then(r => r.data),
 };
 
+// Feature switches. The backend is the authority (a switched-off flow answers 404);
+// the UI only uses this to hide entry points.
+export const featuresApi = {
+  get: () => api.get<{ review_flow: boolean }>('/features').then(r => r.data),
+};
+
 // Engineer Review Flow (CV detection correction)
 export const reviewApi = {
   startReview: (inspectionId: string) =>

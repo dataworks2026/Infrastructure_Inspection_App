@@ -1,6 +1,6 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { inspectionsApi, imagesApi, assetsApi, analysisApi, reviewApi } from '@/lib/api';
+import { inspectionsApi, imagesApi, assetsApi, analysisApi, reviewApi, featuresApi } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 import Link from '@/components/OrgLink';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -317,6 +317,9 @@ export default function InspectionDetailPage() {
     inspection?.status === 'pending_review' ? analysisResults : viewResults;
 
   // ── Engineer Review Mode state ──────────────────────────────────────────────
+  const { data: features } = useQuery({ queryKey: ['features'], queryFn: featuresApi.get, staleTime: 5 * 60_000 });
+  // Backend answers 404 when the flow is off; this only hides the entry points.
+  const reviewFlowEnabled = features?.review_flow ?? true;
   const [showStartReviewConfirm, setShowStartReviewConfirm] = useState(false);
   // Re-open review confirmations: whole inspection, or a single image (by id)
   const [showReopenInspectionConfirm, setShowReopenInspectionConfirm] = useState(false);
@@ -1091,7 +1094,7 @@ export default function InspectionDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-            {inspection.status === 'completed' && (
+            {reviewFlowEnabled && inspection.status === 'completed' && (
               <button
                 onClick={() => setShowStartReviewConfirm(true)}
                 className="flex items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-all shadow-sm"
@@ -1153,7 +1156,7 @@ export default function InspectionDetailPage() {
       />
 
       {/* ── Review Mode banner ── */}
-      {isReviewMode && (
+      {reviewFlowEnabled && isReviewMode && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 mb-6 shadow-sm">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
@@ -1193,7 +1196,7 @@ export default function InspectionDetailPage() {
       )}
 
       {/* ── Review completed banner ── */}
-      {inspection.status === 'review_completed' && (
+      {reviewFlowEnabled && inspection.status === 'review_completed' && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6 shadow-sm flex items-center justify-end gap-4 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             <button

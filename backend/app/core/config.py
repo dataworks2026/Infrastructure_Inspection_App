@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     COASTAL_MODEL_PATH: str = "./ml_models/coastal/coastal_best.pt"
     OPENAI_API_KEY: Optional[str] = None
     SENTRY_DSN: Optional[str] = None
+    # Rollback switch for the Engineer Review flow. Default on: the flow is
+    # live and in use. REVIEW_FLOW_ENABLED=false makes every review endpoint
+    # answer 404 and the dashboard hides its entry points.
+    REVIEW_FLOW_ENABLED: bool = True
 
     class Config:
         env_file = ".env"

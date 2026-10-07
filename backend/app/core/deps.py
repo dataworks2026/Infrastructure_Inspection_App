@@ -27,3 +27,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except Exception:
         pass
     return user
+
+
+def require_review_flow() -> None:
+    """Router-level guard for the Engineer Review flow. Off means the
+    endpoints do not exist as far as clients can tell (404), which is the
+    rollback behaviour: no partial flow, no half-open state."""
+    from app.core.config import settings
+
+    if not settings.REVIEW_FLOW_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Engineer review is not enabled")
