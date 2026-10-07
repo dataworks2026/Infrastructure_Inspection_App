@@ -289,8 +289,8 @@ def _dashed_ellipse(draw, box, color, width, step=14, arc=8):
 
 def _text_size(draw, text, font) -> tuple[float, float]:
     try:
-        l, t, r, b = draw.textbbox((0, 0), text, font=font)
-        return r - l, b - t
+        left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+        return right - left, bottom - top
     except Exception:
         return 7 * len(text), 14
 

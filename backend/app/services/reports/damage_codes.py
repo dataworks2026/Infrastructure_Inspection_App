@@ -1,5 +1,5 @@
 DAMAGE_TYPE_TO_CODE: dict[str, str] = {
-    # Cracking 
+    # Cracking
     "crack_structural":  "CR",
     "crack_fatigue":     "CR",
     "crack_settlement":  "CR",
@@ -7,19 +7,19 @@ DAMAGE_TYPE_TO_CODE: dict[str, str] = {
     "weld_anomaly":      "CR",
     "joint_failure":     "CR",
     "bearing_failure":   "CR",
-    # Spalling 
+    # Spalling
     "spalling":          "SP",
     "delamination":      "SP",
     "core_exposure":     "SP",
     "rebar_exposure":    "SP",
     "deck_pothole":      "SP",
-    # Corrosion 
+    # Corrosion
     "external_corrosion": "CO",
     "pile_corrosion":     "CO",
     "pitting_corrosion":  "CO",
     "bolt_corrosion":     "CO",
     "anode_depletion":    "CO",
-    # Loss 
+    # Loss
     "section_loss":       "LO",
     "armor_displacement": "LO",
     "dent_impact":        "LO",
@@ -154,7 +154,7 @@ def map_segment(
     Description overriding:
     The description tells us where the damage actually is, which is often
     more specific than the image-level component_type tag. For example,
-    the component_type may be 'pile' but the description may say 'pile cap' 
+    the component_type may be 'pile' but the description may say 'pile cap'
     '''
 
     # Deck underside / soffit

@@ -49,7 +49,7 @@ def build_report_data(
         for code in CANONICAL_CODES
     }
 
-    # image grouping 
+    # image grouping
     image_map: dict[str, dict] = {}
 
     for rec in records:
@@ -77,7 +77,7 @@ def build_report_data(
             "bbox":           rec.get("bbox"),
         })
 
-    # build matrix rows in canonical order 
+    # build matrix rows in canonical order
     matrix = []
     for code in CANONICAL_CODES:
         counts = matrix_counts[code]

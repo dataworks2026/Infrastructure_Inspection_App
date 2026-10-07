@@ -31,7 +31,7 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://mira:mira@localhost:5432/mira_test
+      DATABASE_URL: postgresql+psycopg2://mira:mira@localhost:5432/mira_test
       SECRET_KEY: ci-test-secret-do-not-use-in-prod
       STORAGE_BASE_PATH: /tmp/mira-storage
 
