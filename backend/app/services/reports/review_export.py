@@ -57,7 +57,10 @@ def _damage_type_obj(det: Detection) -> Optional[dict]:
 def _severity_obj(det: Detection) -> Optional[dict]:
     if not det.severity:
         return None
-    level = _severity_num(det.severity) or 1   # 'S0' / unparseable → 1
+    level = _severity_num(det.severity)
+    if not level:
+        # legacy S0 or an unparseable value: shown as what it is, never as S1
+        return {"level": None, "label": "Unclassified", "raw": det.severity}
     return {"level": level, "label": _SEV_NAMES[level]}
 
 

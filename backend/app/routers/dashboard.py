@@ -13,12 +13,17 @@ from app.models.telemetry_point import TelemetryPoint
 router = APIRouter()
 
 
+VALID_SEVERITIES = ("S1", "S2", "S3", "S4")
+UNCLASSIFIED = "unclassified"
+
+
 def _norm_sev(sev: str) -> str:
-    """Normalize S0/0 → S1, plain digits → S-prefixed."""
-    if sev in ("S0", "0"):
-        return "S1"
+    """Plain digits become S-prefixed; anything outside S1 to S4 (legacy S0,
+    garbage) is reported as its own bucket, never folded into S1. Internal
+    tools show the truth; only the issued PDF refuses to render it."""
     _map = {"1": "S1", "2": "S2", "3": "S3", "4": "S4"}
-    return _map.get(sev, sev)
+    key = _map.get(sev, sev)
+    return key if key in VALID_SEVERITIES else UNCLASSIFIED
 
 
 @router.get("/defect-summary")
@@ -73,12 +78,10 @@ def get_defect_summary(db: Session = Depends(get_db), current_user: User = Depen
         raw_dt = (r.damage_type or "").strip()
         dt_key = raw_dt.lower()
         sev = _norm_sev(r.severity)
-        if sev not in ("S1", "S2", "S3", "S4"):
-            continue
         if dt_key not in summary:
             summary[dt_key] = {
                 "label": raw_dt.title(),
-                "S1": 0, "S2": 0, "S3": 0, "S4": 0, "total": 0,
+                "S1": 0, "S2": 0, "S3": 0, "S4": 0, UNCLASSIFIED: 0, "total": 0,
             }
         summary[dt_key][sev] += r.cnt
         summary[dt_key]["total"] += r.cnt
@@ -96,6 +99,7 @@ def get_defect_summary(db: Session = Depends(get_db), current_user: User = Depen
                     "damage_type": counts["label"],
                     "S1": counts["S1"], "S2": counts["S2"],
                     "S3": counts["S3"], "S4": counts["S4"],
+                    UNCLASSIFIED: counts[UNCLASSIFIED],
                     "total": counts["total"],
                 }
                 for _dt_key, counts in sorted_items
@@ -105,6 +109,7 @@ def get_defect_summary(db: Session = Depends(get_db), current_user: User = Depen
                 "S2": sum(v["S2"] for v in summary.values()),
                 "S3": sum(v["S3"] for v in summary.values()),
                 "S4": sum(v["S4"] for v in summary.values()),
+                UNCLASSIFIED: sum(v[UNCLASSIFIED] for v in summary.values()),
                 "total": grand_total,
             },
             "inspected_images": img_counts.get(aid, 0),
@@ -308,10 +313,9 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
     )
 
     # ── Query 8: severity breakdown (for donut) ───────────────────────────────
-    # Normalize legacy S0 → S1 (and bare digits) before tallying so the counts
-    # match the Defect Summary and the on-screen badges, which all display S0 as
-    # S1. Counting the raw value here under-reported S1 (S0 fell into its own
-    # bucket) while S2-S4 looked correct.
+    # Bare digits become S-prefixed before tallying; anything outside S1 to S4
+    # lands in the unclassified bucket so the counts match the Defect Summary
+    # and nothing is folded into S1.
     sev_rows = (
         db.query(Detection.severity, func.count(Detection.id).label("cnt"))
         .join(Image, Detection.image_id == Image.id)
@@ -322,8 +326,6 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
     severity_breakdown: dict = {}
     for row in sev_rows:
         key = _norm_sev(row.severity)
-        if key not in ("S1", "S2", "S3", "S4"):
-            continue
         severity_breakdown[key] = severity_breakdown.get(key, 0) + row.cnt
 
     # ── Query 8b: per-asset severity breakdown (authoritative totals) ─────────
@@ -331,7 +333,8 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
     # the inspection totals. They were previously derived on the frontend from
     # recent_analyzed_images, which is capped at 10 images per asset — so assets
     # with >10 analyzed images under-counted. Compute the true totals here over
-    # ALL detections (severity not null, S0→S1 normalized), no cap, no bbox filter.
+    # ALL detections (severity not null, out of domain values counted as
+    # unclassified), no cap, no bbox filter.
     asset_sev_rows = (
         db.query(
             Asset.id.label("asset_id"),
@@ -348,10 +351,8 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
     asset_severity: dict = {}  # asset_id -> {S1..S4}
     for row in asset_sev_rows:
         key = _norm_sev(row.severity)
-        if key not in ("S1", "S2", "S3", "S4"):
-            continue
         bucket = asset_severity.setdefault(
-            row.asset_id, {"S1": 0, "S2": 0, "S3": 0, "S4": 0}
+            row.asset_id, {"S1": 0, "S2": 0, "S3": 0, "S4": 0, UNCLASSIFIED: 0}
         )
         bucket[key] += row.cnt
 

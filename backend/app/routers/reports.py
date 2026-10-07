@@ -10,7 +10,7 @@ from app.core.deps import get_current_user, get_db
 from app.models.image import Image
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.user import User
-from app.services.reports.db_loader import load_inspection_records
+from app.services.reports.db_loader import SeverityOutOfDomainError, load_inspection_records
 from app.services.reports.metrics import calculate_metrics
 from app.services.reports.narrative import generate_narrative
 from app.services.reports.pdf_report import generate_pdf
@@ -46,6 +46,18 @@ def _slug(name: str) -> str:
     )
 
 
+def _severity_blocked(exc: SeverityOutOfDomainError) -> dict:
+    # An issued report never carries a severity the platform cannot stand
+    # behind. The inspection goes back to review with the rows named.
+    return {
+        "message": (
+            f"Report blocked: {len(exc.offenders)} detection(s) have a severity outside S1 to S4. "
+            "Resolve them in engineer review and generate again."
+        ),
+        "detections": [{"id": did, "severity": raw} for did, raw in exc.offenders],
+    }
+
+
 @router.get("/inspections/{inspection_id}/preview")
 def report_preview(
     inspection_id: str,
@@ -57,6 +69,8 @@ def report_preview(
         records, meta = load_inspection_records(db, inspection_id, org_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except SeverityOutOfDomainError as exc:
+        raise HTTPException(status_code=422, detail=_severity_blocked(exc))
     except ValueError:
         raise HTTPException(
             status_code=422,
@@ -92,6 +106,8 @@ def report_pdf(
         records, meta = load_inspection_records(db, inspection_id, org_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except SeverityOutOfDomainError as exc:
+        raise HTTPException(status_code=422, detail=_severity_blocked(exc))
     except ValueError:
         raise HTTPException(
             status_code=422,

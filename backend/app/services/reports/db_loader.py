@@ -26,11 +26,20 @@ SEVERITY_TO_RISK = {
     "S4": "critical",
 }
 
-# Production data also contains "S0" (sub-threshold detections — visible
-# growth/staining classified as no structural concern). Andrew's matrix is
-# Minor/Moderate/Advanced/Severe (S1–S4), so we fold S0 into S1/Minor here
-# to preserve the detection in the report rather than drop it silently.
-_SEVERITY_NORMALIZE = {"S0": "S1"}
+VALID_SEVERITIES = ("S1", "S2", "S3", "S4")
+
+
+class SeverityOutOfDomainError(Exception):
+    """A detection in the report set carries a severity outside S1 to S4
+    (or none). The client PDF is an issued document behind the engineer
+    gate, so this is a review failure: the caller blocks generation and
+    names the rows, rather than mapping the value to something it is not.
+    """
+
+    def __init__(self, offenders: list[tuple[str, Optional[str]]]):
+        self.offenders = offenders
+        ids = ", ".join(f"{did} ({raw!r})" for did, raw in offenders)
+        super().__init__(f"{len(offenders)} detection(s) with severity outside S1 to S4: {ids}")
 
 
 def load_inspection_records(
@@ -129,13 +138,16 @@ def load_inspection_records(
         detections = [d for d in detections if d.id not in excluded_ids]
 
     records: list[dict] = []
+    out_of_domain: list[tuple[str, Optional[str]]] = []
     for det in detections:
         img_meta = image_lookup.get(det.image_id)
         if img_meta is None:
             continue
 
-        raw_severity = det.severity or ""
-        severity = _SEVERITY_NORMALIZE.get(raw_severity, raw_severity)
+        severity = det.severity
+        if severity not in VALID_SEVERITIES:
+            out_of_domain.append((det.id, severity))
+            continue
 
         bbox = None
         if det.bbox_x1 is not None and det.bbox_x2 is not None:
@@ -169,6 +181,8 @@ def load_inspection_records(
             "damage_description": det.observable_evidence or "",
         })
 
+    if out_of_domain:
+        raise SeverityOutOfDomainError(out_of_domain)
     if not records:
         raise ValueError("no_detections")
 
