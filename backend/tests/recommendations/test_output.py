@@ -178,3 +178,24 @@ class TestOutputIsAReadOnlyView:
         output.build_output(db_session, test_org.organization_id)
         after = len(list_audit_events(db_session, test_org.organization_id))
         assert after == before
+
+
+class TestInspectionFilter:
+    def test_output_filtered_to_one_inspection(self, db_session, test_org, rec_vocab):
+        org = test_org.organization_id
+        authoring.create_entry(db_session, org, entry_write(severity=4))
+        for inspection, det in (("inspection-1", "d1"), ("inspection-2", "d2")):
+            run = engine.run_resolution(db_session, org, inspection, [make_detection(det, severity=4)], "asset", "engineer@example.com")
+            record = engine.get_records_for_run(db_session, run.id)[0]
+            workflow.disposition_record(db_session, org, record.id, "approve", "engineer@example.com")
+
+        everything = output.build_output(db_session, org)
+        assert len([r for t in everything["tiers"] for r in t["recommendations"]]) == 2
+
+        one = output.build_output(db_session, org, inspection_id="inspection-2")
+        recs = [r for t in one["tiers"] for r in t["recommendations"]]
+        assert len(recs) == 1
+        assert recs[0]["detection_ids"] == ["d2"]
+
+        none = output.build_output(db_session, org, inspection_id="inspection-9")
+        assert none["tiers"] == []

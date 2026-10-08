@@ -214,8 +214,12 @@ def record_delta(record_id: str, db: Session = Depends(get_db), current_user: Us
 
 
 @router.get("/recommendations/output")
-def approved_output(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
-    return output.build_output(db, current_user.organization_id)
+def approved_output(
+    inspection_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return output.build_output(db, current_user.organization_id, inspection_id=inspection_id)
 
 
 @router.get("/recommendations/audit")

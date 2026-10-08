@@ -320,7 +320,8 @@ export const recommendationsApi = {
   records: (inspection_id?: string) =>
     api.get('/recommendations/records', { params: inspection_id ? { inspection_id } : undefined }).then(r => r.data),
   delta: (record_id: string) => api.get(`/recommendations/records/${record_id}/delta`).then(r => r.data),
-  output: () => api.get('/recommendations/output').then(r => r.data),
+  output: (inspection_id?: string) =>
+    api.get('/recommendations/output', { params: inspection_id ? { inspection_id } : undefined }).then(r => r.data),
   audit: (params?: { entity_id?: string; actor?: string; limit?: number }) =>
     api.get('/recommendations/audit', { params }).then(r => r.data),
   run: (inspection_id: string, body: { rollup_scope?: string; producer?: string; allow_unreviewed?: boolean } = {}) =>

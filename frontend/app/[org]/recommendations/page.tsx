@@ -177,7 +177,7 @@ function ReviewTab({ ov }: { ov: Overview }) {
   const [downloading, setDownloading] = useState(false);
 
   const recordsQ = useQuery<Rec[]>({ queryKey: ['rec-records', inspectionId], queryFn: () => recommendationsApi.records(inspectionId || undefined) });
-  const outputQ  = useQuery<Output>({ queryKey: ['rec-output'], queryFn: () => recommendationsApi.output() });
+  const outputQ  = useQuery<Output>({ queryKey: ['rec-output', inspectionId], queryFn: () => recommendationsApi.output(inspectionId || undefined) });
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['rec-overview'] });
