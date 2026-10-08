@@ -28,9 +28,20 @@ from app.schemas.review import (
     ReopenInspectionReviewResponse,
 )
 from app.services.reports.review_diff import compute_review_diff
+from app.models.recommendation import RecommendationRun
+from app.services.recommendations import projection as rec_projection
+from app.services.recommendations.engine import supersede_for_reopen
+from app.services.recommendations.errors import FieldValidationError as RecFieldValidationError
+from pydantic import BaseModel as _PydBase
+from typing import Optional as _Opt
+
 from app.services.reports.damage_codes import CODE_LABELS
 
 router = APIRouter()
+
+
+class ReopenRequest(_PydBase):
+    reason: _Opt[str] = None
 
 BBOX_TOLERANCE_PX = 0.5
 
@@ -475,10 +486,21 @@ def reopen_image_review(
 @router.post("/inspections/{inspection_id}/reopen-review", response_model=ReopenInspectionReviewResponse)
 def reopen_inspection_review(
     inspection_id: str,
+    payload: _Opt[ReopenRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     inspection = _get_org_inspection(inspection_id, db, current_user)
+    # Rev B 8.3, Reopen: when the engine has records for this inspection, a reopen
+    # must state its reason and every dispositioned record is superseded in the
+    # same transaction. Inspections the engine never touched reopen as before.
+    engine_touched = db.query(RecommendationRun).filter(
+        RecommendationRun.organization_id == current_user.organization_id,
+        RecommendationRun.inspection_id == inspection_id,
+    ).count() > 0
+    reopen_reason = (payload.reason if payload else None) or ""
+    if engine_touched and not reopen_reason.strip():
+        raise HTTPException(status_code=422, detail="This inspection has recommendations; a reopen must state its reason")
 
     if inspection.status not in (
         InspectionStatus.review_completed.value,
@@ -497,6 +519,12 @@ def reopen_inspection_review(
             totals[k] += counts[k]
 
     inspection.status = InspectionStatus.pending_review.value
+    if engine_touched:
+        try:
+            outcome = supersede_for_reopen(db, current_user.organization_id, inspection_id, current_user.email, reopen_reason)
+        except RecFieldValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        rec_projection.mark_superseded(db, outcome.get("superseded", []))
     db.commit()
 
     return ReopenInspectionReviewResponse(

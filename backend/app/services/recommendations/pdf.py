@@ -63,6 +63,12 @@ class NoApprovedRecommendations(LookupError):
     """The inspection has no Approved record, so there is nothing to issue."""
 
 
+def _abs_storage(path: str) -> str:
+    if not path or os.path.isabs(path):
+        return path
+    return os.path.join(settings.STORAGE_BASE_PATH, path)
+
+
 def _letterhead(org: Organization | None, asset: Asset | None, inspection: Inspection) -> dict:
     lh = ((org.settings or {}) if org else {}).get("letterhead") or {}
     return {
@@ -71,7 +77,7 @@ def _letterhead(org: Organization | None, asset: Asset | None, inspection: Inspe
         "phone": lh.get("phone") or "",
         "email": lh.get("email") or "",
         "website": lh.get("website") or "",
-        "logo_path": lh.get("logo_path") or "",
+        "logo_path": _abs_storage(lh.get("logo_path") or ""),
         "client_name": lh.get("client_name") or (asset.location_name if asset and asset.location_name else "") or "",
         "prepared_by": lh.get("prepared_by") or inspection.inspector_name or "",
     }
