@@ -188,7 +188,7 @@ def _image_grid(rows: list[dict]) -> list:
     return [table]
 
 
-def _record_block(rec, entry, rows: list[dict]) -> list:
+def _record_block(rec, entry, rows: list[dict], heading=None) -> list:
     text = escape(entry.recommendation_text if entry else "")
     head = [
         Paragraph(text, _RULE),
@@ -212,7 +212,8 @@ def _record_block(rec, entry, rows: list[dict]) -> list:
     w = base._content_width()
     t = Table(table_rows, colWidths=[2.6 * inch, 1.6 * inch, 1.2 * inch, w - 5.4 * inch], repeatRows=1)
     t.setStyle(TableStyle(base._standard_table_style()))
-    block = [KeepTogether(head + [t])]
+    # a tier heading travels with its first record so it never ends a page alone
+    block = [KeepTogether(([heading] if heading is not None else []) + head + [t])]
     block.append(Spacer(1, 0.08 * inch))
     block.extend(_image_grid(rows))
     block.append(Spacer(1, 0.22 * inch))
@@ -324,10 +325,10 @@ def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: 
     story.append(PageBreak())
 
     for tier in sorted(by_tier):
-        story.append(Paragraph(f"Tier {tier} · {escape(tiers.get(tier, TIER_FALLBACK.get(tier, '')))}", _TIER))
-        for rec in by_tier[tier]:
+        heading = Paragraph(f"Tier {tier} · {escape(tiers.get(tier, TIER_FALLBACK.get(tier, '')))}", _TIER)
+        for i, rec in enumerate(by_tier[tier]):
             rows = _finding_rows(data["links"].get(rec.id, []), data["detections"], data["images"])
-            story.extend(_record_block(rec, data["entries"].get(rec.id), rows))
+            story.extend(_record_block(rec, data["entries"].get(rec.id), rows, heading if i == 0 else None))
 
     if needs:
         story.append(Paragraph("Findings without a recommendation yet", _TIER))
