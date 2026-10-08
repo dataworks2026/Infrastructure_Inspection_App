@@ -135,6 +135,11 @@ def test_library_crud_and_csv_import(client, db_session, test_org, rec_vocab):
     assert [p["row"] for p in problems] == [3, 4]
     assert len(client.get("/api/v1/recommendations/library").json()) == 3, "all or nothing: the good row was not written"
 
+    csv_shifted = ("detection_class,severity,recommendation_text,action_class,asset_type,asset_id,tier_override\n"
+                   "loss,4,Replace the element, verify the load path.,replacement,,,\n")  # unquoted comma shifts the columns
+    r = client.post("/api/v1/recommendations/library/import", files={"file": ("rules.csv", csv_shifted, "text/csv")})
+    assert r.status_code == 422 and "not an asset type" in r.json()["detail"]["problems"][0]["error"]
+
     r = client.delete(f"/api/v1/recommendations/library/{e['entry_id']}")
     assert r.status_code == 200
     assert len(client.get("/api/v1/recommendations/library").json()) == 2

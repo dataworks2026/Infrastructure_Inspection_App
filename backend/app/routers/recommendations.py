@@ -34,6 +34,7 @@ from app.models.recommendation import (
 )
 from app.models.user import User
 from app.schemas.recommendation import EntryWrite
+from app.schemas.review import ASSET_TYPES as PLATFORM_ASSET_TYPES
 from app.services.recommendations import authoring, engine, output, projection, workflow
 from app.services.recommendations.audit import list_audit_events, record_audit_event
 from app.services.recommendations.detection_feed import (
@@ -50,6 +51,8 @@ SEVERITY_LABEL = {1: "S1", 2: "S2", 3: "S3", 4: "S4"}
 REVIEWER_ROLES = ("admin", "analyst")
 LETTERHEAD_FIELDS = ("firm_name", "address", "phone", "email", "website", "client_name", "prepared_by")
 LOGO_TYPES = {"image/png": ".png", "image/jpeg": ".jpg"}
+# rule scope by asset type: the platform's image asset types plus the asset-level infrastructure types
+KNOWN_ASSET_TYPES = set(PLATFORM_ASSET_TYPES) | {"coastal", "breakwater", "building", "wind_turbine", "jetty", "quay"}
 
 
 # ----------------------------------------------------------------------------- helpers
@@ -367,8 +370,14 @@ class EntryIn(BaseModel):
     tier_override: Optional[int] = None
 
 
+def _check_asset_type(asset_type: Optional[str]) -> None:
+    if asset_type and asset_type.strip().lower() not in KNOWN_ASSET_TYPES:
+        raise ValueError(f"asset_type '{asset_type}' is not an asset type; use one of {', '.join(sorted(KNOWN_ASSET_TYPES))}")
+
+
 def _entry_write(current_user: User, data: EntryIn) -> EntryWrite:
     try:
+        _check_asset_type(data.asset_type)
         return EntryWrite(actor=current_user.email, **data.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -457,6 +466,7 @@ async def import_rules(
                 recommendation_text=fields["recommendation_text"], action_class=fields["action_class"],
                 tier_override=int(fields["tier_override"]) if fields["tier_override"] else None,
             )
+            _check_asset_type(data.asset_type)
             rows.append((n, EntryWrite(actor=current_user.email, **data.model_dump())))
         except ValueError as exc:
             problems.append({"row": n, "error": str(exc)})

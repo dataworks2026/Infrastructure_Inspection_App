@@ -57,6 +57,8 @@ _TITLE = ParagraphStyle("rec_title", fontName="Helvetica-Bold", fontSize=20, tex
 _RULE = ParagraphStyle("rec_rule", fontName="Helvetica-Bold", fontSize=11, textColor=base._NAVY, leading=15)
 _META = ParagraphStyle("rec_meta", fontName="Helvetica", fontSize=8.5, textColor=base._GREY_TEXT, leading=12)
 _TIER = ParagraphStyle("rec_tier", fontName="Helvetica-Bold", fontSize=13, textColor=base._NAVY, leading=17, spaceBefore=10, spaceAfter=6)
+_CELL = ParagraphStyle("rec_cell", fontName="Helvetica", fontSize=8.5, leading=11)
+_CELL_SMALL = ParagraphStyle("rec_cell_small", fontName="Helvetica", fontSize=7.5, leading=10, textColor=base._GREY_TEXT)
 
 
 class NoApprovedRecommendations(LookupError):
@@ -208,15 +210,15 @@ def _record_block(rec, entry, rows: list[dict], heading=None) -> list:
     table_rows = [["Picture", "Finding", "Severity", "Confidence"]]
     for r in rows:
         table_rows.append([
-            escape(r["filename"]),
-            escape((r["link"].detection_class or "").title()),
+            Paragraph(escape(r["filename"]), _CELL_SMALL),
+            Paragraph(escape((r["link"].detection_class or "").title()), _CELL),
             Paragraph(r["severity_label"], ParagraphStyle(
                 "sev", fontName="Helvetica-Bold", fontSize=9,
                 textColor=base._LABEL_COLOR.get(r["severity_label"], base._NAVY))),
-            f"{r['link'].confidence:.2f}" if r["link"].confidence is not None else "",
+            Paragraph(f"{r['link'].confidence:.2f}" if r["link"].confidence is not None else "", _CELL),
         ])
     w = base._content_width()
-    t = Table(table_rows, colWidths=[2.6 * inch, 1.6 * inch, 1.2 * inch, w - 5.4 * inch], repeatRows=1)
+    t = Table(table_rows, colWidths=[2.9 * inch, 1.5 * inch, 1.1 * inch, w - 5.5 * inch], repeatRows=1)
     t.setStyle(TableStyle(base._standard_table_style()))
     # a tier heading travels with its first record so it never ends a page alone
     block = [KeepTogether(([heading] if heading is not None else []) + head + [t])]
@@ -345,7 +347,7 @@ def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: 
         nrows = [["Picture", "Finding", "Severity"]]
         for rec in needs:
             for r in _finding_rows(data["links"].get(rec.id, []), data["detections"], data["images"]):
-                nrows.append([escape(r["filename"]), escape((r["link"].detection_class or "").title()), r["severity_label"]])
+                nrows.append([Paragraph(escape(r["filename"]), _CELL_SMALL), Paragraph(escape((r["link"].detection_class or "").title()), _CELL), Paragraph(r["severity_label"], _CELL)])
         nt = Table(nrows, colWidths=[2.6 * inch, 2.2 * inch, base._content_width() - 4.8 * inch], repeatRows=1)
         nt.setStyle(TableStyle(base._standard_table_style()))
         story.append(nt)
