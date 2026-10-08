@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ClipboardList, ShieldCheck, Loader2, AlertTriangle, ChevronDown, ChevronRight,
+  ClipboardList, ShieldCheck, Loader2, AlertTriangle, ChevronDown, ChevronRight, Download,
 } from 'lucide-react';
 
 import { recommendationsApi } from '@/lib/api';
@@ -65,12 +65,33 @@ function fmtDate(s: string | null | undefined) {
 export default function RecommendationsPage() {
   const [inspectionId, setInspectionId] = useState<string>('');
   const [openRun, setOpenRun] = useState<string>('');
+  const [downloading, setDownloading] = useState(false);
 
   const overviewQ = useQuery<Overview>({ queryKey: ['rec-overview'], queryFn: () => recommendationsApi.overview() });
   const recordsQ  = useQuery<Rec[]>({ queryKey: ['rec-records', inspectionId], queryFn: () => recommendationsApi.records(inspectionId || undefined) });
   const outputQ   = useQuery<Output>({ queryKey: ['rec-output'], queryFn: () => recommendationsApi.output() });
 
   const ov = overviewQ.data;
+
+  async function downloadPdf() {
+    if (!inspectionId) return;
+    setDownloading(true);
+    try {
+      const blob = await recommendationsApi.pdf(inspectionId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'recommendations.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(e?.response?.status === 422
+        ? 'No approved recommendations for this inspection yet.'
+        : 'Could not issue the PDF.');
+    } finally {
+      setDownloading(false);
+    }
+  }
   const inspections = Array.from(new Map((ov?.runs ?? []).map(r => [r.inspection_id ?? '', r.inspection_name])).entries())
     .filter(([id]) => id);
 
@@ -102,7 +123,20 @@ export default function RecommendationsPage() {
           </div>
           {outputQ.data && <OutputCard out={outputQ.data} />}
           <div className="bg-white rounded-xl border p-5 mb-6 shadow-card-dark" style={{ borderColor: BORDER }}>
-            <label className="block text-[12px] font-bold mb-2" style={{ color: TEAL }}>FILTER BY INSPECTION</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-[12px] font-bold" style={{ color: TEAL }}>FILTER BY INSPECTION</label>
+              {inspectionId && (
+                <button
+                  onClick={downloadPdf}
+                  disabled={downloading}
+                  className="flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-lg text-white disabled:opacity-60"
+                  style={{ background: TEAL }}
+                >
+                  {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {downloading ? 'Issuing PDF…' : 'Issue PDF (letterhead, pictures)'}
+                </button>
+              )}
+            </div>
             <select
               value={inspectionId}
               onChange={(e) => setInspectionId(e.target.value)}

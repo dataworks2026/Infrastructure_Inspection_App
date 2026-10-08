@@ -320,4 +320,6 @@ export const recommendationsApi = {
   records: (inspection_id?: string) =>
     api.get('/recommendations/records', { params: inspection_id ? { inspection_id } : undefined }).then(r => r.data),
   output: () => api.get('/recommendations/output').then(r => r.data),
+  pdf: (inspection_id: string) =>
+    api.get<Blob>(`/recommendations/inspections/${inspection_id}/pdf`, { responseType: 'blob' }).then(r => r.data),
 };

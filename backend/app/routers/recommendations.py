@@ -4,9 +4,12 @@ Stage 3 preview: lists what the engine produced (runs, records, approved
 output). No writes here; approve/reject land with the role check in Stage 3.
 Everything is scoped to the caller's organization.
 """
+import re
+from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -21,6 +24,7 @@ from app.models.recommendation import (
 )
 from app.models.user import User
 from app.services.recommendations import output, workflow
+from app.services.recommendations.pdf import NoApprovedRecommendations, issue_recommendations_pdf
 
 router = APIRouter()
 
@@ -129,3 +133,33 @@ def records(
 @router.get("/recommendations/output")
 def approved_output(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     return output.build_output(db, current_user.organization_id)
+
+
+@router.get("/recommendations/inspections/{inspection_id}/pdf")
+def recommendations_pdf(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Issue the recommendations PDF for one inspection: approved records
+    with their pictures, on the organization's letterhead. Every call is an
+    issue: the file is archived, a snapshot row is written and the audit
+    trail gets an event. There is no preview path on purpose."""
+    org = current_user.organization_id
+    inspection = db.query(Inspection).filter(Inspection.id == inspection_id, Inspection.organization_id == org).first()
+    if inspection is None:
+        raise HTTPException(status_code=404, detail="Inspection not found")
+    try:
+        pdf, snap = issue_recommendations_pdf(db, org, inspection_id, current_user.email)
+    except NoApprovedRecommendations:
+        raise HTTPException(status_code=422, detail="No approved recommendations for this inspection yet.")
+    db.commit()
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", (inspection.name or "inspection")).strip("_") or "inspection"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{stem}-recommendations-{snap.id[:8]}.pdf"',
+            "X-Recommendation-Snapshot": snap.id,
+        },
+    )
