@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/sensors',     label: 'Sensors',     icon: Activity,        tourId: 'nav-sensors' },
   { href: '/upload',      label: 'Upload',      icon: Upload,          tourId: 'nav-upload' },
   { href: '/reports',     label: 'Reports',     icon: FileText },
+  { href: '/recommendations', label: 'Recommendations', icon: ClipboardList },
   { href: '/records',     label: 'Records',     icon: FolderArchive },
 ];
 

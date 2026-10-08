@@ -313,3 +313,11 @@ export interface LiveMission {
   actual_start?: string;
   telemetry: LiveMissionTelemetry | null;
 }
+
+// Recommendations (engine read-only view, Stage 3 preview)
+export const recommendationsApi = {
+  overview: () => api.get('/recommendations/overview').then(r => r.data),
+  records: (inspection_id?: string) =>
+    api.get('/recommendations/records', { params: inspection_id ? { inspection_id } : undefined }).then(r => r.data),
+  output: () => api.get('/recommendations/output').then(r => r.data),
+};
