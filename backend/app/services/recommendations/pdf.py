@@ -19,6 +19,7 @@ from io import BytesIO
 from uuid import uuid4
 from xml.sax.saxutils import escape
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
@@ -159,73 +160,119 @@ def _finding_rows(links, detections, images):
     return rows
 
 
-def _image_grid(rows: list[dict]) -> list:
-    """Two pictures per row, each with only the findings of this record drawn on it."""
-    by_image: dict[str, list[dict]] = {}
-    for r in rows:
-        if r["image"] is None:
-            continue
-        by_image.setdefault(r["image"].id, []).append(r)
-    if not by_image:
-        return [Paragraph("No pictures available for these findings.", base._SMALL)]
+def _finding_card(img, frs: list[dict]) -> Table:
+    """One bordered card, the same layout as the inspection report: the picture
+    on the left with only this recommendation's findings outlined, the findings
+    table on the right. A single-row table never splits, so a card always moves
+    to the next page whole."""
     w = base._content_width()
-    col_w = (w - 0.2 * inch) / 2
-    cells = []
-    for image_id, frs in by_image.items():
-        img = frs[0]["image"]
-        dets = []
-        for r in frs:
-            d = r["detection"]
-            bbox = None
-            if d is not None and d.bbox_x1 is not None and d.bbox_y1 is not None and d.bbox_x2 is not None and d.bbox_y2 is not None:
-                bbox = {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2}
-            dets.append({"bbox": bbox, "severity_label": r["severity_label"], "damage_code": r["damage_code"]})
-        flow = base._annotated_image_flowable(_image_path(img), dets, box_w=col_w, box_h=2.4 * inch)
-        cell = [Paragraph(escape(img.filename or image_id[:8]), base._H3)]
-        cell.append(flow if flow is not None else Paragraph("picture not available", base._SMALL))
-        cells.append(cell)
-    if len(cells) % 2:
-        cells.append("")
-    table = Table([cells[i:i + 2] for i in range(0, len(cells), 2)], colWidths=[col_w, col_w], hAlign="LEFT")
-    table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0.2 * inch),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    pad = 0.09 * inch
+    left_w = 3.05 * inch
+    right_w = w - left_w
+
+    dets = []
+    for r in frs:
+        d = r["detection"]
+        bbox = None
+        if d is not None and None not in (d.bbox_x1, d.bbox_y1, d.bbox_x2, d.bbox_y2):
+            bbox = {"x1": d.bbox_x1, "y1": d.bbox_y1, "x2": d.bbox_x2, "y2": d.bbox_y2}
+        dets.append({"bbox": bbox, "severity_label": r["severity_label"], "damage_code": r["damage_code"]})
+
+    left: list = [Paragraph(escape(frs[0]["filename"]), base._H3), Spacer(1, 0.05 * inch)]
+    flow = base._annotated_image_flowable(_image_path(img), dets, box_w=left_w - 2 * pad, box_h=3.1 * inch)
+    left.append(flow if flow is not None else Paragraph("Picture not available", base._SMALL))
+
+    right: list = [Paragraph("FINDINGS COVERED", base._BOLD), Spacer(1, 0.05 * inch)]
+    det_rows: list = [["Type", "Severity", "Confidence"]]
+    for r in frs:
+        sev = Paragraph(r["severity_label"], ParagraphStyle(
+            "sev_cell", fontName="Helvetica-Bold", fontSize=8,
+            textColor=base._LABEL_COLOR.get(r["severity_label"], base._NAVY)))
+        conf = f"{r['link'].confidence:.2f}" if r["link"].confidence is not None else ""
+        det_rows.append([r["damage_code"], sev, conf])
+    tw = right_w - 2 * pad
+    dt = Table(det_rows, colWidths=[0.55 * inch, 1.15 * inch, tw - 1.7 * inch], repeatRows=1)
+    dt.setStyle(TableStyle(base._standard_table_style()))
+    dt.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
-    return [table]
+    right.append(dt)
+    right.append(Spacer(1, 0.05 * inch))
+    n = len(frs)
+    right.append(Paragraph(f"{n} finding{'s' if n != 1 else ''}", base._SMALL))
+
+    card = Table([[left, right]], colWidths=[left_w, right_w])
+    card.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOX", (0, 0), (-1, -1), 0.75, base._BORDER),
+        ("LEFTPADDING", (0, 0), (-1, -1), pad),
+        ("RIGHTPADDING", (0, 0), (-1, -1), pad),
+        ("TOPPADDING", (0, 0), (-1, -1), pad),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
+    ]))
+    return card
 
 
 def _record_block(rec, entry, rows: list[dict], heading=None) -> list:
     text = escape(entry.recommendation_text if entry else "")
-    head = [
+    n = len(rows)
+    head: list = ([heading] if heading is not None else []) + [
         Paragraph(text, _RULE),
         Paragraph(
-            f"{escape(entry.action_class if entry else '')} · {len(rows)} finding{'s' if len(rows) != 1 else ''} · "
+            f"{escape(entry.action_class if entry else '')} · {n} finding{'s' if n != 1 else ''} · "
             f"rule {escape(str(rec.matched_entry_id)[:8])} v{rec.matched_entry_version} · record {escape(rec.id[:8])}",
             _META,
         ),
-        Spacer(1, 0.06 * inch),
+        Spacer(1, 0.08 * inch),
     ]
-    table_rows = [["Picture", "Finding", "Severity", "Confidence"]]
+
+    by_image: dict[str, list[dict]] = {}
+    no_picture: list[dict] = []
     for r in rows:
-        table_rows.append([
-            Paragraph(escape(r["filename"]), _CELL_SMALL),
-            Paragraph(escape((r["link"].detection_class or "").title()), _CELL),
-            Paragraph(r["severity_label"], ParagraphStyle(
-                "sev", fontName="Helvetica-Bold", fontSize=9,
-                textColor=base._LABEL_COLOR.get(r["severity_label"], base._NAVY))),
-            Paragraph(f"{r['link'].confidence:.2f}" if r["link"].confidence is not None else "", _CELL),
-        ])
-    w = base._content_width()
-    t = Table(table_rows, colWidths=[2.9 * inch, 1.5 * inch, 1.1 * inch, w - 5.5 * inch], repeatRows=1)
-    t.setStyle(TableStyle(base._standard_table_style()))
-    # a tier heading travels with its first record so it never ends a page alone
-    block = [KeepTogether(([heading] if heading is not None else []) + head + [t])]
-    block.append(Spacer(1, 0.08 * inch))
-    block.extend(_image_grid(rows))
+        if r["image"] is None:
+            no_picture.append(r)
+        else:
+            by_image.setdefault(r["image"].id, []).append(r)
+    cards = [_finding_card(frs[0]["image"], frs) for frs in by_image.values()]
+
+    block: list = []
+    if cards:
+        # the heading and rule text travel with the first card so they never end a page alone
+        block.append(KeepTogether(head + [cards[0]]))
+        for card in cards[1:]:
+            block.append(Spacer(1, 0.18 * inch))
+            block.append(card)
+    else:
+        block.append(KeepTogether(head))
+    if no_picture:
+        block.append(Spacer(1, 0.1 * inch))
+        nrows = [["Finding", "Type", "Severity", "Confidence"]]
+        for r in no_picture:
+            nrows.append([
+                Paragraph(escape(r["link"].detection_id[:8]), _CELL_SMALL), r["damage_code"],
+                Paragraph(r["severity_label"], ParagraphStyle(
+                    "sev", fontName="Helvetica-Bold", fontSize=9,
+                    textColor=base._LABEL_COLOR.get(r["severity_label"], base._NAVY))),
+                f"{r['link'].confidence:.2f}" if r["link"].confidence is not None else "",
+            ])
+        w = base._content_width()
+        nt = Table(nrows, colWidths=[1.4 * inch, 0.8 * inch, 1.4 * inch, w - 3.6 * inch], repeatRows=1)
+        nt.setStyle(TableStyle(base._standard_table_style()))
+        block.append(Paragraph("Findings without a picture on file", base._SMALL))
+        block.append(nt)
     block.append(Spacer(1, 0.22 * inch))
     return block
+
+
+def _latest_run(db: Session, organization_id: str, inspection_id: str) -> RecommendationRun | None:
+    return (
+        db.query(RecommendationRun)
+        .filter(RecommendationRun.organization_id == organization_id, RecommendationRun.inspection_id == inspection_id)
+        .order_by(RecommendationRun.created_at.desc(), RecommendationRun.id.desc())
+        .first()
+    )
 
 
 def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: str, snapshot_id: str, issued_at: datetime) -> tuple[bytes, list[dict]]:
@@ -239,6 +286,7 @@ def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: 
     lh = _letterhead(org, asset, inspection)
     tiers = _tier_labels(db)
     data = _collect(db, organization_id, inspection_id)
+    run = _latest_run(db, organization_id, inspection_id)
 
     approved = [r for r in data["records"] if r.status == "Approved"]
     if not approved:
@@ -249,7 +297,8 @@ def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: 
     by_tier: dict[int, list] = {}
     for rec in approved:
         entry = data["entries"].get(rec.id)
-        by_tier.setdefault(entry.derived_tier if entry else 3, []).append(rec)
+        tier = entry.tier_override if entry and entry.tier_override is not None else (entry.derived_tier if entry else 3)
+        by_tier.setdefault(tier, []).append(rec)
 
     issued_str = issued_at.strftime("%d %b %Y, %H:%M UTC")
     footer_left = f"Issued {issued_str} · document {snapshot_id[:8]} · archived as issued"
@@ -296,41 +345,100 @@ def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: 
         buf, pagesize=letter, leftMargin=inch, rightMargin=inch, topMargin=1.5 * inch, bottomMargin=0.85 * inch,
         title=f"{(asset.name if asset else 'Inspection')} Repair Recommendations", author=lh["firm_name"],
     )
+    w = base._content_width()
     story: list = []
-    story.append(Paragraph("Repair Recommendations", _TITLE))
-    story.append(Spacer(1, 0.08 * inch))
-    story.append(Paragraph(escape(asset.name if asset else "Inspection"), base._H2))
-    story.append(Paragraph(escape(inspection.name or inspection.id[:8]), base._BODY))
-    story.append(Spacer(1, 0.18 * inch))
+
+    # Cover, the same shape as the inspection report cover
+    story.append(Paragraph(escape((org.name if org else "") or lh["firm_name"]).upper(), base._ORG))
+    story.append(Spacer(1, 0.15 * inch))
+    story.append(Paragraph(escape(asset.name if asset else "Inspection"), base._H1))
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(Paragraph("Repair Recommendations", base._H2))
+    story.append(Spacer(1, 0.3 * inch))
 
     insp_date = inspection.inspection_date or inspection.inspected_at
-    total_findings = sum(len(data["links"].get(r.id, [])) for r in approved)
+    all_rows = [r for rec in approved for r in _finding_rows(data["links"].get(rec.id, []), data["detections"], data["images"])]
+    total_findings = len(all_rows)
     meta_rows = [
         ("PREPARED FOR", lh["client_name"] or ""),
         ("PREPARED BY", " / ".join(v for v in (lh["firm_name"], lh["prepared_by"]) if v)),
-        ("INSPECTION DATE", insp_date.strftime("%d %b %Y") if hasattr(insp_date, "strftime") else str(insp_date or "")),
+        ("INSPECTION", inspection.name or inspection.id[:8]),
+        ("INSPECTION DATE", insp_date.strftime("%B %d, %Y") if hasattr(insp_date, "strftime") else str(insp_date or "")),
         ("ISSUED", issued_str),
-        ("APPROVED RECOMMENDATIONS", f"{len(approved)} covering {total_findings} finding{'s' if total_findings != 1 else ''}"),
-        ("STILL WITHOUT A RULE", str(len(needs))),
-        ("SUPERSEDED", str(len(superseded))),
+        ("RECOMMENDATIONS", f"{len(approved)} approved, covering {total_findings} finding{'s' if total_findings != 1 else ''}"),
         ("DOCUMENT", snapshot_id),
     ]
-    label_w = 2.3 * inch
+    label_w = 2.2 * inch
     mt = Table([[Paragraph(k, base._TEAL_LABEL), Paragraph(escape(v), base._BODY)] for k, v in meta_rows],
-               colWidths=[label_w, base._content_width() - label_w])
+               colWidths=[label_w, w - label_w])
     mt.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (0, -1), base._TEAL),
+        ("BACKGROUND", (1, 0), (1, -1), colors.white),
+        ("TEXTCOLOR", (1, 0), (1, -1), base._NAVY),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("GRID", (0, 0), (-1, -1), 0.5, base._BORDER),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
         ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (0, 0), (-1, -1), 10),
     ]))
     story.append(mt)
-    story.append(Spacer(1, 0.15 * inch))
-    story.append(Paragraph(
-        "Each recommendation below is the text of the library rule it was matched against, exactly as approved by the "
-        "reviewing engineer. Pictures show the findings the recommendation covers, with the finding outlined.", base._SMALL))
+    story.append(Spacer(1, 0.2 * inch))
+
+    # Run reconciliation: every reviewed finding is accounted for in one of the four buckets
+    if run is not None:
+        story.append(Paragraph("RUN RECONCILIATION", base._SECTION_HEADING))
+        rr = [
+            ["Findings consumed", "Matched", "No rule yet", "Dismissed", "Skipped"],
+            [str(run.total_detections), str(run.total_matched), str(run.total_unmatched),
+             str(run.total_dismissed), str(run.total_skipped or 0)],
+        ]
+        rt = Table(rr, colWidths=[w / 5] * 5)
+        rt.setStyle(TableStyle(base._standard_table_style()))
+        story.append(rt)
+        story.append(Spacer(1, 0.04 * inch))
+        run_when = run.created_at.strftime("%d %b %Y, %H:%M UTC") if run.created_at else ""
+        story.append(Paragraph(
+            f"Matched {run.total_matched} + no rule yet {run.total_unmatched} + dismissed {run.total_dismissed} + "
+            f"skipped {run.total_skipped or 0} = {run.total_detections} findings consumed by the run of {run_when}. "
+            f"Approved recommendations in this document: {len(approved)}. "
+            f"Findings still without a rule: {len(needs)}. Superseded records: {len(superseded)}.", base._SMALL))
+        story.append(Spacer(1, 0.2 * inch))
+
+    # Summary of what follows, in the shape of the defect summary table; the cards start right under it
     story.append(PageBreak())
+    story.append(Paragraph("Recommendation Summary", base._H2))
+    story.append(Spacer(1, 0.04 * inch))
+    story.append(Paragraph(
+        f"{len(approved)} approved recommendation{'s' if len(approved) != 1 else ''} covering {total_findings} "
+        f"finding{'s' if total_findings != 1 else ''}.", base._SMALL))
+    story.append(Spacer(1, 0.12 * inch))
+    srows: list = [["Tier", "Finding type", "Recommendation", "Action", "Findings"]]
+    for tier in sorted(by_tier):
+        for rec in by_tier[tier]:
+            entry = data["entries"].get(rec.id)
+            cls = (entry.detection_class if entry else "") or ""
+            srows.append([
+                Paragraph(f"{tier} · {escape(tiers.get(tier, TIER_FALLBACK.get(tier, '')))}", _CELL),
+                Paragraph(f"{escape(cls.title())} ({escape(_damage_code(cls))})", _CELL),
+                Paragraph(escape(entry.recommendation_text if entry else ""), _CELL),
+                Paragraph(escape(entry.action_class if entry else ""), _CELL),
+                str(len(data["links"].get(rec.id, []))),
+            ])
+    srows.append(["TOTAL", "", "", "", str(total_findings)])
+    st = Table(srows, colWidths=[1.45 * inch, 1.35 * inch, w - 4.9 * inch, 1.2 * inch, 0.9 * inch], repeatRows=1)
+    st.setStyle(TableStyle(base._standard_table_style()))
+    st.setStyle(TableStyle([
+        ("BACKGROUND", (0, -1), (-1, -1), base._TOTAL_ROW),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(st)
+    story.append(Spacer(1, 0.08 * inch))
+    story.append(Paragraph(
+        "Each recommendation that follows is the text of the library rule it was matched against, exactly as approved by "
+        "the reviewing engineer. Each picture shows the findings that recommendation covers, outlined and coded with the "
+        "finding type code above.", base._SMALL))
+    story.append(Spacer(1, 0.25 * inch))
 
     for tier in sorted(by_tier):
         heading = Paragraph(f"Tier {tier} · {escape(tiers.get(tier, TIER_FALLBACK.get(tier, '')))}", _TIER)
@@ -344,11 +452,11 @@ def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: 
             "These reviewed findings matched no rule in the library. They are listed so nothing is silently left out; "
             "a recommendation follows once a rule exists and an engineer approves it.", base._SMALL))
         story.append(Spacer(1, 0.08 * inch))
-        nrows = [["Picture", "Finding", "Severity"]]
+        nrows = [["Picture", "Type", "Severity"]]
         for rec in needs:
             for r in _finding_rows(data["links"].get(rec.id, []), data["detections"], data["images"]):
-                nrows.append([Paragraph(escape(r["filename"]), _CELL_SMALL), Paragraph(escape((r["link"].detection_class or "").title()), _CELL), Paragraph(r["severity_label"], _CELL)])
-        nt = Table(nrows, colWidths=[2.6 * inch, 2.2 * inch, base._content_width() - 4.8 * inch], repeatRows=1)
+                nrows.append([Paragraph(escape(r["filename"]), _CELL_SMALL), r["damage_code"], Paragraph(r["severity_label"], _CELL)])
+        nt = Table(nrows, colWidths=[3.2 * inch, 0.8 * inch, w - 4.0 * inch], repeatRows=1)
         nt.setStyle(TableStyle(base._standard_table_style()))
         story.append(nt)
 
@@ -358,18 +466,18 @@ def build_recommendations_pdf(db: Session, organization_id: str, inspection_id: 
         f"Document {snapshot_id}, issued {issued_str}. This file is archived as issued together with the list below. "
         "A later regeneration produces a new document with a new id; this one is never overwritten.", base._SMALL))
     story.append(Spacer(1, 0.1 * inch))
-    srows = [["Record", "Status", "Rule", "Version", "Findings"]]
+    irows = [["Record", "Status", "Rule", "Version", "Findings"]]
     snapshot = []
     for rec in sorted(data["records"], key=lambda r: (r.status, r.id)):
         n = len(data["links"].get(rec.id, []))
-        srows.append([rec.id[:8], rec.status, (rec.matched_entry_id or "")[:8], str(rec.matched_entry_version or ""), str(n)])
+        irows.append([rec.id[:8], rec.status, (rec.matched_entry_id or "")[:8], str(rec.matched_entry_version or ""), str(n)])
         snapshot.append({
             "record_id": rec.id, "entry_id": rec.matched_entry_id, "entry_version": rec.matched_entry_version,
             "status": rec.status, "findings": n,
         })
-    st = Table(srows, colWidths=[1.2 * inch, 1.9 * inch, 1.2 * inch, 0.9 * inch, base._content_width() - 5.2 * inch], repeatRows=1)
-    st.setStyle(TableStyle(base._standard_table_style()))
-    story.append(st)
+    it = Table(irows, colWidths=[1.2 * inch, 1.9 * inch, 1.2 * inch, 0.9 * inch, w - 5.2 * inch], repeatRows=1)
+    it.setStyle(TableStyle(base._standard_table_style()))
+    story.append(it)
 
     doc.build(story, onFirstPage=_page, onLaterPages=_page)
     return buf.getvalue(), snapshot
