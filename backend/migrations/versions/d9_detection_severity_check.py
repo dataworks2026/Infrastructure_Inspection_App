@@ -10,7 +10,7 @@ able to enter the table. Production holds only S1 to S4 and NULL today
 allowed until the write paths have been checked.
 """
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision = "d9_detection_severity_check"
 down_revision = "d8_recommendation_engine"
@@ -31,6 +31,13 @@ def _already_present(bind) -> bool:
 
 
 def upgrade() -> None:
+    if context.is_offline_mode():
+        # alembic upgrade --sql has no live table to inspect. Production was
+        # created before the model carried this constraint, so the offline
+        # script emits it unconditionally; a database that already has it
+        # must run the online upgrade, which checks first.
+        op.create_check_constraint(CONSTRAINT, "detections", CONDITION)
+        return
     bind = op.get_bind()
     if _already_present(bind):
         return
@@ -44,6 +51,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if context.is_offline_mode():
+        op.drop_constraint(CONSTRAINT, "detections", type_="check")
+        return
     bind = op.get_bind()
     if not _already_present(bind):
         return
