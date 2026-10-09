@@ -374,6 +374,27 @@ def get_overview(db: Session = Depends(get_db), current_user: User = Depends(get
         "severity_breakdown":     severity_breakdown,
         "asset_severity":         asset_severity,
         "fleet_health_pct":       fleet_health_pct,
+        # RPT-04: repair recommendation counts from the same status routine
+        # the Recommendations page uses
+        "recommendations":        _recommendation_counts(db, org_id),
+    }
+
+
+def _recommendation_counts(db: Session, org_id: str) -> dict:
+    from app.models.recommendation import RecommendationLibraryEntry
+    from app.services.recommendations import workflow
+
+    counts = workflow.get_status_summary(db, org_id)["counts"]
+    active_rules = db.query(RecommendationLibraryEntry).filter(
+        RecommendationLibraryEntry.organization_id == org_id,
+        RecommendationLibraryEntry.is_active.is_(True),
+        RecommendationLibraryEntry.is_latest.is_(True),
+    ).count()
+    return {
+        "approved": counts.get("Approved", 0),
+        "draft": counts.get("Draft", 0),
+        "needs_recommendation": counts.get("Needs Recommendation", 0),
+        "active_rules": active_rules,
     }
 
 

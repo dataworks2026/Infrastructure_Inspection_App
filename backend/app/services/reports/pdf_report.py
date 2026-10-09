@@ -763,6 +763,91 @@ def _review_conclusion(totals: dict, dmg: dict) -> str:
     return " ".join(sentences)
 
 
+def _recommendations_pages(section: dict) -> list:
+    """Repair recommendations approved by the engineer (RPT-02, RPT-03).
+    Only Approved records are ever handed in here; the text is the library
+    rule verbatim, and every recommendation lists the findings it covers."""
+    w = _content_width()
+    elems: list = []
+    elems.append(Paragraph("Repair Recommendations", _H2))
+    elems.append(Spacer(1, 0.08 * inch))
+    counts = section.get("counts") or {}
+    elems.append(Paragraph(
+        f"{counts.get('approved', 0)} recommendation{'s' if counts.get('approved', 0) != 1 else ''} approved by the "
+        f"reviewing engineer, covering {counts.get('findings_covered', 0)} finding"
+        f"{'s' if counts.get('findings_covered', 0) != 1 else ''}. Each one is the text of the library rule it was "
+        "matched against, exactly as approved.", _SMALL))
+    elems.append(Spacer(1, 0.15 * inch))
+
+    run = section.get("run")
+    if run:
+        elems.append(Paragraph("RUN RECONCILIATION", _SECTION_HEADING))
+        rt = Table([
+            ["Findings consumed", "Matched", "No rule yet", "Dismissed", "Skipped"],
+            [str(run["consumed"]), str(run["matched"]), str(run["unmatched"]), str(run["dismissed"]), str(run["skipped"])],
+        ], colWidths=[w / 5] * 5)
+        rt.setStyle(TableStyle(_standard_table_style()))
+        elems.append(rt)
+        elems.append(Spacer(1, 0.2 * inch))
+
+    sev_style = {label: ParagraphStyle(f"rec_sev_{label}", fontName="Helvetica-Bold", fontSize=8, textColor=color)
+                 for label, color in _LABEL_COLOR.items()}
+    cell = ParagraphStyle("rec_cell", fontName="Helvetica", fontSize=8, leading=10)
+    rule = ParagraphStyle("rec_rule", fontName="Helvetica-Bold", fontSize=10, textColor=_NAVY, leading=13)
+    for tier in section.get("tiers", []):
+        elems.append(Paragraph(f"TIER {tier['tier']} \u00b7 {str(tier.get('label', '')).upper()}", _SECTION_HEADING))
+        for rec in tier.get("recommendations", []):
+            findings = rec.get("findings", [])
+            rows: list = [["Picture", "Type", "Severity", "Confidence"]]
+            for f in findings:
+                rows.append([
+                    Paragraph(f.get("image_filename") or f.get("detection_id", "")[:8], cell),
+                    f.get("damage_code", ""),
+                    Paragraph(f.get("severity_label", ""), sev_style.get(f.get("severity_label", ""), cell)),
+                    "" if f.get("confidence") is None else f"{f['confidence']:.2f}",
+                ])
+            t = Table(rows, colWidths=[w - 2.9 * inch, 0.7 * inch, 1.2 * inch, 1.0 * inch], repeatRows=1)
+            t.setStyle(TableStyle(_standard_table_style()))
+            t.setStyle(TableStyle([
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]))
+            n = len(findings)
+            elems.append(Paragraph(rec.get("recommendation_text", ""), rule))
+            elems.append(Paragraph(
+                f"{rec.get('action_class', '')} \u00b7 {n} finding{'s' if n != 1 else ''} \u00b7 "
+                f"rule {str(rec.get('rule_id') or '')[:8]} v{rec.get('rule_version') or ''}", _SMALL))
+            elems.append(Spacer(1, 0.05 * inch))
+            elems.append(t)
+            elems.append(Spacer(1, 0.18 * inch))
+
+    needs = section.get("needs_recommendation") or []
+    if needs:
+        elems.append(Paragraph("FINDINGS WITHOUT A RECOMMENDATION YET", _SECTION_HEADING))
+        elems.append(Paragraph(
+            "These reviewed findings matched no rule in the library. They are listed so nothing is left out; "
+            "a recommendation follows once a rule exists and an engineer approves it.", _SMALL))
+        elems.append(Spacer(1, 0.06 * inch))
+        rows = [["Picture", "Type", "Severity"]]
+        for f in needs:
+            rows.append([Paragraph(f.get("image_filename") or f.get("detection_id", "")[:8], cell), f.get("damage_code", ""),
+                         Paragraph(f.get("severity_label", ""), sev_style.get(f.get("severity_label", ""), cell))])
+        nt = Table(rows, colWidths=[w - 1.9 * inch, 0.7 * inch, 1.2 * inch], repeatRows=1)
+        nt.setStyle(TableStyle(_standard_table_style()))
+        elems.append(nt)
+        elems.append(Spacer(1, 0.15 * inch))
+
+    latest = section.get("latest_issued")
+    if latest:
+        issued = latest.get("generated_at")
+        issued_str = issued.strftime("%B %d, %Y %H:%M UTC") if hasattr(issued, "strftime") else str(issued or "")
+        elems.append(Paragraph(
+            f"Latest issued recommendations document: {latest.get('snapshot_id', '')}, {issued_str}, "
+            f"sha256 {latest.get('issued_file_hash', '')}.", _SMALL))
+    return elems
+
+
 def generate_pdf(report_data: dict) -> bytes:
     buf = BytesIO()
     meta    = report_data["metadata"]
@@ -792,6 +877,13 @@ def generate_pdf(report_data: dict) -> bytes:
     if review:
         story.append(PageBreak())
         story.extend(_engineer_review_pages(review))
+
+    # Recommendations section — only present when an engineer has approved
+    # at least one recommendation for this inspection (OI-3 seam, RPT-02).
+    recommendations = report_data.get("recommendations")
+    if recommendations and recommendations.get("tiers"):
+        story.append(PageBreak())
+        story.extend(_recommendations_pages(recommendations))
 
     doc.build(story, onFirstPage=_page_footer, onLaterPages=_page_footer)
     return buf.getvalue()
