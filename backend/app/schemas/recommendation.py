@@ -14,6 +14,8 @@ from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
+from app.services.recommendations.action_classes import check_action_class
+
 
 def _normalize_class(value: str) -> str:
     return " ".join(value.split()).strip().lower()
@@ -39,6 +41,12 @@ class EntryWrite(BaseModel):
         if not stripped:
             raise ValueError("must not be blank")
         return stripped
+
+    @field_validator("action_class")
+    @classmethod
+    def _known_action_class(cls, value: str) -> str:
+        # LIB-3 at Stage 2: the library's fixed action classes
+        return check_action_class(value)
 
     @field_validator("producer")
     @classmethod

@@ -42,6 +42,7 @@ from app.services.recommendations.detection_feed import (
     load_matchable_detections,
     signed_classes,
 )
+from app.services.recommendations.action_classes import ACTION_CLASSES
 from app.services.recommendations.errors import FieldValidationError, NotFoundError
 from app.services.recommendations.pdf import NoApprovedRecommendations, issue_recommendations_pdf
 
@@ -176,7 +177,7 @@ def overview(db: Session = Depends(get_db), current_user: User = Depends(get_cur
     ]
     return {
         "summary": workflow.get_status_summary(db, org),
-        "library": {"active_rules": active_rules},
+        "library": {"active_rules": active_rules, "action_classes": list(ACTION_CLASSES)},
         "vocabularies": vocabularies,
         "tiers": _tier_labels(db),
         "runs": [_run_out(r, names) for r in runs],

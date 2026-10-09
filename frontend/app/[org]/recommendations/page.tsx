@@ -42,7 +42,7 @@ type Vocabulary = {
 };
 type Overview = {
   summary: { counts: Record<string, number>; review_incomplete: boolean };
-  library: { active_rules: number };
+  library: { active_rules: number; action_classes?: string[] };
   vocabularies: Vocabulary[];
   tiers: Record<string, string>;
   runs: Run[];
@@ -627,7 +627,10 @@ function LibraryTab({ ov }: { ov: Overview }) {
                 <textarea value={form.recommendation_text} onChange={e => setForm({ ...form, recommendation_text: e.target.value })} rows={3} className={inputCls} style={inputStyle} required />
               </Field>
               <Field label="Action class">
-                <input value={form.action_class} onChange={e => setForm({ ...form, action_class: e.target.value })} placeholder="structural repair, coating, cleaning…" className={inputCls} style={inputStyle} required />
+                <select value={form.action_class} onChange={e => setForm({ ...form, action_class: e.target.value })} className={inputCls} style={inputStyle} required>
+                  <option value="">Choose...</option>
+                  {(ov.library.action_classes ?? []).map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
               </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Asset type (optional)">

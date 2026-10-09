@@ -73,7 +73,7 @@ class TestRenderContent:
     def test_recommendation_text_and_action_class_render_verbatim(self, db_session, test_org, rec_vocab):
         authoring.create_entry(
             db_session, test_org.organization_id,
-            entry_write(severity=4, recommendation_text="  Replace the anode and repaint.  ", action_class="corrosion mitigation"),
+            entry_write(severity=4, recommendation_text="  Replace the anode and repaint.  ", action_class="coating"),
         )
         d = make_detection("d1", severity=4)
         run = engine.run_resolution(db_session, test_org.organization_id, "inspection-1", [d], "asset", "engineer@example.com")
@@ -83,7 +83,7 @@ class TestRenderContent:
         result = output.build_output(db_session, test_org.organization_id)
         rec = result["tiers"][0]["recommendations"][0]
         assert rec["recommendation_text"] == "Replace the anode and repaint."
-        assert rec["action_class"] == "corrosion mitigation"
+        assert rec["action_class"] == "coating"
 
     def test_tier_grouping_by_effective_tier(self, db_session, test_org, rec_vocab):
         authoring.create_entry(db_session, test_org.organization_id, entry_write(detection_class="corrosion", severity=4))
