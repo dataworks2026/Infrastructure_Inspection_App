@@ -24,7 +24,11 @@ def _inspection(db, org_id, status=InspectionStatus.review_completed.value, suff
     insp = Inspection(id=f"insp-feed-{suffix}", organization_id=org_id, asset_id=asset.id, name="Feed inspection", status=status)
     img = Image(id=f"img-feed-{suffix}", organization_id=org_id, inspection_id=insp.id, filename="f.jpg",
                 stored_path="nowhere/f.jpg", gps_lat=40.68, gps_lon=-74.01, analysis_status="completed")
-    db.add_all([asset, insp, img]); db.flush()
+    # one row at a time: Postgres checks the foreign keys, and the models carry no
+    # relationship that would tell the unit of work to insert the parent first
+    db.add(asset); db.flush()
+    db.add(insp); db.flush()
+    db.add(img); db.flush()
     return insp, img
 
 
