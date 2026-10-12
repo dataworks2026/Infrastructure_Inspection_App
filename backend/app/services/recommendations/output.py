@@ -21,13 +21,20 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.recommendation import RecommendationDetectionLink, RecommendationLibraryEntry, RecommendationRecord
+from app.models.recommendation import (
+    RecommendationDetectionLink,
+    RecommendationLibraryEntry,
+    RecommendationRecord,
+    RecommendationRun,
+)
 from app.services.recommendations import workflow
 from app.services.recommendations.tiers import TIER_LABELS
 
 
-def build_output(db: Session, organization_id: str) -> dict:
-    # WFL-6: only Approved records ever render
+def build_output(db: Session, organization_id: str, inspection_id: str | None = None) -> dict:
+    # WFL-6: only Approved records ever render.
+    # With inspection_id, only the records whose run resolved that
+    # inspection render; the summary counts stay organization wide.
     stmt = (
         select(RecommendationRecord)
         .where(
@@ -36,6 +43,10 @@ def build_output(db: Session, organization_id: str) -> dict:
         )
         .order_by(RecommendationRecord.created_at, RecommendationRecord.id)
     )
+    if inspection_id:
+        stmt = stmt.join(RecommendationRun, RecommendationRun.id == RecommendationRecord.run_id).where(
+            RecommendationRun.inspection_id == inspection_id
+        )
     approved = db.execute(stmt).scalars().all()
 
     tier_groups: dict[int, list] = defaultdict(list)

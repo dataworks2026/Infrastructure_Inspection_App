@@ -50,7 +50,7 @@ class TestCreateEntry:
                 actor="engineer@example.com",
                 severity=3,
                 recommendation_text="text",
-                action_class="monitor",
+                action_class="monitoring",
             )
 
     def test_out_of_domain_severity_rejected(self):

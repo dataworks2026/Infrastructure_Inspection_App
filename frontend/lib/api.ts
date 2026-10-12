@@ -158,8 +158,8 @@ export const reviewApi = {
     api.get<Blob>(`/inspections/${inspectionId}/annotated-images.zip`, { responseType: 'blob' }),
   updateImageAssetType: (imageId: string, assetType: string) =>
     api.patch<UpdateAssetTypeResponse>(`/images/${imageId}/asset-type`, { asset_type: assetType }).then(r => r.data),
-  reopenInspectionReview: (inspectionId: string) =>
-    api.post<ReopenInspectionReviewResponse>(`/inspections/${inspectionId}/reopen-review`).then(r => r.data),
+  reopenInspectionReview: (inspectionId: string, reason?: string) =>
+    api.post<ReopenInspectionReviewResponse>(`/inspections/${inspectionId}/reopen-review`, reason ? { reason } : undefined).then(r => r.data),
   reopenImageReview: (imageId: string) =>
     api.post<ReopenImageReviewResponse>(`/images/${imageId}/reopen-review`).then(r => r.data),
 };
@@ -313,3 +313,39 @@ export interface LiveMission {
   actual_start?: string;
   telemetry: LiveMissionTelemetry | null;
 }
+
+// Recommendations: engine run, review queue, library, letterhead, issued PDF
+export const recommendationsApi = {
+  overview: () => api.get('/recommendations/overview').then(r => r.data),
+  records: (inspection_id?: string) =>
+    api.get('/recommendations/records', { params: inspection_id ? { inspection_id } : undefined }).then(r => r.data),
+  delta: (record_id: string) => api.get(`/recommendations/records/${record_id}/delta`).then(r => r.data),
+  output: (inspection_id?: string) =>
+    api.get('/recommendations/output', { params: inspection_id ? { inspection_id } : undefined }).then(r => r.data),
+  audit: (params?: { entity_id?: string; actor?: string; limit?: number }) =>
+    api.get('/recommendations/audit', { params }).then(r => r.data),
+  run: (inspection_id: string, body: { rollup_scope?: string; producer?: string; allow_unreviewed?: boolean } = {}) =>
+    api.post(`/recommendations/inspections/${inspection_id}/run`, body).then(r => r.data),
+  approve: (record_id: string) => api.post(`/recommendations/records/${record_id}/approve`).then(r => r.data),
+  reject: (record_id: string) => api.post(`/recommendations/records/${record_id}/reject`).then(r => r.data),
+  bulk: (decision: 'approve' | 'reject', record_ids: string[]) =>
+    api.post('/recommendations/records/bulk', { decision, record_ids }).then(r => r.data),
+  library: (include_archived = false) =>
+    api.get('/recommendations/library', { params: include_archived ? { include_archived: true } : undefined }).then(r => r.data),
+  createRule: (body: any) => api.post('/recommendations/library', body).then(r => r.data),
+  editRule: (entry_id: string, body: any) => api.put(`/recommendations/library/${entry_id}`, body).then(r => r.data),
+  archiveRule: (entry_id: string) => api.delete(`/recommendations/library/${entry_id}`).then(r => r.data),
+  ruleHistory: (entry_id: string) => api.get(`/recommendations/library/${entry_id}/history`).then(r => r.data),
+  importRules: (file: File) => {
+    const form = new FormData(); form.append('file', file);
+    return api.post('/recommendations/library/import', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+  },
+  letterhead: () => api.get('/recommendations/letterhead').then(r => r.data),
+  saveLetterhead: (body: any) => api.put('/recommendations/letterhead', body).then(r => r.data),
+  uploadLogo: (file: File) => {
+    const form = new FormData(); form.append('file', file);
+    return api.post('/recommendations/letterhead/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+  },
+  pdf: (inspection_id: string) =>
+    api.get<Blob>(`/recommendations/inspections/${inspection_id}/pdf`, { responseType: 'blob' }).then(r => r.data),
+};

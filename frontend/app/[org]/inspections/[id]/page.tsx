@@ -427,7 +427,19 @@ export default function InspectionDetailPage() {
   // Re-open the WHOLE inspection — discards every engineer correction and resets
   // all CV detections to unreviewed; the inspection flips back to pending_review.
   const reopenInspectionMutation = useMutation({
-    mutationFn: () => reviewApi.reopenInspectionReview(inspectionId),
+    mutationFn: async () => {
+      try {
+        return await reviewApi.reopenInspectionReview(inspectionId);
+      } catch (err: any) {
+        // the server asks for a reason once the recommendation engine has records for this inspection
+        if (err?.response?.status === 422) {
+          const reason = window.prompt('This inspection has recommendations. Why is the review being reopened?');
+          if (!reason || !reason.trim()) throw err;
+          return await reviewApi.reopenInspectionReview(inspectionId, reason.trim());
+        }
+        throw err;
+      }
+    },
     onSuccess: (res) => {
       setShowReopenInspectionConfirm(false);
       // Clear all local session review state — the server is the source of truth now

@@ -301,6 +301,8 @@ export interface DashboardOverview {
   recent_inspections: Array<{id: string; name: string; asset_id: string; status: string; created_at: string}>;
   recent_analyzed_images: DashboardAnalyzedImage[];
   asset_health: DashboardAssetHealth[];
+  /** Repair recommendation counts (RPT-04), same routine as the Recommendations page. */
+  recommendations?: { approved: number; draft: number; needs_recommendation: number; active_rules: number };
 }
 
 // ── Sensors (NOAA) ──────────────────────────────────────────

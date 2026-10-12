@@ -273,6 +273,14 @@ export default function DashboardPage() {
             <Activity size={13} style={{ color: BRAND }} />
             {data?.total_inspections ?? 0} inspections
           </div>
+          {data?.recommendations && (
+            <Link href="/recommendations" className="interactive-chip flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
+              style={{ background: MINT, color: '#6B9A87', border: '1px solid #C8E6D4' }}>
+              <ClipboardList size={13} style={{ color: BRAND }} />
+              {data.recommendations.approved} approved recommendation{data.recommendations.approved === 1 ? '' : 's'}
+              {data.recommendations.needs_recommendation > 0 && ` \u00b7 ${data.recommendations.needs_recommendation} need a rule`}
+            </Link>
+          )}
         </div>
       </div>
 

@@ -1,10 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { authApi } from '@/lib/api';
+import { authApi, recommendationsApi } from '@/lib/api';
 import { useRefreshUser } from '@/app/providers';
 import { useToast } from '@/components/ui/Toast';
-import { User, Building2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Building2, CheckCircle2, AlertCircle, FileText, Upload } from 'lucide-react';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -161,6 +161,105 @@ export default function SettingsPage() {
           {mutation.isPending ? 'Saving…' : 'Save Changes'}
         </button>
       </form>
+
+      <LetterheadCard />
     </div>
+  );
+}
+
+
+const LH_FIELDS: { key: string; label: string; placeholder: string }[] = [
+  { key: 'firm_name',   label: 'Firm name',    placeholder: 'The engineering firm issuing the report' },
+  { key: 'address',     label: 'Address',      placeholder: 'City, State' },
+  { key: 'phone',       label: 'Phone',        placeholder: '' },
+  { key: 'email',       label: 'Email',        placeholder: 'reports@firm.com' },
+  { key: 'website',     label: 'Website',      placeholder: 'firm.com' },
+  { key: 'client_name', label: 'Client',       placeholder: 'Who the report is prepared for' },
+  { key: 'prepared_by', label: 'Prepared by',  placeholder: 'Engineer of record' },
+];
+
+function LetterheadCard() {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [logoBusy, setLogoBusy] = useState(false);
+  const lhQ = useQuery({ queryKey: ['letterhead'], queryFn: () => recommendationsApi.letterhead() });
+
+  useEffect(() => {
+    if (lhQ.data) {
+      const next: Record<string, string> = {};
+      for (const f of LH_FIELDS) next[f.key] = lhQ.data[f.key] ?? '';
+      setForm(next);
+    }
+  }, [lhQ.data]);
+
+  const save = useMutation({
+    mutationFn: () => recommendationsApi.saveLetterhead(form),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['letterhead'] }); toast.success('Letterhead saved'); },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Could not save the letterhead'),
+  });
+
+  async function onLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoBusy(true);
+    try {
+      await recommendationsApi.uploadLogo(file);
+      queryClient.invalidateQueries({ queryKey: ['letterhead'] });
+      toast.success('Logo updated');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Could not upload the logo');
+    } finally {
+      setLogoBusy(false);
+      e.target.value = '';
+    }
+  }
+
+  const logoUrl = lhQ.data?.logo_url as string | null | undefined;
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); save.mutate(); }}
+      className="mt-8 space-y-5 bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+    >
+      <div className="flex items-center gap-2">
+        <FileText size={18} style={{ color: '#0891B2' }} />
+        <h2 className="text-lg font-bold" style={{ color: '#082E29' }}>Report letterhead</h2>
+      </div>
+      <p className="text-sm text-slate-500">
+        Printed on every issued recommendations PDF: firm, contact line, logo, and who the report is prepared for.
+      </p>
+
+      <div className="flex items-center gap-4">
+        <div className="w-28 h-14 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden">
+          {logoUrl ? <img src={logoUrl} alt="logo" className="max-h-12 max-w-[100px] object-contain" /> : <span className="text-xs text-slate-400">no logo</span>}
+        </div>
+        <label className="flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50" style={{ color: '#082E29' }}>
+          <Upload size={14} /> {logoBusy ? 'Uploading…' : 'Upload logo (PNG or JPEG)'}
+          <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onLogo} disabled={logoBusy} />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {LH_FIELDS.map(f => (
+          <div key={f.key}>
+            <label className="block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-1.5">{f.label}</label>
+            <input
+              type="text"
+              value={form[f.key] ?? ''}
+              onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+              placeholder={f.placeholder}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-base text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
+        <button type="submit" disabled={save.isPending} className="px-4 py-2.5 rounded-lg text-sm font-bold text-white disabled:opacity-60" style={{ background: '#082E29' }}>
+          {save.isPending ? 'Saving…' : 'Save letterhead'}
+        </button>
+      </div>
+    </form>
   );
 }

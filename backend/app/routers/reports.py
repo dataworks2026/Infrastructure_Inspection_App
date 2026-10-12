@@ -19,6 +19,7 @@ from app.services.reports.annotated_zip import build_annotated_zip
 from app.services.reports.review_diff import compute_review_diff, has_review_data
 from app.services.reports.review_export import build_review_export
 from app.services.reports.review_report import generate_review_report_pdf
+from app.services.recommendations.report_section import build_report_section, has_approved_recommendations
 
 router = APIRouter()
 
@@ -78,6 +79,10 @@ def report_preview(
     # (inspection already org-scoped by load_inspection_records above)
     if has_review_data(db, inspection_id):
         response["review"] = compute_review_diff(db, inspection_id)
+    # Recommendations section (RPT-02 to RPT-04) — only when an engineer has
+    # approved at least one recommendation for this inspection
+    if has_approved_recommendations(db, org_id, inspection_id):
+        response["recommendations"] = build_report_section(db, org_id, inspection_id)
     return response
 
 
@@ -105,6 +110,8 @@ def report_pdf(
     # without review data are unchanged (inspection already org-scoped above)
     if has_review_data(db, inspection_id):
         report_data["review"] = compute_review_diff(db, inspection_id)
+    if has_approved_recommendations(db, org_id, inspection_id):
+        report_data["recommendations"] = build_report_section(db, org_id, inspection_id)
     pdf_bytes   = generate_pdf(report_data)
 
     filename = f"{_slug(meta['asset_name'])}-inspection-report.pdf"
