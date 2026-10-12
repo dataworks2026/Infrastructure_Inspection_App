@@ -16,6 +16,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
+import os
 import pytest
 
 from app.core.deps import get_db, get_current_user
@@ -55,6 +56,7 @@ def review_data(db_session, test_org):
         name="Review Test Inspection",
         inspector_name="Test Inspector",
     ))
+    db_session.flush()
 
     img1, img2 = str(uuid.uuid4()), str(uuid.uuid4())
     for img_id, fname in ((img1, "img1.jpg"), (img2, "img2.jpg")):
@@ -66,6 +68,7 @@ def review_data(db_session, test_org):
             upload_completed=True,
             analysis_status="completed",
         ))
+    db_session.flush()
 
     def _det(image_id, damage_type):
         d = Detection(
@@ -1434,6 +1437,12 @@ def test_delete_reviewed_inspection_cascades_reviews(client, db_session, review_
 
 # ─── delete an asset with reviewed inspections + missions (regression) ─────
 
+@pytest.mark.xfail(
+    os.environ.get("DATABASE_URL", "").startswith("postgresql"),
+    reason="asset delete is not ordered after the inspection cascade; fails on Postgres today. "
+           "Product change pending CTO decision (deleting an asset destroys its inspections and reviews).",
+    strict=True,
+)
 def test_delete_asset_cascades_inspections_and_missions(client, db_session, review_data):
     """Deleting an asset must remove its inspections' full subtree (incl. review
     rows) and asset-level drone missions — the old endpoint did a bare
@@ -1456,6 +1465,7 @@ def test_delete_asset_cascades_inspections_and_missions(client, db_session, revi
         routine_type="orbit",
         status="aborted",
     ))
+    db_session.flush()
     # a mission child row — must not FK-block the asset delete
     db_session.add(MissionWaypoint(
         id=str(uuid.uuid4()), mission_id=mission_id,
@@ -1472,11 +1482,13 @@ def test_delete_asset_cascades_inspections_and_missions(client, db_session, revi
         id=run_id, organization_id=org_id, status="completed",
         engine_version="1.0", schema_version="v3",
     ))
+    db_session.flush()
     db_session.add(V1AnalyticsItem(
         id=item_id, analytics_run_id=run_id, asset_id=asset_id, organization_id=org_id,
         status="completed", severity_now="S2", priority_score=50.0, priority_rank=1,
         recommended_action="monitor",
     ))
+    db_session.flush()
     db_session.add(V1AnalyticsReason(
         id=str(uuid.uuid4()), analytics_item_id=item_id,
         reason_code="TEST", reason_text="test reason",

@@ -51,6 +51,7 @@ def delete_data(db_session, test_org):
         name="Delete Test Inspection",
         inspector_name="Test Inspector",
     ))
+    db_session.flush()
 
     img_a, img_b = str(uuid.uuid4()), str(uuid.uuid4())
     for img_id, fname in ((img_a, "imgA.jpg"), (img_b, "imgB.jpg")):
@@ -63,6 +64,7 @@ def delete_data(db_session, test_org):
             upload_completed=True,
             analysis_status="completed",
         ))
+    db_session.flush()
 
     def _det(image_id, damage_type):
         d = Detection(
