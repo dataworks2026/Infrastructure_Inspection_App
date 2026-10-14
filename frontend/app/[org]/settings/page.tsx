@@ -1,10 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { authApi } from '@/lib/api';
+import { authApi, organizationsApi } from '@/lib/api';
+import type { OrgUser, UserRole } from '@/types';
 import { useRefreshUser } from '@/app/providers';
 import { useToast } from '@/components/ui/Toast';
-import { User, Building2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Building2, CheckCircle2, AlertCircle, Users, KeyRound, UserPlus } from 'lucide-react';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -160,6 +161,114 @@ export default function SettingsPage() {
           ) : null}
           {mutation.isPending ? 'Saving…' : 'Save Changes'}
         </button>
+      </form>
+
+      <PasswordCard />
+      {user?.role === 'admin' && <OrganisationUsersCard myId={user.id} />}
+    </div>
+  );
+}
+
+const inputCls = "w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-base text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 focus:bg-white";
+const labelCls = "block text-sm font-semibold text-slate-600 uppercase tracking-wider mb-1.5";
+const ROLE_LABELS: Record<UserRole, string> = { admin: 'Admin', engineer: 'Engineer', analyst: 'Analyst', viewer: 'Viewer (read only)' };
+
+function PasswordCard() {
+  const toast = useToast();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [again, setAgain] = useState('');
+  const m = useMutation({
+    mutationFn: () => authApi.changePassword(current, next),
+    onSuccess: () => { toast.success('Password changed'); setCurrent(''); setNext(''); setAgain(''); },
+    onError: (err: any) => toast.error(err.response?.data?.detail || 'Could not change the password'),
+  });
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (next.length < 8) { toast.error('New password must be at least 8 characters'); return; }
+    if (next !== again) { toast.error('The two new passwords do not match'); return; }
+    m.mutate();
+  };
+  return (
+    <form onSubmit={submit} className="mt-6 space-y-4 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: '#082E29' }}><KeyRound size={18} /> Change password</h2>
+      <div><label className={labelCls}>Current password</label><input type="password" value={current} onChange={e => setCurrent(e.target.value)} className={inputCls} required /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={labelCls}>New password</label><input type="password" value={next} onChange={e => setNext(e.target.value)} className={inputCls} required minLength={8} /></div>
+        <div><label className={labelCls}>New password again</label><input type="password" value={again} onChange={e => setAgain(e.target.value)} className={inputCls} required minLength={8} /></div>
+      </div>
+      <button type="submit" disabled={m.isPending} className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-sm font-semibold py-2 px-4 rounded-lg">
+        {m.isPending ? 'Saving…' : 'Change password'}
+      </button>
+    </form>
+  );
+}
+
+function OrganisationUsersCard({ myId }: { myId: string }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const usersQ = useQuery<OrgUser[]>({ queryKey: ['org-users'], queryFn: organizationsApi.listUsers });
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState<UserRole>('engineer');
+  const [password, setPassword] = useState('');
+  const refresh = () => qc.invalidateQueries({ queryKey: ['org-users'] });
+  const createM = useMutation({
+    mutationFn: () => organizationsApi.createUser({ email, full_name: fullName || undefined, role, password }),
+    onSuccess: (u) => { toast.success(`Added ${u.email} as ${ROLE_LABELS[u.role] ?? u.role}`); setEmail(''); setFullName(''); setPassword(''); refresh(); },
+    onError: (err: any) => toast.error(err.response?.data?.detail || 'Could not add the user'),
+  });
+  const updateM = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { role?: UserRole; is_active?: boolean } }) => organizationsApi.updateUser(id, data),
+    onSuccess: () => { toast.success('Updated'); refresh(); },
+    onError: (err: any) => toast.error(err.response?.data?.detail || 'Could not update the user'),
+  });
+  return (
+    <div className="mt-6 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: '#082E29' }}><Users size={18} /> Organisation users</h2>
+      <p className="text-[13px] text-slate-500 mt-1 mb-4">
+        Admin runs the organisation. Engineer uploads, reviews and issues reports. Viewer sees dashboards, inspections and reports and cannot change anything. Hand the temporary password over directly; the person changes it on first login.
+      </p>
+      <table className="w-full text-sm mb-5">
+        <thead><tr className="text-left text-[12px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+          <th className="py-2 pr-2">Email</th><th className="py-2 pr-2">Name</th><th className="py-2 pr-2">Role</th><th className="py-2 pr-2">Last login</th><th className="py-2"></th>
+        </tr></thead>
+        <tbody>
+          {(usersQ.data ?? []).map(u => (
+            <tr key={u.id} className={`border-b border-slate-100 ${u.is_active ? '' : 'opacity-50'}`}>
+              <td className="py-2 pr-2">{u.email}{u.id === myId && <span className="ml-1 text-[11px] text-slate-400">(you)</span>}</td>
+              <td className="py-2 pr-2">{u.full_name || ''}</td>
+              <td className="py-2 pr-2">
+                <select value={u.role} disabled={updateM.isPending} onChange={e => updateM.mutate({ id: u.id, data: { role: e.target.value as UserRole } })} className="bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-sm">
+                  {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
+              </td>
+              <td className="py-2 pr-2 text-slate-500">{u.last_login ? new Date(u.last_login).toLocaleDateString() : 'never'}</td>
+              <td className="py-2 text-right">
+                <button type="button" disabled={updateM.isPending || u.id === myId} onClick={() => updateM.mutate({ id: u.id, data: { is_active: !u.is_active } })}
+                  className="text-[12px] font-semibold text-slate-500 hover:text-red-600 disabled:opacity-40">
+                  {u.is_active ? 'Deactivate' : 'Reactivate'}
+                </button>
+              </td>
+            </tr>
+          ))}
+          {usersQ.data && usersQ.data.length === 0 && <tr><td colSpan={5} className="py-3 text-slate-400">No users yet.</td></tr>}
+        </tbody>
+      </table>
+      <form onSubmit={e => { e.preventDefault(); createM.mutate(); }} className="grid grid-cols-2 gap-3">
+        <div><label className={labelCls}>Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputCls} required /></div>
+        <div><label className={labelCls}>Name</label><input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className={inputCls} /></div>
+        <div><label className={labelCls}>Role</label>
+          <select value={role} onChange={e => setRole(e.target.value as UserRole)} className={inputCls}>
+            {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+          </select>
+        </div>
+        <div><label className={labelCls}>Temporary password</label><input type="text" value={password} onChange={e => setPassword(e.target.value)} className={inputCls} required minLength={8} placeholder="at least 8 characters" /></div>
+        <div className="col-span-2">
+          <button type="submit" disabled={createM.isPending} className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-sm font-semibold py-2 px-4 rounded-lg">
+            <UserPlus size={16} /> {createM.isPending ? 'Adding…' : 'Add user'}
+          </button>
+        </div>
       </form>
     </div>
   );

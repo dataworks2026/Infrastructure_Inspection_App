@@ -242,7 +242,7 @@ export default memo(function Sidebar({ collapsed, onToggle, onStartTour, mobileO
             </p>
           )}
           <div className="space-y-0.5">
-            {NAV_ITEMS.map(({ href, label, icon, tourId }) => (
+            {NAV_ITEMS.filter(({ href }) => !(user?.role === 'viewer' && href === '/upload')).map(({ href, label, icon, tourId }) => (
               <NavLink key={href} href={href} label={label} icon={icon} collapsed={isCollapsed}
                 tourId={tourId} onClick={handleNavClick}
                 active={pathname === href || (href !== '/dashboard' && pathname.startsWith(href))} />

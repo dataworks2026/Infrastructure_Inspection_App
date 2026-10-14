@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck, Download, RotateCcw } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
+import { useCurrentUser } from '@/app/providers';
 import ReviewOverlay, { type ReviewState } from '@/components/review/ReviewOverlay';
 import BboxEditor from '@/components/review/BboxEditor';
 import ReviewPanel, {
@@ -176,6 +177,8 @@ export default function InspectionDetailPage() {
   const router = useRouter();
   const orgPath = useOrgPath();
   const toast = useToast();
+  const currentUser = useCurrentUser();
+  const readOnlyRole = currentUser?.role === 'viewer';
   const queryClient = useQueryClient();
   const inspectionId = params.id as string;
   const [analyzing, setAnalyzing] = useState<string | null>(null);
@@ -1091,7 +1094,7 @@ export default function InspectionDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-            {inspection.status === 'completed' && (
+            {inspection.status === 'completed' && !readOnlyRole && (
               <button
                 onClick={() => setShowStartReviewConfirm(true)}
                 className="flex items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-all shadow-sm"
@@ -1112,12 +1115,14 @@ export default function InspectionDetailPage() {
                 Download Images
               </button>
             )}
+            {!readOnlyRole && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all"
             >
               <Trash2 size={15} /> Delete
             </button>
+            )}
           </div>
         </div>
       </div>

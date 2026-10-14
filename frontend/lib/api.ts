@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getToken, clearAuth } from './auth';
 import type {
   AuthToken, Asset, Inspection, ImageRecord,
-  AnalysisResult, DashboardOverview,
+  AnalysisResult, DashboardOverview, OrgUser, UserRole,
   PredictiveAssetResult, PredictiveRunDetail,
   PredictiveRunSummary, PredictiveRunTriggerResponse,
   StartReviewResponse, SubmitReviewRequest, SubmitReviewResponse,
@@ -36,6 +36,18 @@ export const authApi = {
   me: () => api.get('/auth/me').then(r => r.data),
   updateMe: (data: { full_name?: string; username?: string; organization_name?: string }) =>
     api.patch('/auth/me', data).then(r => r.data),
+  changePassword: (current_password: string, new_password: string) =>
+    api.post('/auth/me/password', { current_password, new_password }).then(r => r.data),
+};
+
+// Organisation users (admin only on the server side)
+export const organizationsApi = {
+  roles: () => api.get<{ value: UserRole; label: string }[]>('/organizations/roles').then(r => r.data),
+  listUsers: () => api.get<OrgUser[]>('/organizations/users').then(r => r.data),
+  createUser: (data: { email: string; full_name?: string; role: UserRole; password: string }) =>
+    api.post<OrgUser>('/organizations/users', data).then(r => r.data),
+  updateUser: (id: string, data: { role?: UserRole; is_active?: boolean; full_name?: string }) =>
+    api.patch<OrgUser>(`/organizations/users/${id}`, data).then(r => r.data),
 };
 
 // Dashboard
