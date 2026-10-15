@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ArrowLeft, ImageIcon, Loader, CheckCircle, AlertCircle, Scan, Shield, X, ChevronLeft, ChevronRight, ZoomIn, Eye, AlertTriangle, BarChart3, Trash2, Pencil, Check, ArrowUpDown, ClipboardCheck, Download, RotateCcw } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
+import { useCurrentUser } from '@/app/providers';
 import ReviewOverlay, { type ReviewState } from '@/components/review/ReviewOverlay';
 import BboxEditor from '@/components/review/BboxEditor';
 import ReviewPanel, {
@@ -176,6 +177,8 @@ export default function InspectionDetailPage() {
   const router = useRouter();
   const orgPath = useOrgPath();
   const toast = useToast();
+  const currentUser = useCurrentUser();
+  const readOnlyRole = currentUser?.role === 'viewer';
   const queryClient = useQueryClient();
   const inspectionId = params.id as string;
   const [analyzing, setAnalyzing] = useState<string | null>(null);
@@ -959,11 +962,13 @@ export default function InspectionDetailPage() {
             ) : (
               <div className="flex items-center gap-2 mb-2">
                 <h1 className="text-2xl font-bold text-slate-800">{inspection.name}</h1>
+                {!readOnlyRole && (
                 <button onClick={() => { setEditName(inspection.name); setEditingName(true); }}
                   className="p-1.5 rounded-lg transition-colors hover:bg-[#EDF6F0] opacity-60 hover:opacity-100"
                   style={{ color: '#082E29' }} title="Edit name">
                   <Pencil size={15} />
                 </button>
+                )}
               </div>
             )}
             <div className="flex items-center gap-3 flex-wrap">
@@ -1018,6 +1023,7 @@ export default function InspectionDetailPage() {
               {inspection.weather_conditions && <span className="text-sm text-slate-400">Weather: {inspection.weather_conditions}</span>}
               {inspection.inspector_name && <span className="text-sm text-slate-400">Inspector: {inspection.inspector_name}</span>}
               {inspection.inspection_type && <span className="text-sm text-slate-400">Type: {inspection.inspection_type}</span>}
+              {!readOnlyRole && (
               <button
                 onClick={() => {
                   setEditInspector(inspection.inspector_name || '');
@@ -1031,6 +1037,7 @@ export default function InspectionDetailPage() {
               >
                 <Pencil size={12} /> Edit details
               </button>
+              )}
             </div>
 
             {editingDetails && (
@@ -1091,7 +1098,7 @@ export default function InspectionDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-            {inspection.status === 'completed' && (
+            {inspection.status === 'completed' && !readOnlyRole && (
               <button
                 onClick={() => setShowStartReviewConfirm(true)}
                 className="flex items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-all shadow-sm"
@@ -1112,12 +1119,14 @@ export default function InspectionDetailPage() {
                 Download Images
               </button>
             )}
+            {!readOnlyRole && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all"
             >
               <Trash2 size={15} /> Delete
             </button>
+            )}
           </div>
         </div>
       </div>
@@ -1336,6 +1345,7 @@ export default function InspectionDetailPage() {
                         isSelected ? 'bg-sky-50 ring-2 ring-sky-300' : 'hover:bg-slate-50'
                       }`}>
                       {/* Per-image delete — opens the 2-step confirm dialog */}
+                      {!readOnlyRole && (
                       <button
                         title="Delete this image"
                         onClick={(e) => { e.stopPropagation(); setDeleteImageTarget({ id: img.id, filename: img.filename }); }}
@@ -1343,6 +1353,7 @@ export default function InspectionDetailPage() {
                       >
                         <Trash2 size={13} />
                       </button>
+                      )}
                       <div className="flex gap-2.5">
                         <div className="relative flex-shrink-0">
                           <img src={img.url} alt="" className="w-16 h-12 object-cover rounded-md border border-slate-200" />

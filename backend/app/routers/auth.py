@@ -5,10 +5,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user
+from app.core.roles import ADMIN
 from app.core.security import hash_password, verify_password, create_access_token
 from app.models.user import User
 from app.models.organization import Organization
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse, UserResponse, UpdateMeRequest
+from app.schemas.org_users import PasswordChangeRequest
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -43,7 +45,8 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
         email=body.email,
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
-        role="analyst",
+        # whoever creates an organisation runs it; everyone else is added by that admin
+        role=ADMIN,
         organization_id=org.organization_id,
         organization=body.organization_name,  # keep legacy field in sync
     )
@@ -67,6 +70,8 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="This account is deactivated")
     org = db.query(Organization).filter(Organization.organization_id == user.organization_id).first() if user.organization_id else None
     token = create_access_token({"sub": user.id})
     return TokenResponse(
@@ -124,3 +129,14 @@ def update_me(data: UpdateMeRequest, current_user: User = Depends(get_current_us
         organization_name=org.name if org else None,
         organization_slug=org.slug if org else None,
     )
+
+
+@router.post("/me/password", status_code=204)
+def change_my_password(body: PasswordChangeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Anyone changes their own password with the current one. This is the
+    one write a viewer is allowed."""
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is wrong")
+    current_user.hashed_password = hash_password(body.new_password)
+    db.commit()
+    return None

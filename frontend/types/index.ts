@@ -2,7 +2,17 @@ export type InfrastructureType = 'wind_turbine' | 'coastal' | 'pier' | 'railway'
 export type AssetStatus = 'active' | 'maintenance' | 'decommissioned';
 export type InspectionStatus = 'pending' | 'processing' | 'completed' | 'pending_review' | 'review_completed' | 'failed';
 export type AnalysisStatus = 'queued' | 'processing' | 'completed' | 'failed';
-export type UserRole = 'admin' | 'analyst' | 'viewer';
+export type UserRole = 'admin' | 'engineer' | 'analyst' | 'viewer';
+
+export interface OrgUser {
+  id: string;
+  email: string;
+  full_name?: string | null;
+  role: UserRole;
+  is_active: boolean;
+  last_login?: string | null;
+  created_at?: string | null;
+}
 
 export interface User {
   id: string;
