@@ -11,9 +11,10 @@ const nextConfig = {
   eslint:     { ignoreDuringBuilds: true },
 
   async rewrites() {
+    const api = process.env.API_PROXY_ORIGIN || 'http://localhost:8000';
     return [
-      { source: '/api/:path*',     destination: 'http://localhost:8000/api/:path*' },
-      { source: '/storage/:path*', destination: 'http://localhost:8000/storage/:path*' },
+      { source: '/api/:path*',     destination: `${api}/api/:path*` },
+      { source: '/storage/:path*', destination: `${api}/storage/:path*` },
     ]
   },
 
