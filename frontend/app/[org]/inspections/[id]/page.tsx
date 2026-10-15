@@ -962,11 +962,13 @@ export default function InspectionDetailPage() {
             ) : (
               <div className="flex items-center gap-2 mb-2">
                 <h1 className="text-2xl font-bold text-slate-800">{inspection.name}</h1>
+                {!readOnlyRole && (
                 <button onClick={() => { setEditName(inspection.name); setEditingName(true); }}
                   className="p-1.5 rounded-lg transition-colors hover:bg-[#EDF6F0] opacity-60 hover:opacity-100"
                   style={{ color: '#082E29' }} title="Edit name">
                   <Pencil size={15} />
                 </button>
+                )}
               </div>
             )}
             <div className="flex items-center gap-3 flex-wrap">
@@ -1021,6 +1023,7 @@ export default function InspectionDetailPage() {
               {inspection.weather_conditions && <span className="text-sm text-slate-400">Weather: {inspection.weather_conditions}</span>}
               {inspection.inspector_name && <span className="text-sm text-slate-400">Inspector: {inspection.inspector_name}</span>}
               {inspection.inspection_type && <span className="text-sm text-slate-400">Type: {inspection.inspection_type}</span>}
+              {!readOnlyRole && (
               <button
                 onClick={() => {
                   setEditInspector(inspection.inspector_name || '');
@@ -1034,6 +1037,7 @@ export default function InspectionDetailPage() {
               >
                 <Pencil size={12} /> Edit details
               </button>
+              )}
             </div>
 
             {editingDetails && (
@@ -1341,6 +1345,7 @@ export default function InspectionDetailPage() {
                         isSelected ? 'bg-sky-50 ring-2 ring-sky-300' : 'hover:bg-slate-50'
                       }`}>
                       {/* Per-image delete — opens the 2-step confirm dialog */}
+                      {!readOnlyRole && (
                       <button
                         title="Delete this image"
                         onClick={(e) => { e.stopPropagation(); setDeleteImageTarget({ id: img.id, filename: img.filename }); }}
@@ -1348,6 +1353,7 @@ export default function InspectionDetailPage() {
                       >
                         <Trash2 size={13} />
                       </button>
+                      )}
                       <div className="flex gap-2.5">
                         <div className="relative flex-shrink-0">
                           <img src={img.url} alt="" className="w-16 h-12 object-cover rounded-md border border-slate-200" />

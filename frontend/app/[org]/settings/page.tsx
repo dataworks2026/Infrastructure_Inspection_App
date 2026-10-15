@@ -147,6 +147,9 @@ export default function SettingsPage() {
         </div>
 
         {/* Submit */}
+        {user?.role === 'viewer' ? (
+          <p className="text-sm text-slate-500">Your role is read only. Ask your organisation admin to change your name.</p>
+        ) : (
         <button
           type="submit"
           disabled={mutation.isPending}
@@ -161,6 +164,7 @@ export default function SettingsPage() {
           ) : null}
           {mutation.isPending ? 'Saving…' : 'Save Changes'}
         </button>
+        )}
       </form>
 
       <PasswordCard />
