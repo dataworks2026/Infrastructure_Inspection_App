@@ -267,10 +267,12 @@ def get_inspection_images(
     if not inspection:
         raise HTTPException(status_code=404, detail="Inspection not found")
 
+    # Upload order, stable across renames and deletes. Without an ORDER BY the
+    # database returns rows in physical order, which reshuffles after updates.
     images = db.query(Image).filter(
         Image.inspection_id == inspection_id,
         Image.deleted_at.is_(None),
-    ).all()
+    ).order_by(Image.created_at.asc(), Image.id.asc()).all()
     return [_image_to_record(img) for img in images]
 
 

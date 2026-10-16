@@ -284,7 +284,10 @@ export default function InspectionDetailPage() {
 
   useEffect(() => {
     if (imagesLoaded && images.length > 0 && !selectedImage) {
-      setSelectedImage(images[0].id);
+      // first by name, the order the sidebar opens in, not the server's row order
+      const first = images.slice().sort((a: any, b: any) =>
+        (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true }))[0];
+      setSelectedImage(first.id);
     }
   }, [imagesLoaded, images, selectedImage]);
 
@@ -919,7 +922,7 @@ export default function InspectionDetailPage() {
     <div>
       {lightboxIndex !== null && (
         <Lightbox
-          images={images}
+          images={sortedImages}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           analysisResults={displayResults}
@@ -1435,7 +1438,7 @@ export default function InspectionDetailPage() {
                         Review again
                       </button>
                     )}
-                    <button onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
+                    <button onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))}
                       className="flex items-center gap-1.5 text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all">
                       <ZoomIn size={14} /> Full Screen
                     </button>
@@ -1563,7 +1566,7 @@ export default function InspectionDetailPage() {
                         <Loader size={14} className="animate-spin" /> Analyzing…
                       </span>
                     )}
-                    <button onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
+                    <button onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))}
                       className="flex items-center gap-1.5 text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all">
                       <ZoomIn size={14} /> Full Screen
                     </button>
@@ -1580,7 +1583,7 @@ export default function InspectionDetailPage() {
                           <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Original</div>
                           <img src={currentImg.url} alt="Original"
                             className="w-full rounded-lg border border-slate-200"
-                            onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))} />
+                            onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))} />
                         </div>
                         <div>
                           <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</div>
@@ -1597,7 +1600,7 @@ export default function InspectionDetailPage() {
                         <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Original</p>
                         <img src={currentImg.url} alt="Original"
                           className="w-full rounded-lg border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
-                          onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))} />
+                          onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))} />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</p>
@@ -1606,14 +1609,14 @@ export default function InspectionDetailPage() {
                           detections={currentResult.detections}
                           mode="view"
                           showLabels={showLabels}
-                          onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))}
+                          onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))}
                         />
                       </div>
                     </div>
                   ) : (
                     <img src={currentImg.url} alt={currentImg.filename}
                       className="w-full max-h-[500px] object-contain rounded-lg border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setLightboxIndex(images.findIndex((i: any) => i.id === currentImg.id))} />
+                      onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))} />
                   )}
                 </div>
 
