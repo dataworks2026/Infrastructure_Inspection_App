@@ -149,9 +149,11 @@ function Lightbox({ images, initialIndex, onClose, analysisResults, showLabels =
         )}
       </div>
 
-      {result && result.total_detections > 0 && (
-        <div className="bg-black/40 px-6 py-3 border-t border-white/10" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center gap-3 overflow-x-auto pb-1">
+      {/* Always rendered at one height, so the picture above keeps the same size
+          whether this photo has findings or not. */}
+      <div className="bg-black/40 px-6 border-t border-white/10 h-[4.75rem] overflow-hidden flex items-center" onClick={e => e.stopPropagation()}>
+        {result && result.total_detections > 0 ? (
+          <div className="flex items-center gap-3 overflow-x-auto w-full">
             {result.detections?.map((d: any, i: number) => {
               const cfg = getDamageConfig(d.damage_type);
               return (
@@ -165,8 +167,10 @@ function Lightbox({ images, initialIndex, onClose, analysisResults, showLabels =
               );
             })}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-white/40 text-sm">No findings on this image</div>
+        )}
+      </div>
     </div>
   );
 }

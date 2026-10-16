@@ -109,10 +109,10 @@ export default function ReviewOverlay({
 
   return (
     <div
-      // min-w-0 / min-h-0: as a flex item this wrapper would otherwise refuse to
-      // shrink below the photo's natural size (5280 px wide for drone shots), so
-      // the centred overflow pushed the left of the picture off screen on narrow
-      // or portrait displays. The viewport cap on the image is the second guard.
+      // fitScreen: size exactly like the plain <img> the lightbox shows for photos
+      // without findings (max-h-full / max-w-full of the same box), so the picture
+      // keeps one size whether or not boxes are drawn on it. min-w-0 / min-h-0 lets
+      // this flex item shrink below the photo's natural 5280 px width.
       className={`relative cursor-pointer group ${fitScreen ? 'inline-block min-w-0 min-h-0 max-h-full max-w-full' : 'w-full'}`}
       onClick={onClick}
     >
@@ -120,7 +120,7 @@ export default function ReviewOverlay({
         src={imageUrl}
         alt="AI Analysis"
         className={fitScreen
-          ? 'block max-h-[calc(100vh-160px)] max-w-full max-w-[calc(100vw-8rem)] w-auto h-auto object-contain rounded-lg'
+          ? 'block max-h-full max-w-full object-contain rounded-lg'
           : 'w-full rounded-lg border border-slate-200 block'}
         onLoad={(e) => {
           const img = e.currentTarget;
