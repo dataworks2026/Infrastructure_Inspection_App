@@ -109,14 +109,18 @@ export default function ReviewOverlay({
 
   return (
     <div
-      className={`relative cursor-pointer group ${fitScreen ? 'inline-block max-h-full max-w-full' : 'w-full'}`}
+      // min-w-0 / min-h-0: as a flex item this wrapper would otherwise refuse to
+      // shrink below the photo's natural size (5280 px wide for drone shots), so
+      // the centred overflow pushed the left of the picture off screen on narrow
+      // or portrait displays. The viewport cap on the image is the second guard.
+      className={`relative cursor-pointer group ${fitScreen ? 'inline-block min-w-0 min-h-0 max-h-full max-w-full' : 'w-full'}`}
       onClick={onClick}
     >
       <img
         src={imageUrl}
         alt="AI Analysis"
         className={fitScreen
-          ? 'block max-h-[calc(100vh-160px)] max-w-full object-contain rounded-lg'
+          ? 'block max-h-[calc(100vh-160px)] max-w-full max-w-[calc(100vw-8rem)] w-auto h-auto object-contain rounded-lg'
           : 'w-full rounded-lg border border-slate-200 block'}
         onLoad={(e) => {
           const img = e.currentTarget;
