@@ -145,7 +145,7 @@ function Lightbox({ images, initialIndex, onClose, analysisResults, showLabels =
             <ReviewOverlay imageUrl={img.url} detections={result.detections} mode="view" fitScreen showLabels={showLabels} />
           </div>
         ) : (
-          <img src={img.url} alt={img.filename} className="max-h-full max-w-full object-contain rounded-lg" />
+          <img src={img.url} alt={img.filename} className="max-h-[calc(100vh-180px)] max-w-full object-contain rounded-lg" />
         )}
       </div>
 

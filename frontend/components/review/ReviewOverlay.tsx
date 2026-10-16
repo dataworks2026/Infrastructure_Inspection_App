@@ -109,10 +109,11 @@ export default function ReviewOverlay({
 
   return (
     <div
-      // fitScreen: size exactly like the plain <img> the lightbox shows for photos
-      // without findings (max-h-full / max-w-full of the same box), so the picture
-      // keeps one size whether or not boxes are drawn on it. min-w-0 / min-h-0 lets
-      // this flex item shrink below the photo's natural 5280 px width.
+      // fitScreen: the same height rule as the plain <img> the lightbox shows for
+      // photos without findings (a viewport based max height; a percentage would
+      // be ignored because this wrapper has no fixed height, and the picture would
+      // render full width and get cropped). min-w-0 / min-h-0 lets this flex item
+      // shrink below the photo's natural 5280 px width.
       className={`relative cursor-pointer group ${fitScreen ? 'inline-block min-w-0 min-h-0 max-h-full max-w-full' : 'w-full'}`}
       onClick={onClick}
     >
@@ -120,7 +121,7 @@ export default function ReviewOverlay({
         src={imageUrl}
         alt="AI Analysis"
         className={fitScreen
-          ? 'block max-h-full max-w-full object-contain rounded-lg'
+          ? 'block max-h-[calc(100vh-180px)] max-w-full object-contain rounded-lg'
           : 'w-full rounded-lg border border-slate-200 block'}
         onLoad={(e) => {
           const img = e.currentTarget;
