@@ -1205,6 +1205,47 @@ def test_reopen_then_resubmit_succeeds(client, db_session, review_data):
         DetectionReview.image_id == d["img1"]).count() == 3
 
 
+def test_exit_review_with_nothing_reviewed_goes_back_to_completed(client, db_session, review_data):
+    """A look around in review mode costs nothing: exit restores 'completed' and unlocks."""
+    d = review_data
+    _start(client, d["inspection_id"])
+    resp = client.post(f"/api/v1/inspections/{d['inspection_id']}/exit-review")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "completed"
+    assert body["discarded_reviews"] == 0
+    assert body["unlocked_cv_detections"] == 4
+    for det_key in ("det_a", "det_b", "det_c", "det_d"):
+        det = db_session.get(Detection, d[det_key])
+        db_session.refresh(det)
+        assert det.is_locked is False
+        assert det.reviewed is False
+    # and the review can be started again afterwards
+    assert _start(client, d["inspection_id"]).status_code == 200
+
+
+def test_exit_review_refuses_when_work_exists_unless_discard(client, db_session, review_data):
+    d = review_data
+    _start(client, d["inspection_id"])
+    _submit(client, d["img1"], [{"cv_detection_id": d["det_a"], "action": "accepted"}])
+    resp = client.post(f"/api/v1/inspections/{d['inspection_id']}/exit-review")
+    assert resp.status_code == 409
+    assert "discard" in resp.json()["detail"]
+    resp = client.post(f"/api/v1/inspections/{d['inspection_id']}/exit-review", json={"discard": True})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "completed"
+    assert body["discarded_reviews"] == 1
+    assert db_session.query(DetectionReview).filter(
+        DetectionReview.inspection_id == d["inspection_id"]).count() == 0
+
+
+def test_exit_review_not_in_review_409(client, review_data):
+    d = review_data
+    resp = client.post(f"/api/v1/inspections/{d['inspection_id']}/exit-review")
+    assert resp.status_code == 409
+
+
 def test_reopen_inspection_merely_completed_409(client, review_data):
     """An inspection that was never reviewed (status 'completed') cannot be reopened."""
     d = review_data

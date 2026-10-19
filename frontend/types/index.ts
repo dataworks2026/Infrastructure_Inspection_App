@@ -137,6 +137,14 @@ export interface CompleteReviewResponse {
   summary: ReviewSummary;
 }
 
+export interface ExitReviewResponse {
+  inspection_id: string;
+  status: string;
+  discarded_reviews: number;
+  removed_engineer_detections: number;
+  unlocked_cv_detections: number;
+}
+
 export interface ReopenInspectionReviewResponse {
   inspection_id: string;
   status: string;

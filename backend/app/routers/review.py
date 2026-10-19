@@ -26,6 +26,8 @@ from app.schemas.review import (
     UpdateAssetTypeResponse,
     ReopenImageReviewResponse,
     ReopenInspectionReviewResponse,
+    ExitReviewRequest,
+    ExitReviewResponse,
 )
 from app.services.reports.review_diff import compute_review_diff
 from app.services.reports.damage_codes import CODE_LABELS
@@ -503,6 +505,58 @@ def reopen_inspection_review(
         inspection_id=inspection_id,
         status=InspectionStatus.pending_review.value,
         **totals,
+    )
+
+
+@router.post("/inspections/{inspection_id}/exit-review", response_model=ExitReviewResponse)
+def exit_review(
+    inspection_id: str,
+    body: ExitReviewRequest = ExitReviewRequest(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Leave review mode and go back to 'completed', the state before Start Review.
+
+    Start Review used to be a one way door: the only exits were finishing the
+    whole review or reopening it, which keeps the inspection in review mode.
+    Without discard this refuses when any review work exists, so a look around
+    never costs anything. With discard the work is removed the same way reopen
+    does, then the CV findings are unlocked and the status goes back.
+    """
+    inspection = _get_org_inspection(inspection_id, db, current_user)
+    if inspection.status != InspectionStatus.pending_review.value:
+        raise HTTPException(status_code=409, detail=f"Inspection status is '{inspection.status}' — only an inspection in review can exit review")
+
+    image_ids = [row[0] for row in db.query(Image.id).filter(Image.inspection_id == inspection_id).all()]
+    reviews = db.query(DetectionReview).filter(DetectionReview.image_id.in_(image_ids)).count() if image_ids else 0
+    added = db.query(Detection).filter(Detection.image_id.in_(image_ids), Detection.source == "engineer_added").count() if image_ids else 0
+    if (reviews or added) and not body.discard:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{reviews} submitted review(s) and {added} engineer added finding(s) exist — confirm discard to leave review mode and lose them",
+        )
+
+    totals = {"cleared_reviews": 0, "removed_engineer_detections": 0}
+    if body.discard:
+        for image_id in image_ids:
+            counts = _reset_image_review(db, image_id)
+            for k in totals:
+                totals[k] += counts[k]
+
+    unlocked = 0
+    if image_ids:
+        unlocked = db.query(Detection).filter(Detection.image_id.in_(image_ids)).update(
+            {Detection.is_locked: False, Detection.reviewed: False, Detection.reviewed_by: None, Detection.review_date: None},
+            synchronize_session=False,
+        )
+    inspection.status = InspectionStatus.completed.value
+    db.commit()
+    return ExitReviewResponse(
+        inspection_id=inspection_id,
+        status=inspection.status,
+        discarded_reviews=totals["cleared_reviews"],
+        removed_engineer_detections=totals["removed_engineer_detections"],
+        unlocked_cv_detections=unlocked,
     )
 
 

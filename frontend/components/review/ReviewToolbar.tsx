@@ -115,7 +115,7 @@ export default function ReviewToolbar({
 
       {/* Progress + unsaved */}
       <span className="text-xs font-mono font-semibold text-slate-500 whitespace-nowrap">
-        {reviewedImages} / {totalImages} images reviewed
+        {reviewedImages} / {totalImages} with findings reviewed
       </span>
       {hasUnsaved && (
         <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">Unsaved changes</span>

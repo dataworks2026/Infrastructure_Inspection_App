@@ -8,7 +8,7 @@ import type {
   StartReviewResponse, SubmitReviewRequest, SubmitReviewResponse,
   CompleteReviewResponse, ReviewDiffResponse, ReviewStatsResponse,
   UpdateAssetTypeResponse,
-  ReopenInspectionReviewResponse, ReopenImageReviewResponse,
+  ReopenInspectionReviewResponse, ReopenImageReviewResponse, ExitReviewResponse,
 } from '@/types';
 
 const api = axios.create({ baseURL: '/api/v1' });
@@ -172,6 +172,8 @@ export const reviewApi = {
     api.patch<UpdateAssetTypeResponse>(`/images/${imageId}/asset-type`, { asset_type: assetType }).then(r => r.data),
   reopenInspectionReview: (inspectionId: string) =>
     api.post<ReopenInspectionReviewResponse>(`/inspections/${inspectionId}/reopen-review`).then(r => r.data),
+  exitReview: (inspectionId: string, discard = false) =>
+    api.post<ExitReviewResponse>(`/inspections/${inspectionId}/exit-review`, { discard }).then(r => r.data),
   reopenImageReview: (imageId: string) =>
     api.post<ReopenImageReviewResponse>(`/images/${imageId}/reopen-review`).then(r => r.data),
 };

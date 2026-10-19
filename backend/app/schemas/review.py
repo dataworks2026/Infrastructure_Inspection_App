@@ -240,6 +240,20 @@ class ReopenInspectionReviewResponse(BaseModel):
     reset_cv_detections: int
 
 
+class ExitReviewRequest(BaseModel):
+    """discard=False: leave review mode only if nothing was reviewed yet.
+    discard=True: throw away submitted reviews and engineer added findings, then leave."""
+    discard: bool = False
+
+
+class ExitReviewResponse(BaseModel):
+    inspection_id: str
+    status: str
+    discarded_reviews: int
+    removed_engineer_detections: int
+    unlocked_cv_detections: int
+
+
 class ReviewDiffResponse(BaseModel):
     inspection_id: str
     reviewed_by: Optional[str] = None

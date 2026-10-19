@@ -188,6 +188,9 @@ export default function InspectionDetailPage() {
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<Record<string, any>>({});
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [showExitReviewConfirm, setShowExitReviewConfirm] = useState(false);
+  // In review mode: 'review' = the annotation canvas, 'compare' = original next to the AI analysis
+  const [reviewView, setReviewView] = useState<'review' | 'compare'>('review');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [downloadingImages, setDownloadingImages] = useState(false);
@@ -453,6 +456,33 @@ export default function InspectionDetailPage() {
     },
     onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to re-open review'),
   });
+
+  // Leave review mode and go back to viewing. A plain exit when nothing was
+  // reviewed; when review work exists the confirm dialog asks before discarding it.
+  const exitReviewMutation = useMutation({
+    mutationFn: (discard: boolean) => reviewApi.exitReview(inspectionId, discard),
+    onSuccess: (res) => {
+      setShowExitReviewConfirm(false);
+      setSubmittedImages(new Set());
+      setReviewState({});
+      setAddedDrafts({});
+      setSelectedDetectionId(null);
+      setTool('select');
+      setReviewView('review');
+      queryClient.invalidateQueries({ queryKey: ['inspection', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      toast.success(res.discarded_reviews || res.removed_engineer_detections
+        ? `Left review mode — ${res.discarded_reviews} review(s) and ${res.removed_engineer_detections} added finding(s) discarded`
+        : 'Left review mode — nothing was changed');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to leave review mode'),
+  });
+  /** Any submitted image, any server flagged review, or any added finding on this inspection. */
+  const reviewWorkExists =
+    submittedImages.size > 0 ||
+    Object.values(addedDrafts).some(list => (list ?? []).length > 0) ||
+    images.some((im: any) => ((analysisResults[im.id]?.detections ?? []) as Detection[]).some(d => !!d.reviewed || d.source === 'engineer_added'));
 
   // Re-open a SINGLE image — discards that image's corrections and resets its CV
   // detections; the inspection may flip back to pending_review server-side.
@@ -785,6 +815,10 @@ export default function InspectionDetailPage() {
   // ── Review-mode derived values ────────────────────────────────────────────
   const isReviewMode = inspection.status === 'pending_review';
   const reviewedImageCount = images.filter((im: any) => isImageReviewed(im.id)).length;
+  // Honest progress: clean photos (no CV findings) need no review and are not counted as reviewed work
+  const imagesWithFindings = images.filter((im: any) => cvDetsOf(im.id).length > 0);
+  const cleanImageCount = images.length - imagesWithFindings.length;
+  const reviewedWithFindingsCount = imagesWithFindings.filter((im: any) => isImageSubmitted(im.id)).length;
   const allImagesReviewed = !loadingDetections && images.length > 0 && reviewedImageCount === images.length;
 
   const currentCvDets: Detection[] = currentImg ? cvDetsOf(currentImg.id) : [];
@@ -1168,6 +1202,16 @@ export default function InspectionDetailPage() {
         onCancel={() => setShowStartReviewConfirm(false)}
       />
 
+      <ConfirmDialog
+        isOpen={showExitReviewConfirm}
+        title="Exit Review and Discard Work"
+        message="Review work exists on this inspection (submitted images or added findings). Exiting now will DISCARD it and put the inspection back to viewing, as it was before Start Review. To keep the work, finish the review instead."
+        confirmLabel="Discard and Exit"
+        isLoading={exitReviewMutation.isPending}
+        onConfirm={() => exitReviewMutation.mutate(true)}
+        onCancel={() => setShowExitReviewConfirm(false)}
+      />
+
       {/* ── Review Mode banner ── */}
       {isReviewMode && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 mb-6 shadow-sm">
@@ -1184,13 +1228,22 @@ export default function InspectionDetailPage() {
                 <div className="w-40 h-2 bg-amber-200/70 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                    style={{ width: `${images.length ? (reviewedImageCount / images.length) * 100 : 0}%` }}
+                    style={{ width: `${imagesWithFindings.length ? (reviewedWithFindingsCount / imagesWithFindings.length) * 100 : 100}%` }}
                   />
                 </div>
                 <span className="text-sm font-semibold text-amber-800 font-mono whitespace-nowrap">
-                  {reviewedImageCount} / {images.length} images reviewed
+                  {reviewedWithFindingsCount} / {imagesWithFindings.length} photos with findings reviewed{cleanImageCount > 0 ? ` · ${cleanImageCount} clean, no review needed` : ''}
                 </span>
               </div>
+              <button
+                onClick={() => reviewWorkExists ? setShowExitReviewConfirm(true) : exitReviewMutation.mutate(false)}
+                disabled={exitReviewMutation.isPending}
+                title="Leave review mode and go back to viewing. Nothing changes unless you confirm discarding review work."
+                className="flex items-center gap-1.5 text-sm font-semibold text-amber-800 bg-white border border-amber-300 px-3 py-2 rounded-lg hover:bg-amber-100 transition-all disabled:opacity-50"
+              >
+                {exitReviewMutation.isPending ? <Loader size={15} className="animate-spin" /> : <X size={15} />}
+                Exit Review
+              </button>
               {allImagesReviewed && (
                 <button
                   onClick={() => completeReviewMutation.mutate()}
@@ -1442,6 +1495,15 @@ export default function InspectionDetailPage() {
                         Review again
                       </button>
                     )}
+                    <button
+                      onClick={() => setReviewView(v => v === 'review' ? 'compare' : 'review')}
+                      title={reviewView === 'review' ? 'Show the original photo next to the AI analysis' : 'Back to the review canvas'}
+                      className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md transition-all ${
+                        reviewView === 'compare' ? 'bg-slate-800 text-white hover:bg-slate-700' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Eye size={14} /> {reviewView === 'review' ? 'Original + AI Analysis' : 'Back to review'}
+                    </button>
                     <button onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))}
                       className="flex items-center gap-1.5 text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 transition-all">
                       <ZoomIn size={14} /> Full Screen
@@ -1450,7 +1512,7 @@ export default function InspectionDetailPage() {
                 </div>
 
                 {/* Annotation-style toolbar (active review only) */}
-                {!currentSubmitted && (
+                {!currentSubmitted && reviewView === 'review' && (
                   <ReviewToolbar
                     tool={tool}
                     onToolChange={setTool}
@@ -1458,8 +1520,8 @@ export default function InspectionDetailPage() {
                     onDelete={() => { if (selectedDraft) handleRemoveDraft(selectedDraft.tempId); }}
                     showLabels={showLabels}
                     onToggleLabels={() => setShowLabels(s => !s)}
-                    reviewedImages={reviewedImageCount}
-                    totalImages={images.length}
+                    reviewedImages={reviewedWithFindingsCount}
+                    totalImages={imagesWithFindings.length}
                     hasUnsaved={hasUnsavedChanges}
                     unactionedCount={unactionedCount}
                     onAcceptAll={() => handleBulkAction('accepted')}
@@ -1480,6 +1542,19 @@ export default function InspectionDetailPage() {
                       <div className="w-full rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-3 py-24">
                         <div className="w-8 h-8 border-2 border-mira-blue/30 border-t-mira-blue rounded-full animate-spin" />
                         <p className="text-sm text-slate-400 font-medium">Fetching detection data…</p>
+                      </div>
+                    ) : reviewView === 'compare' ? (
+                      /* The same pair the page shows outside review mode: the plain photo and the AI findings */
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Original</div>
+                          <img src={currentImg.url} alt="Original" className="w-full rounded-lg border border-slate-200 cursor-pointer"
+                            onClick={() => setLightboxIndex(sortedImages.findIndex((i: any) => i.id === currentImg.id))} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">AI Analysis</div>
+                          <ReviewOverlay imageUrl={currentImg.url} detections={cvDetsOf(currentImg.id)} mode="view" showLabels={showLabels} />
+                        </div>
                       </div>
                     ) : (
                       <ReviewOverlay
