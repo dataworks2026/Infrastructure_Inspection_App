@@ -1285,25 +1285,28 @@ export default function InspectionDetailPage() {
 
       {/* ── Review Mode banner ── */}
       {isReviewMode && (
-        <div className="bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 mb-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 xl:px-5 xl:py-4 mb-4 xl:mb-6 shadow-sm">
+          <div className="flex items-center justify-between gap-x-4 gap-y-2 flex-wrap">
             <div className="flex items-center gap-3">
               <ClipboardCheck size={20} className="text-amber-600 flex-shrink-0" />
               <div>
                 <p className="text-base font-bold text-amber-800">Review Mode Active</p>
-                <p className="text-sm text-amber-700">Review each detection, then submit per image.</p>
+                <p className="hidden xl:block text-sm text-amber-700">Review each detection, then submit per image.</p>
               </div>
             </div>
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <div className="w-40 h-2 bg-amber-200/70 rounded-full overflow-hidden">
+                <div className="w-24 xl:w-40 h-2 bg-amber-200/70 rounded-full overflow-hidden shrink-0">
                   <div
                     className="h-full bg-amber-500 rounded-full transition-all duration-300"
                     style={{ width: `${imagesWithFindings.length ? (reviewedWithFindingsCount / imagesWithFindings.length) * 100 : 100}%` }}
                   />
                 </div>
-                <span className="text-sm font-semibold text-amber-800 font-mono whitespace-nowrap">
-                  {reviewedWithFindingsCount} / {imagesWithFindings.length} photos with findings reviewed{cleanImageCount > 0 ? ` · ${cleanImageCount} clean, no review needed` : ''}
+                <span
+                  title={`${reviewedWithFindingsCount} of ${imagesWithFindings.length} photos with findings reviewed${cleanImageCount > 0 ? `; ${cleanImageCount} clean photos need no review` : ''}`}
+                  className="text-sm font-semibold text-amber-800 font-mono whitespace-nowrap"
+                >
+                  {reviewedWithFindingsCount} / {imagesWithFindings.length} reviewed{cleanImageCount > 0 ? <span className="font-normal text-amber-700"> · {cleanImageCount} clean, no review needed</span> : ''}
                 </span>
               </div>
               <button
@@ -1431,7 +1434,19 @@ export default function InspectionDetailPage() {
       )}
 
       {/* ── Summary stats — always visible once images loaded, live-update during load ── */}
-      {completedCount > 0 && (
+      {completedCount > 0 && isReviewMode && (
+        /* While reviewing, the working area matters more than four big cards: one slim line. */
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mb-4 px-1 text-sm text-slate-600">
+          <span><b className="font-mono text-slate-800">{completedCount}</b>/{images.length} analysed</span>
+          <span><b className="font-mono text-slate-800">{loadingDetections ? '…' : totalDetections}</b> detections</span>
+          <span><b className="font-mono text-slate-800">{loadingDetections ? '…' : cleanCount}</b> clean</span>
+          <span className="flex items-center gap-1.5">
+            worst
+            {loadingDetections ? <b className="font-mono text-slate-800">…</b> : worstSeverity ? <SeverityBadge severity={worstSeverity} /> : <b className="text-emerald-600">all clear</b>}
+          </span>
+        </div>
+      )}
+      {completedCount > 0 && !isReviewMode && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
             <div className="flex items-center gap-2 mb-2">
@@ -1487,9 +1502,9 @@ export default function InspectionDetailPage() {
           <p className="text-lg text-mira-muted font-medium">No images uploaded yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-12 gap-6">
-          {/* Left: Thumbnail strip */}
-          <div className="col-span-3">
+        <div className={isReviewMode ? 'grid grid-cols-1 2xl:grid-cols-12 gap-4 2xl:gap-6' : 'grid grid-cols-12 gap-6'}>
+          {/* Left: Thumbnail strip (a horizontal strip above the canvas on windows narrower than 1536 px while reviewing) */}
+          <div className={isReviewMode ? '2xl:col-span-3 min-w-0' : 'col-span-3'}>
             <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">{images.length} Images</h3>
@@ -1506,7 +1521,9 @@ export default function InspectionDetailPage() {
                   <ArrowUpDown size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </div>
-              <div className="max-h-[calc(100vh-320px)] overflow-y-auto p-2 space-y-1.5">
+              <div className={isReviewMode
+                ? 'flex 2xl:block gap-2 overflow-x-auto 2xl:overflow-x-visible 2xl:max-h-[calc(100vh-320px)] 2xl:overflow-y-auto p-2 2xl:space-y-1.5'
+                : 'max-h-[calc(100vh-320px)] overflow-y-auto p-2 space-y-1.5'}>
                 {sortedImages.map((img: any) => {
                   const r = displayResults[img.id];
                   const hasDetections = r && !r.error && r.total_detections > 0;
@@ -1517,7 +1534,9 @@ export default function InspectionDetailPage() {
                     <div key={img.id} role="button" tabIndex={0}
                       onClick={() => setSelectedImage(img.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedImage(img.id); } }}
-                      className={`relative w-full text-left rounded-lg p-2 transition-all group cursor-pointer ${
+                      className={`relative text-left rounded-lg p-2 transition-all group cursor-pointer ${
+                        isReviewMode ? 'w-52 shrink-0 2xl:w-full' : 'w-full'
+                      } ${
                         isSelected ? 'bg-sky-50 ring-2 ring-sky-300' : 'hover:bg-slate-50'
                       }`}>
                       {/* Per-image delete — opens the 2-step confirm dialog */}
@@ -1581,10 +1600,11 @@ export default function InspectionDetailPage() {
           </div>
 
           {/* Right: Detail view */}
-          <div className="col-span-9">
+          <div className={isReviewMode ? '2xl:col-span-9 min-w-0' : 'col-span-9'}>
             {currentImg && isReviewMode ? (
               /* ── Review Mode: interactive overlay + action panel ── */
-              <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-hidden">
+              /* overflow-clip keeps the rounded corners but, unlike overflow-hidden, lets the toolbar stick to the top of the window */
+              <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-clip">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
                   <div className="flex items-center gap-3 min-w-0">
                     <ImageIcon size={18} className="text-mira-muted flex-shrink-0" />
@@ -1669,9 +1689,9 @@ export default function InspectionDetailPage() {
 
                 {/* The panel on the right is pinned to the canvas height and scrolls on its own, so the
                     page never gets shorter or longer while a photo is being reviewed or saved. */}
-                <div className="relative flex items-stretch">
+                <div className="relative xl:flex xl:items-stretch">
                   {/* Canvas */}
-                  <div className="flex-1 min-w-0 p-5 pr-[380px]">
+                  <div className="flex-1 min-w-0 p-5 xl:pr-[380px]">
                     {currentImgLoading ? (
                       <div className="w-full rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-3 py-24">
                         <div className="w-8 h-8 border-2 border-mira-blue/30 border-t-mira-blue rounded-full animate-spin" />
@@ -1730,7 +1750,7 @@ export default function InspectionDetailPage() {
                   </div>
 
                   {/* Right: per-detection action panel */}
-                  <div className="absolute inset-y-0 right-0 w-[360px] border-l border-slate-100 bg-slate-50/40 overflow-y-auto">
+                  <div className="border-t xl:border-t-0 xl:border-l border-slate-100 bg-slate-50/40 xl:absolute xl:inset-y-0 xl:right-0 xl:w-[360px] xl:overflow-y-auto">
                     <ReviewPanel
                       detections={allServerDets}
                       drafts={currentDrafts}

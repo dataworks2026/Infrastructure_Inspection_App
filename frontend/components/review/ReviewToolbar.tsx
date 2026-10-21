@@ -67,9 +67,9 @@ export default function ReviewToolbar({
   onMarkClear,
 }: ReviewToolbarProps) {
   return (
-    <div className="flex items-center gap-2 flex-nowrap overflow-x-auto min-h-[47px] px-4 py-2 border-b border-slate-100 bg-white">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-x-2 gap-y-2 min-h-[47px] px-4 py-2 border-b border-slate-100 bg-white shadow-[0_1px_0_0_rgba(15,23,42,0.04)]">
       {/* Tool group */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         {TOOLS.map(({ id, label, shortcut, Icon }) => (
           <button
             key={id}
@@ -111,18 +111,10 @@ export default function ReviewToolbar({
         <span className={`text-[10px] font-mono ${showLabels ? 'text-slate-400' : 'text-slate-300'}`}>L</span>
       </button>
 
-      <div className="w-px h-6 bg-slate-200" />
-
-      {/* Progress + unsaved */}
-      <span className="text-xs font-mono font-semibold text-slate-500 whitespace-nowrap">
-        {reviewedImages} / {totalImages} with findings reviewed
-      </span>
-      {hasUnsaved && (
-        <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">Unsaved changes</span>
-      )}
-
-      <div className="flex-1" />
-
+      {/* Right group: never hidden. It wraps as one block on narrow windows instead of
+          scrolling off the edge, and its width does not depend on the review state, so the
+          toolbar keeps one height. */}
+      <div className="ml-auto flex items-center gap-2 shrink-0">
       {/* Bulk actions */}
       <button
         title="Accept all unactioned CV detections on this image (does not override choices you already made)"
@@ -156,12 +148,19 @@ export default function ReviewToolbar({
           title={canSubmit ? 'Submit review for this image' : missingHints.join('\n') || 'Nothing to submit'}
           onClick={onSubmit}
           disabled={!canSubmit || submitting}
-          className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          className="relative flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {submitting ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
           Save
+          {hasUnsaved && (
+            <span
+              title="Unsaved changes on this photo"
+              className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white"
+            />
+          )}
         </button>
       )}
+      </div>
     </div>
   );
 }
