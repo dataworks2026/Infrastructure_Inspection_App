@@ -191,6 +191,15 @@ export default function InspectionDetailPage() {
   const [showExitReviewConfirm, setShowExitReviewConfirm] = useState(false);
   // In review mode: 'review' = the annotation canvas, 'compare' = original next to the AI analysis
   const [reviewView, setReviewView] = useState<'review' | 'compare'>('review');
+  // 'Save and exit': the review stays in progress on the server (every saved image is kept),
+  // this browser just shows the inspection in normal viewing mode until 'Resume review'.
+  const pausedKey = `mira_review_paused:${inspectionId}`;
+  const [reviewPaused, setReviewPaused] = useState(false);
+  useEffect(() => { try { setReviewPaused(localStorage.getItem(pausedKey) === '1'); } catch { /* storage blocked */ } }, [pausedKey]);
+  const setReviewPausedPersist = (v: boolean) => {
+    setReviewPaused(v);
+    try { if (v) localStorage.setItem(pausedKey, '1'); else localStorage.removeItem(pausedKey); } catch { /* storage blocked */ }
+  };
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [downloadingImages, setDownloadingImages] = useState(false);
@@ -402,10 +411,10 @@ export default function InspectionDetailPage() {
       setSelectedDetectionId(null);
       setTool('select');
       queryClient.invalidateQueries({ queryKey: ['all-detections', inspectionId] });
-      toast.success('Image review submitted');
-      // Advance to the next image that still needs review
-      const next = images.find((im: any) => !isImageReviewed(im.id, done));
-      if (next) setSelectedImage(next.id);
+      toast.success('Image review saved');
+      // Stay on this photo. Auto advancing used to switch to another photo (in server
+      // order, not the sidebar order) the moment Save was pressed, which read as the
+      // picture jumping. The saved bar below the header offers the next photo instead.
     },
     onError: (err: any, { imageId }) => {
       if (err?.response?.status === 409) {
@@ -463,6 +472,7 @@ export default function InspectionDetailPage() {
     mutationFn: (discard: boolean) => reviewApi.exitReview(inspectionId, discard),
     onSuccess: (res) => {
       setShowExitReviewConfirm(false);
+      setReviewPausedPersist(false);
       setSubmittedImages(new Set());
       setReviewState({});
       setAddedDrafts({});
@@ -717,7 +727,7 @@ export default function InspectionDetailPage() {
   // V = Select, B = Box, O = Oval, Esc = back to Select, Del/Backspace = remove
   // the selected engineer draft. Never fires while typing or in the lightbox.
   useEffect(() => {
-    if (inspection?.status !== 'pending_review') return;
+    if (inspection?.status !== 'pending_review' || reviewPaused) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
@@ -813,7 +823,8 @@ export default function InspectionDetailPage() {
   const currentImgLoading = loadingDetections && currentImg?.analysis_status === 'completed' && !currentResult;
 
   // ── Review-mode derived values ────────────────────────────────────────────
-  const isReviewMode = inspection.status === 'pending_review';
+  const isReviewMode = inspection.status === 'pending_review' && !reviewPaused;
+  const reviewInProgressPaused = inspection.status === 'pending_review' && reviewPaused;
   const reviewedImageCount = images.filter((im: any) => isImageReviewed(im.id)).length;
   // Honest progress: clean photos (no CV findings) need no review and are not counted as reviewed work
   const imagesWithFindings = images.filter((im: any) => cvDetsOf(im.id).length > 0);
@@ -825,6 +836,7 @@ export default function InspectionDetailPage() {
   const currentStates: Record<string, LocalDetectionReview> = currentImg ? (reviewState[currentImg.id] ?? {}) : {};
   const currentDrafts: AddedDraft[] = currentImg ? (addedDrafts[currentImg.id] ?? []) : [];
   const currentSubmitted = currentImg ? isImageSubmitted(currentImg.id) : false;
+  const nextUnreviewed = sortedImages.find((im: any) => im.id !== currentImg?.id && !isImageReviewed(im.id));
 
   const actionedCount = currentCvDets.filter(d => currentStates[d.id]?.action).length;
   const unactionedCount = currentCvDets.length - actionedCount;
@@ -1236,13 +1248,20 @@ export default function InspectionDetailPage() {
                 </span>
               </div>
               <button
+                onClick={() => setReviewPausedPersist(true)}
+                title="Keep everything saved so far and go back to normal viewing. Resume the review any time."
+                className="flex items-center gap-1.5 text-sm font-semibold text-amber-800 bg-white border border-amber-300 px-3 py-2 rounded-lg hover:bg-amber-100 transition-all"
+              >
+                <Check size={15} /> Save and exit
+              </button>
+              <button
                 onClick={() => reviewWorkExists ? setShowExitReviewConfirm(true) : exitReviewMutation.mutate(false)}
                 disabled={exitReviewMutation.isPending}
-                title="Leave review mode and go back to viewing. Nothing changes unless you confirm discarding review work."
-                className="flex items-center gap-1.5 text-sm font-semibold text-amber-800 bg-white border border-amber-300 px-3 py-2 rounded-lg hover:bg-amber-100 transition-all disabled:opacity-50"
+                title={reviewWorkExists ? 'Throw away the review work and put the inspection back as it was before Start Review' : 'Leave review mode; nothing was reviewed, so nothing changes'}
+                className="flex items-center gap-1.5 text-sm font-semibold text-red-700 bg-white border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-all disabled:opacity-50"
               >
                 {exitReviewMutation.isPending ? <Loader size={15} className="animate-spin" /> : <X size={15} />}
-                Exit Review
+                {reviewWorkExists ? 'Discard and exit' : 'Exit review'}
               </button>
               {allImagesReviewed && (
                 <button
@@ -1257,6 +1276,34 @@ export default function InspectionDetailPage() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Review paused banner: the review is still in progress on the server ── */}
+      {reviewInProgressPaused && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 mb-6 shadow-sm flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <ClipboardCheck size={18} className="text-amber-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-amber-800">Review in progress, paused</p>
+              <p className="text-sm text-amber-700">{reviewedWithFindingsCount} / {imagesWithFindings.length} photos with findings reviewed. Everything saved so far is kept.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setReviewPausedPersist(false)}
+              className="flex items-center gap-1.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg transition-all shadow-sm"
+            >
+              <ClipboardCheck size={15} /> Resume review
+            </button>
+            <button
+              onClick={() => reviewWorkExists ? setShowExitReviewConfirm(true) : exitReviewMutation.mutate(false)}
+              disabled={exitReviewMutation.isPending}
+              className="flex items-center gap-1.5 text-sm font-semibold text-red-700 bg-white border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-all disabled:opacity-50"
+            >
+              <X size={15} /> {reviewWorkExists ? 'Discard and exit' : 'Exit review'}
+            </button>
           </div>
         </div>
       )}
@@ -1534,10 +1581,28 @@ export default function InspectionDetailPage() {
                     onMarkClear={handleMarkClear}
                   />
                 )}
+                {currentSubmitted && reviewView === 'review' && (
+                  <div className="flex items-center gap-3 px-4 border-b border-slate-100 bg-emerald-50/70 min-h-[46px]">
+                    <CheckCircle size={16} className="text-emerald-600 flex-shrink-0" />
+                    <span className="text-sm font-medium text-emerald-800">This photo&apos;s review is saved.</span>
+                    {nextUnreviewed ? (
+                      <button
+                        onClick={() => setSelectedImage(nextUnreviewed.id)}
+                        className="ml-auto flex items-center gap-1.5 text-sm font-semibold text-white bg-mira-blue px-3 py-1.5 rounded-md hover:bg-sky-700 transition-all"
+                      >
+                        Next photo to review <ChevronRight size={14} />
+                      </button>
+                    ) : (
+                      <span className="ml-auto text-sm text-emerald-700">All photos with findings are reviewed.</span>
+                    )}
+                  </div>
+                )}
 
-                <div className="flex items-stretch">
+                {/* The panel on the right is pinned to the canvas height and scrolls on its own, so the
+                    page never gets shorter or longer while a photo is being reviewed or saved. */}
+                <div className="relative flex items-stretch">
                   {/* Canvas */}
-                  <div className="flex-1 min-w-0 p-5">
+                  <div className="flex-1 min-w-0 p-5 pr-[380px]">
                     {currentImgLoading ? (
                       <div className="w-full rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-3 py-24">
                         <div className="w-8 h-8 border-2 border-mira-blue/30 border-t-mira-blue rounded-full animate-spin" />
@@ -1583,18 +1648,20 @@ export default function InspectionDetailPage() {
                         )}
                       </ReviewOverlay>
                     )}
-                    {drawing && (
-                      <p className="text-sm text-emerald-700 mt-2 font-medium">
-                        Drag on the image to draw the new {tool === 'oval' ? 'oval' : 'box'}. Press Esc to cancel.
-                      </p>
-                    )}
-                    {!drawing && editingDetId && editorMode === 'edit' && (
-                      <p className="text-sm text-amber-700 mt-2 font-medium">Drag the shape to move it, or pull the handles to resize. Changes are saved with your review.</p>
-                    )}
+                    {/* One hint line that is always present, so the card keeps one height whether a
+                        box is being drawn, edited, or the photo is saved (its disappearance used to
+                        shorten the page and shift the picture on Save). */}
+                    <p className={`text-sm mt-2 font-medium min-h-[20px] ${drawing ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {drawing
+                        ? `Drag on the image to draw the new ${tool === 'oval' ? 'oval' : 'box'}. Press Esc to cancel.`
+                        : (editingDetId && editorMode === 'edit')
+                          ? 'Drag the shape to move it, or pull the handles to resize. Changes are saved with your review.'
+                          : ' '}
+                    </p>
                   </div>
 
                   {/* Right: per-detection action panel */}
-                  <div className="w-[360px] flex-shrink-0 border-l border-slate-100 bg-slate-50/40">
+                  <div className="absolute inset-y-0 right-0 w-[360px] border-l border-slate-100 bg-slate-50/40 overflow-y-auto">
                     <ReviewPanel
                       detections={allServerDets}
                       drafts={currentDrafts}

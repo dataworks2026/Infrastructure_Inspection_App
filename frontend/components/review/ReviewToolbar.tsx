@@ -67,7 +67,7 @@ export default function ReviewToolbar({
   onMarkClear,
 }: ReviewToolbarProps) {
   return (
-    <div className="flex items-center gap-2 flex-wrap px-4 py-2 border-b border-slate-100 bg-white">
+    <div className="flex items-center gap-2 flex-nowrap overflow-x-auto min-h-[47px] px-4 py-2 border-b border-slate-100 bg-white">
       {/* Tool group */}
       <div className="flex items-center gap-1">
         {TOOLS.map(({ id, label, shortcut, Icon }) => (

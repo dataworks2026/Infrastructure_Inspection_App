@@ -313,8 +313,16 @@ export default function ReviewPanel({
   useEffect(() => {
     if (labelsFocusToken <= 0) return;
     const t = setTimeout(() => {
-      labelsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      damageSelectRef.current?.focus();
+      // Scroll only inside the panel's own scroll box and focus without scrolling:
+      // scrollIntoView and a plain focus() also scroll the whole page, which made
+      // the photo jump the moment a box was drawn.
+      const el = labelsRef.current;
+      const box = el?.closest('.overflow-y-auto') as HTMLElement | null;
+      if (el && box) {
+        const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 8;
+        box.scrollTo({ top, behavior: 'smooth' });
+      }
+      damageSelectRef.current?.focus({ preventScroll: true });
     }, 50);
     return () => clearTimeout(t);
   }, [labelsFocusToken]);
