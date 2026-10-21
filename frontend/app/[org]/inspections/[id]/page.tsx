@@ -1023,12 +1023,12 @@ export default function InspectionDetailPage() {
         />
       )}
 
-      <Link href="/inspections" className="inline-flex items-center gap-2 text-base text-mira-muted hover:text-mira-blue mb-6 font-medium">
+      <Link href="/inspections" className={`inline-flex items-center gap-2 text-base text-mira-muted hover:text-mira-blue font-medium ${isReviewMode ? 'mb-3 xl:mb-6' : 'mb-6'}`}>
         <ArrowLeft size={18} /> Back to Inspections
       </Link>
 
       {/* Header */}
-      <div className="bg-white border border-[#C8E6D4] rounded-xl p-6 shadow-sm mb-6">
+      <div className={`bg-white border border-[#C8E6D4] rounded-xl shadow-sm ${isReviewMode ? 'p-3.5 xl:p-6 mb-3 xl:mb-6' : 'p-6 mb-6'}`}>
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             {editingName ? (
@@ -1105,6 +1105,7 @@ export default function InspectionDetailPage() {
                   <span className="text-sm text-slate-400">
                     {new Date(inspection.inspected_at || inspection.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
+                  {!readOnlyRole && (
                   <button onClick={() => {
                     const d = new Date(inspection.inspected_at || inspection.created_at);
                     setEditDate(d.toISOString().split('T')[0]);
@@ -1114,6 +1115,7 @@ export default function InspectionDetailPage() {
                     style={{ color: '#082E29' }} title="Edit date">
                     <Pencil size={13} />
                   </button>
+                  )}
                 </span>
               )}
               {inspection.weather_conditions && <span className="text-sm text-slate-400">Weather: {inspection.weather_conditions}</span>}
@@ -1296,7 +1298,7 @@ export default function InspectionDetailPage() {
             </div>
             <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <div className="w-24 xl:w-40 h-2 bg-amber-200/70 rounded-full overflow-hidden shrink-0">
+                <div className="hidden xl:block xl:w-40 h-2 bg-amber-200/70 rounded-full overflow-hidden shrink-0">
                   <div
                     className="h-full bg-amber-500 rounded-full transition-all duration-300"
                     style={{ width: `${imagesWithFindings.length ? (reviewedWithFindingsCount / imagesWithFindings.length) * 100 : 100}%` }}
@@ -1306,7 +1308,7 @@ export default function InspectionDetailPage() {
                   title={`${reviewedWithFindingsCount} of ${imagesWithFindings.length} photos with findings reviewed${cleanImageCount > 0 ? `; ${cleanImageCount} clean photos need no review` : ''}`}
                   className="text-sm font-semibold text-amber-800 font-mono whitespace-nowrap"
                 >
-                  {reviewedWithFindingsCount} / {imagesWithFindings.length} reviewed{cleanImageCount > 0 ? <span className="font-normal text-amber-700"> · {cleanImageCount} clean, no review needed</span> : ''}
+                  {reviewedWithFindingsCount} / {imagesWithFindings.length} reviewed{cleanImageCount > 0 ? <span className="hidden xl:inline font-normal text-amber-700"> · {cleanImageCount} clean, no review needed</span> : ''}
                 </span>
               </div>
               <button
@@ -1323,20 +1325,20 @@ export default function InspectionDetailPage() {
                 className="flex items-center gap-1.5 text-sm font-semibold text-red-700 bg-white border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-all disabled:opacity-50"
               >
                 {exitReviewMutation.isPending ? <Loader size={15} className="animate-spin" /> : <X size={15} />}
-                {reviewWorkExists ? 'Discard and exit' : 'Exit review'}
+                {reviewWorkExists ? <>Discard<span className="hidden xl:inline"> and exit</span></> : 'Exit review'}
               </button>
-              {allImagesReviewed && (
-                <button
-                  onClick={() => completeReviewMutation.mutate()}
-                  disabled={completeReviewMutation.isPending}
-                  className="flex items-center gap-1.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg transition-all shadow-sm disabled:opacity-50"
-                >
-                  {completeReviewMutation.isPending
-                    ? <Loader size={15} className="animate-spin" />
-                    : <CheckCircle size={15} />}
-                  Complete Review
-                </button>
-              )}
+              {/* Always present (disabled until every photo is reviewed) so the banner never changes size when the last photo is saved */}
+              <button
+                onClick={() => completeReviewMutation.mutate()}
+                disabled={!allImagesReviewed || completeReviewMutation.isPending}
+                title={allImagesReviewed ? 'Finish the review and open the summary' : 'Available once every photo with findings is reviewed'}
+                className="flex items-center gap-1.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 xl:px-4 py-2 rounded-lg transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600"
+              >
+                {completeReviewMutation.isPending
+                  ? <Loader size={15} className="animate-spin" />
+                  : <CheckCircle size={15} />}
+                Complete<span className="hidden xl:inline"> Review</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1384,6 +1386,7 @@ export default function InspectionDetailPage() {
       {inspection.status === 'review_completed' && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6 shadow-sm flex items-center justify-end gap-4 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
+            {!readOnlyRole && (
             <button
               onClick={() => setShowReopenInspectionConfirm(true)}
               disabled={reopenInspectionMutation.isPending}
@@ -1395,6 +1398,7 @@ export default function InspectionDetailPage() {
                 : <Pencil size={14} />}
               Review again
             </button>
+            )}
             <Link
               href={`/inspections/${inspectionId}/review-summary`}
               className="text-sm font-bold text-emerald-700 hover:text-emerald-900 bg-white border border-emerald-200 px-3.5 py-2 rounded-lg transition-all"
@@ -1434,63 +1438,51 @@ export default function InspectionDetailPage() {
       )}
 
       {/* ── Summary stats — always visible once images loaded, live-update during load ── */}
-      {completedCount > 0 && isReviewMode && (
-        /* While reviewing, the working area matters more than four big cards: one slim line. */
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mb-4 px-1 text-sm text-slate-600">
-          <span><b className="font-mono text-slate-800">{completedCount}</b>/{images.length} analysed</span>
-          <span><b className="font-mono text-slate-800">{loadingDetections ? '…' : totalDetections}</b> detections</span>
-          <span><b className="font-mono text-slate-800">{loadingDetections ? '…' : cleanCount}</b> clean</span>
-          <span className="flex items-center gap-1.5">
-            worst
-            {loadingDetections ? <b className="font-mono text-slate-800">…</b> : worstSeverity ? <SeverityBadge severity={worstSeverity} /> : <b className="text-emerald-600">all clear</b>}
-          </span>
-        </div>
-      )}
-      {completedCount > 0 && !isReviewMode && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center"><ImageIcon size={16} className="text-sky-600" /></div>
-              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Analysed</p>
+      {completedCount > 0 && (
+        /* One compact KPI bar in the same card style as the rest of the app. Cells are separated by
+           1px gaps over a tinted background, so the dividers stay clean at any column count. */
+        <div className="mb-4 xl:mb-5 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-card grid grid-cols-2 sm:grid-cols-4 gap-px">
+          <div className="bg-white px-3.5 py-2 flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center flex-shrink-0"><ImageIcon size={16} className="text-sky-600" /></div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-mira-muted uppercase tracking-wider leading-none mb-1">Analysed</p>
+              <p className="text-xl font-bold text-slate-800 font-mono leading-none">{completedCount}<span className="text-xs text-mira-faint font-normal ml-0.5">/{images.length}</span></p>
             </div>
-            <p className="text-3xl font-bold text-slate-800 font-mono">{completedCount}<span className="text-base text-mira-faint font-normal ml-0.5">/{images.length}</span></p>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center"><AlertTriangle size={16} className="text-amber-600" /></div>
-              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Detections</p>
+          <div className="bg-white px-3.5 py-2 flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0"><AlertTriangle size={16} className="text-amber-600" /></div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-mira-muted uppercase tracking-wider leading-none mb-1">Detections</p>
+              {loadingDetections ? (
+                <div className="w-12 h-5 bg-slate-100 rounded animate-pulse" />
+              ) : (
+                <p className="text-xl font-bold text-slate-800 font-mono leading-none">{totalDetections}</p>
+              )}
             </div>
-            {loadingDetections ? (
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className="w-16 h-6 bg-slate-100 rounded animate-pulse" />
-              </div>
-            ) : (
-              <p className="text-3xl font-bold text-slate-800 font-mono transition-all duration-300">{totalDetections}</p>
-            )}
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center"><CheckCircle size={16} className="text-emerald-600" /></div>
-              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Clean Images</p>
+          <div className="bg-white px-3.5 py-2 flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0"><CheckCircle size={16} className="text-emerald-600" /></div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-mira-muted uppercase tracking-wider leading-none mb-1">Clean images</p>
+              {loadingDetections ? (
+                <div className="w-8 h-5 bg-slate-100 rounded animate-pulse" />
+              ) : (
+                <p className="text-xl font-bold text-slate-800 font-mono leading-none">{cleanCount}</p>
+              )}
             </div>
-            {loadingDetections ? (
-              <div className="w-10 h-6 bg-slate-100 rounded animate-pulse mt-1" />
-            ) : (
-              <p className="text-3xl font-bold text-slate-800 font-mono transition-all duration-300">{cleanCount}</p>
-            )}
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-card">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><BarChart3 size={16} className="text-red-600" /></div>
-              <p className="text-sm font-semibold text-mira-muted uppercase tracking-wider">Worst Severity</p>
+          <div className="bg-white px-3.5 py-2 flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0"><BarChart3 size={16} className="text-red-600" /></div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-mira-muted uppercase tracking-wider leading-none mb-1">Worst severity</p>
+              {loadingDetections ? (
+                <div className="w-16 h-5 bg-slate-100 rounded animate-pulse" />
+              ) : worstSeverity ? (
+                <SeverityBadge severity={worstSeverity} />
+              ) : (
+                <span className="text-sm text-emerald-600 font-semibold flex items-center gap-1 leading-none"><Shield size={14} /> All clear</span>
+              )}
             </div>
-            {loadingDetections ? (
-              <div className="w-20 h-6 bg-slate-100 rounded animate-pulse mt-1" />
-            ) : worstSeverity ? (
-              <SeverityBadge severity={worstSeverity} size="lg" />
-            ) : (
-              <span className="text-base text-emerald-600 font-medium flex items-center gap-1 mt-1"><Shield size={16} /> All Clear</span>
-            )}
           </div>
         </div>
       )}
@@ -1605,7 +1597,7 @@ export default function InspectionDetailPage() {
               /* ── Review Mode: interactive overlay + action panel ── */
               /* overflow-clip keeps the rounded corners but, unlike overflow-hidden, lets the toolbar stick to the top of the window */
               <div className="bg-white border border-slate-200 rounded-xl shadow-card overflow-clip">
-                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between px-5 py-3 min-h-[58px] border-b border-slate-100 bg-slate-50/50">
                   <div className="flex items-center gap-3 min-w-0">
                     <ImageIcon size={18} className="text-mira-muted flex-shrink-0" />
                     <span className="text-base font-semibold text-slate-700 truncate">{currentImg.filename}</span>
@@ -1671,7 +1663,7 @@ export default function InspectionDetailPage() {
                   />
                 )}
                 {currentSubmitted && reviewView === 'review' && (
-                  <div className="flex items-center gap-3 px-4 border-b border-slate-100 bg-emerald-50/70 min-h-[46px]">
+                  <div className="flex items-center gap-3 px-4 border-b border-slate-100 bg-emerald-50/70 min-h-[47px]">
                     <CheckCircle size={16} className="text-emerald-600 flex-shrink-0" />
                     <span className="text-sm font-medium text-emerald-800">This photo&apos;s review is saved.</span>
                     {nextUnreviewed ? (

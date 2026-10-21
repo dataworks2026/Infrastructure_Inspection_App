@@ -68,7 +68,7 @@ export default function ReviewToolbar({
 }: ReviewToolbarProps) {
   return (
     <div className="sticky top-0 z-20 flex flex-wrap items-center gap-x-2 gap-y-2 min-h-[47px] px-4 py-2 border-b border-slate-100 bg-white shadow-[0_1px_0_0_rgba(15,23,42,0.04)]">
-      {/* Tool group */}
+      {/* Tools */}
       <div className="flex items-center gap-1 shrink-0">
         {TOOLS.map(({ id, label, shortcut, Icon }) => (
           <button
@@ -82,84 +82,81 @@ export default function ReviewToolbar({
             }`}
           >
             <Icon size={14} /> {label}
-            <span className={`text-[10px] font-mono ${tool === id ? 'text-sky-100' : 'text-slate-400'}`}>{shortcut}</span>
+            <span className={`hidden xl:inline text-[10px] font-mono ${tool === id ? 'text-sky-100' : 'text-slate-400'}`}>{shortcut}</span>
           </button>
         ))}
       </div>
 
       <div className="w-px h-6 bg-slate-200" />
 
-      <button
-        title={canDelete ? 'Delete selected draft (Del)' : 'Delete is only available for unsaved engineer drafts — reject CV detections instead'}
-        onClick={onDelete}
-        disabled={!canDelete}
-        className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-white text-red-600 border-red-200 hover:bg-red-50 transition-all disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-white"
-      >
-        <Trash2 size={14} /> Delete
-      </button>
+      {/* Delete a draft and Save sit side by side: the two things an engineer does after drawing */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          title={canDelete ? 'Delete selected draft (Del)' : 'Delete is only available for unsaved engineer drafts — reject CV detections instead'}
+          onClick={onDelete}
+          disabled={!canDelete}
+          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-white text-red-600 border-red-200 hover:bg-red-50 transition-all disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-white"
+        >
+          <Trash2 size={14} /> Delete
+        </button>
+        {cleanImage && onMarkClear ? (
+          <button
+            title="No CV detections and nothing added — confirm this image is clean and continue"
+            onClick={onMarkClear}
+            className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm"
+          >
+            <ShieldCheck size={14} /> Mark all clear
+          </button>
+        ) : (
+          <button
+            title={canSubmit ? 'Submit review for this image' : missingHints.join('\n') || 'Nothing to submit'}
+            onClick={onSubmit}
+            disabled={!canSubmit || submitting}
+            className="relative flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {submitting ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
+            Save
+            {hasUnsaved && (
+              <span
+                title="Unsaved changes on this photo"
+                className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white"
+              />
+            )}
+          </button>
+        )}
+      </div>
 
-      <button
-        title="Show/Hide labels (L)"
-        onClick={onToggleLabels}
-        className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-all ${
-          showLabels
-            ? 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-            : 'bg-slate-700 text-white border-slate-700 hover:bg-slate-600'
-        }`}
-      >
-        {showLabels ? <Eye size={14} /> : <EyeOff size={14} />} Labels
-        <span className={`text-[10px] font-mono ${showLabels ? 'text-slate-400' : 'text-slate-300'}`}>L</span>
-      </button>
-
-      {/* Right group: never hidden. It wraps as one block on narrow windows instead of
-          scrolling off the edge, and its width does not depend on the review state, so the
-          toolbar keeps one height. */}
+      {/* Right group: wraps as one block on narrow windows, never scrolls out of sight */}
       <div className="ml-auto flex items-center gap-2 shrink-0">
-      {/* Bulk actions */}
-      <button
-        title="Accept all unactioned CV detections on this image (does not override choices you already made)"
-        onClick={onAcceptAll}
-        disabled={unactionedCount === 0}
-        className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-35 disabled:cursor-not-allowed"
-      >
-        <Check size={14} /> Accept All
-      </button>
-      <button
-        title="Reject all unactioned CV detections on this image (does not override choices you already made)"
-        onClick={onRejectAll}
-        disabled={unactionedCount === 0}
-        className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-red-50 text-red-700 border-red-200 hover:bg-red-100 transition-all disabled:opacity-35 disabled:cursor-not-allowed"
-      >
-        <X size={14} /> Reject All
-      </button>
-
-      <div className="w-px h-6 bg-slate-200" />
-
-      {cleanImage && onMarkClear ? (
         <button
-          title="No CV detections and nothing added — confirm this image is clean and continue"
-          onClick={onMarkClear}
-          className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm"
+          title="Show/Hide labels (L)"
+          onClick={onToggleLabels}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-all ${
+            showLabels
+              ? 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              : 'bg-slate-700 text-white border-slate-700 hover:bg-slate-600'
+          }`}
         >
-          <ShieldCheck size={14} /> Mark all clear
+          {showLabels ? <Eye size={14} /> : <EyeOff size={14} />} <span className="hidden xl:inline">Labels</span>
+          <span className={`hidden xl:inline text-[10px] font-mono ${showLabels ? 'text-slate-400' : 'text-slate-300'}`}>L</span>
         </button>
-      ) : (
+        <div className="w-px h-6 bg-slate-200" />
         <button
-          title={canSubmit ? 'Submit review for this image' : missingHints.join('\n') || 'Nothing to submit'}
-          onClick={onSubmit}
-          disabled={!canSubmit || submitting}
-          className="relative flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Accept all unactioned CV detections on this image (does not override choices you already made)"
+          onClick={onAcceptAll}
+          disabled={unactionedCount === 0}
+          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-35 disabled:cursor-not-allowed"
         >
-          {submitting ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
-          Save
-          {hasUnsaved && (
-            <span
-              title="Unsaved changes on this photo"
-              className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white"
-            />
-          )}
+          <Check size={14} /> Accept All
         </button>
-      )}
+        <button
+          title="Reject all unactioned CV detections on this image (does not override choices you already made)"
+          onClick={onRejectAll}
+          disabled={unactionedCount === 0}
+          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-red-50 text-red-700 border-red-200 hover:bg-red-100 transition-all disabled:opacity-35 disabled:cursor-not-allowed"
+        >
+          <X size={14} /> Reject All
+        </button>
       </div>
     </div>
   );
