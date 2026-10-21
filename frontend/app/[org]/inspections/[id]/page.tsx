@@ -189,6 +189,33 @@ export default function InspectionDetailPage() {
   const [analysisResults, setAnalysisResults] = useState<Record<string, any>>({});
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showExitReviewConfirm, setShowExitReviewConfirm] = useState(false);
+  const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  // Number of photos with review changes that were never saved; kept in a ref so the
+  // leave-page listeners below (installed once) always see the current value.
+  const unsavedPhotosRef = useRef(0);
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (unsavedPhotosRef.current > 0) { e.preventDefault(); e.returnValue = ''; }
+    };
+    // In-app links (sidebar, Back to Inspections, ...) never reach beforeunload: ask first.
+    const onClickCapture = (e: MouseEvent) => {
+      if (unsavedPhotosRef.current === 0) return;
+      const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!a || a.target === '_blank' || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname) return;
+      if (!window.confirm('You have review changes that are not saved yet. Leave this page and lose them?')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener('click', onClickCapture, true);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      document.removeEventListener('click', onClickCapture, true);
+    };
+  }, []);
   // In review mode: 'review' = the annotation canvas, 'compare' = original next to the AI analysis
   const [reviewView, setReviewView] = useState<'review' | 'compare'>('review');
   // 'Save and exit': the review stays in progress on the server (every saved image is kept),
@@ -336,7 +363,7 @@ export default function InspectionDetailPage() {
     return out;
   }, [analysisResults]);
   const displayResults: Record<string, any> =
-    inspection?.status === 'pending_review' ? analysisResults : viewResults;
+    inspection?.status === 'pending_review' && !reviewPaused && !readOnlyRole ? analysisResults : viewResults;
 
   // ── Engineer Review Mode state ──────────────────────────────────────────────
   const [showStartReviewConfirm, setShowStartReviewConfirm] = useState(false);
@@ -823,8 +850,9 @@ export default function InspectionDetailPage() {
   const currentImgLoading = loadingDetections && currentImg?.analysis_status === 'completed' && !currentResult;
 
   // ── Review-mode derived values ────────────────────────────────────────────
-  const isReviewMode = inspection.status === 'pending_review' && !reviewPaused;
-  const reviewInProgressPaused = inspection.status === 'pending_review' && reviewPaused;
+  const isReviewMode = inspection.status === 'pending_review' && !reviewPaused && !readOnlyRole;
+  const reviewInProgressPaused = inspection.status === 'pending_review' && reviewPaused && !readOnlyRole;
+  const reviewInProgressViewer = inspection.status === 'pending_review' && readOnlyRole;
   const reviewedImageCount = images.filter((im: any) => isImageReviewed(im.id)).length;
   // Honest progress: clean photos (no CV findings) need no review and are not counted as reviewed work
   const imagesWithFindings = images.filter((im: any) => cvDetsOf(im.id).length > 0);
@@ -837,6 +865,21 @@ export default function InspectionDetailPage() {
   const currentDrafts: AddedDraft[] = currentImg ? (addedDrafts[currentImg.id] ?? []) : [];
   const currentSubmitted = currentImg ? isImageSubmitted(currentImg.id) : false;
   const nextUnreviewed = sortedImages.find((im: any) => im.id !== currentImg?.id && !isImageReviewed(im.id));
+  const isReviewModeEarly = inspection.status === 'pending_review' && !reviewPaused && !readOnlyRole;
+  // Photos that carry accepts / rejects / modifications / drawn boxes that were never saved
+  const unsavedPhotoIds = new Set<string>();
+  for (const [imgId, st] of Object.entries(reviewState)) {
+    if (!isImageSubmitted(imgId) && Object.values(st ?? {}).some((x: any) => !!x?.action)) unsavedPhotoIds.add(imgId);
+  }
+  for (const [imgId, list] of Object.entries(addedDrafts)) {
+    if (!isImageSubmitted(imgId) && (list ?? []).length > 0) unsavedPhotoIds.add(imgId);
+  }
+  const unsavedPhotoCount = isReviewModeEarly ? unsavedPhotoIds.size : 0;
+  unsavedPhotosRef.current = unsavedPhotoCount;
+  const handleSaveAndExit = () => {
+    if (unsavedPhotoCount > 0) setShowPauseConfirm(true);
+    else setReviewPausedPersist(true);
+  };
 
   const actionedCount = currentCvDets.filter(d => currentStates[d.id]?.action).length;
   const unactionedCount = currentCvDets.length - actionedCount;
@@ -1215,6 +1258,22 @@ export default function InspectionDetailPage() {
       />
 
       <ConfirmDialog
+        isOpen={showPauseConfirm}
+        title="Unsaved changes"
+        message={`${unsavedPhotoCount} photo${unsavedPhotoCount === 1 ? ' has' : 's have'} changes that are not saved yet. Save and exit keeps only the photos you already saved with Save, so these changes would be lost. Go back and press Save on ${unsavedPhotoCount === 1 ? 'that photo' : 'each of them'} first, or exit without them.`}
+        confirmLabel="Exit without these changes"
+        onConfirm={() => {
+          setShowPauseConfirm(false);
+          setReviewState({});
+          setAddedDrafts({});
+          setSelectedDetectionId(null);
+          setTool('select');
+          setReviewPausedPersist(true);
+        }}
+        onCancel={() => setShowPauseConfirm(false)}
+      />
+
+      <ConfirmDialog
         isOpen={showExitReviewConfirm}
         title="Exit Review and Discard Work"
         message="Review work exists on this inspection (submitted images or added findings). Exiting now will DISCARD it and put the inspection back to viewing, as it was before Start Review. To keep the work, finish the review instead."
@@ -1248,7 +1307,7 @@ export default function InspectionDetailPage() {
                 </span>
               </div>
               <button
-                onClick={() => setReviewPausedPersist(true)}
+                onClick={handleSaveAndExit}
                 title="Keep everything saved so far and go back to normal viewing. Resume the review any time."
                 className="flex items-center gap-1.5 text-sm font-semibold text-amber-800 bg-white border border-amber-300 px-3 py-2 rounded-lg hover:bg-amber-100 transition-all"
               >
@@ -1277,6 +1336,16 @@ export default function InspectionDetailPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── A client (viewer) never gets the review tools, only a note ── */}
+      {reviewInProgressViewer && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 mb-6 shadow-sm flex items-center gap-3">
+          <ClipboardCheck size={18} className="text-amber-600 flex-shrink-0" />
+          <p className="text-sm text-amber-800">
+            <span className="font-bold">Engineer review in progress.</span> Findings shown here are the confirmed ones so far and may still change.
+          </p>
         </div>
       )}
 

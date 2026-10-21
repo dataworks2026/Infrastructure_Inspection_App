@@ -322,7 +322,8 @@ export default function ReviewPanel({
         const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 8;
         box.scrollTo({ top, behavior: 'smooth' });
       }
-      damageSelectRef.current?.focus({ preventScroll: true });
+      // No focus() here on purpose: focusing the Damage Type dropdown made it swallow the
+      // B / O / V / Delete shortcuts, and any letter typed next silently changed the damage type.
     }, 50);
     return () => clearTimeout(t);
   }, [labelsFocusToken]);
